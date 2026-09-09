@@ -142,6 +142,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var queryElem = result.RawElement.Element("query", "jabber:iq:roster");
             if (queryElem is not null)
             {
+                var contactsToUpsert = new System.Collections.Generic.List<RosterContact>();
                 foreach (var item in queryElem.Elements("item"))
                 {
                     string? cJid = item.GetAttr("jid");
@@ -149,7 +150,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     string sub = item.GetAttr("subscription") ?? "none";
                     if (!string.IsNullOrEmpty(cJid))
                     {
-                        await _rosterRepo.UpsertContactAsync(new RosterContact
+                        contactsToUpsert.Add(new RosterContact
                         {
                             AccountJid = AccountJid,
                             ContactJid = cJid,
@@ -174,6 +175,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
                             existing.Subscription = sub;
                         }
                     }
+                }
+
+                if (contactsToUpsert.Count > 0)
+                {
+                    await _rosterRepo.UpsertContactsAsync(contactsToUpsert);
                 }
             }
         }

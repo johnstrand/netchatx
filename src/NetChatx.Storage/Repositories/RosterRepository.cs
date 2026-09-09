@@ -14,8 +14,18 @@ public sealed class RosterRepository
 
     public async Task UpsertContactAsync(RosterContact contact, CancellationToken cancellationToken = default)
     {
+        await UpsertContactsAsync(new[] { contact }, cancellationToken);
+    }
+
+    public async Task UpsertContactsAsync(IEnumerable<RosterContact> contacts, CancellationToken cancellationToken = default)
+    {
+        var list = contacts as IReadOnlyCollection<RosterContact> ?? contacts.ToList();
+        if (list.Count == 0) return;
+
         using var connection = _context.CreateConnection();
+        using var transaction = connection.BeginTransaction();
         using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
 
         cmd.CommandText = """
             INSERT INTO roster (account_jid, contact_jid, name, subscription, groups)
@@ -26,13 +36,24 @@ public sealed class RosterRepository
                 groups = excluded.groups;
         """;
 
-        cmd.Parameters.AddWithValue("$account_jid", contact.AccountJid);
-        cmd.Parameters.AddWithValue("$contact_jid", contact.ContactJid);
-        cmd.Parameters.AddWithValue("$name", (object?)contact.Name ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$subscription", contact.Subscription);
-        cmd.Parameters.AddWithValue("$groups", (object?)contact.Groups ?? DBNull.Value);
+        var pAccountJid = cmd.Parameters.Add("$account_jid", SqliteType.Text);
+        var pContactJid = cmd.Parameters.Add("$contact_jid", SqliteType.Text);
+        var pName = cmd.Parameters.Add("$name", SqliteType.Text);
+        var pSubscription = cmd.Parameters.Add("$subscription", SqliteType.Text);
+        var pGroups = cmd.Parameters.Add("$groups", SqliteType.Text);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        foreach (var contact in list)
+        {
+            pAccountJid.Value = contact.AccountJid;
+            pContactJid.Value = contact.ContactJid;
+            pName.Value = (object?)contact.Name ?? DBNull.Value;
+            pSubscription.Value = contact.Subscription;
+            pGroups.Value = (object?)contact.Groups ?? DBNull.Value;
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<List<RosterContact>> GetContactsAsync(string accountJid, CancellationToken cancellationToken = default)
