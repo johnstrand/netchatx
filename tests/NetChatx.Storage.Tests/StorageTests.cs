@@ -383,6 +383,64 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task RosterRepository_RemoveContact_RemovesSpecifiedContactOnly()
+    {
+        var repo = new RosterRepository(_context);
+        string account1 = "alice@example.com";
+        string account2 = "bob@example.com";
+
+        var contact1 = new RosterContact
+        {
+            AccountJid = account1,
+            ContactJid = "charlie@example.com",
+            Name = "Charlie",
+            Subscription = "both"
+        };
+
+        var contact2 = new RosterContact
+        {
+            AccountJid = account1,
+            ContactJid = "dave@example.com",
+            Name = "Dave",
+            Subscription = "to"
+        };
+
+        var contact3 = new RosterContact
+        {
+            AccountJid = account2,
+            ContactJid = "charlie@example.com",
+            Name = "Charlie",
+            Subscription = "both"
+        };
+
+        await repo.UpsertContactAsync(contact1);
+        await repo.UpsertContactAsync(contact2);
+        await repo.UpsertContactAsync(contact3);
+
+        // Verify initial state
+        var account1ContactsInitial = await repo.GetContactsAsync(account1);
+        Assert.Equal(2, account1ContactsInitial.Count);
+
+        // Attempt removing a non-existent contact for account1
+        await repo.RemoveContactAsync(account1, "nonexistent@example.com");
+        var account1ContactsAfterNonExistent = await repo.GetContactsAsync(account1);
+        Assert.Equal(2, account1ContactsAfterNonExistent.Count);
+
+        // Remove charlie from account1
+        await repo.RemoveContactAsync(account1, "charlie@example.com");
+
+        // Verify account1 contacts (only Dave remains)
+        var account1ContactsFinal = await repo.GetContactsAsync(account1);
+        Assert.Single(account1ContactsFinal);
+        Assert.Equal("dave@example.com", account1ContactsFinal[0].ContactJid);
+
+        // Verify account2 contacts (Charlie still present for account2)
+        var account2ContactsFinal = await repo.GetContactsAsync(account2);
+        Assert.Single(account2ContactsFinal);
+        Assert.Equal("charlie@example.com", account2ContactsFinal[0].ContactJid);
+    }
+
+    [Fact]
     public async Task MessageRepository_SaveMessagesAsync_SavesAndDeduplicatesCorrectly()
     {
         var repo = new MessageRepository(_context);
