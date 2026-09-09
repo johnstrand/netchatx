@@ -147,6 +147,45 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         return (string.Empty, false);
     }
 
+    private ChatMessage? ParseMamMessage(MamMessageItem item)
+    {
+        var m = item.Message;
+        var (body, isEnc) = ExtractMessageBody(m);
+        if (string.IsNullOrEmpty(body))
+        {
+            return null;
+        }
+
+        return new ChatMessage
+        {
+            Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
+            AccountJid = _accountJid,
+            RemoteJid = RemoteJid.ToString(),
+            SenderJid = (m.From ?? RemoteJid).ToString(),
+            Body = body,
+            Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
+            Timestamp = item.Timestamp,
+            StanzaId = item.ArchiveId,
+            IsEncrypted = isEnc,
+            EncryptionType = isEnc ? "OMEMO" : null
+        };
+    }
+
+    private List<ChatMessage> ProcessMamMessages(IEnumerable<MamMessageItem> items)
+    {
+        var chatMsgs = new List<ChatMessage>();
+        foreach (var item in items)
+        {
+            var chatMsg = ParseMamMessage(item);
+            if (chatMsg is not null)
+            {
+                chatMsgs.Add(chatMsg);
+                AddOrUpdateMessage(chatMsg);
+            }
+        }
+        return chatMsgs;
+    }
+
     [RelayCommand]
     public async Task SyncArchiveAsync()
     {
@@ -169,30 +208,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 if (mamResult.Messages.Count == 0)
                     break;
 
-                var chatMsgs = new List<ChatMessage>();
-                foreach (var item in mamResult.Messages)
-                {
-                    var m = item.Message;
-                    var (body, isEnc) = ExtractMessageBody(m);
-                    if (!string.IsNullOrEmpty(body))
-                    {
-                        var chatMsg = new ChatMessage
-                        {
-                            Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
-                            AccountJid = _accountJid,
-                            RemoteJid = RemoteJid.ToString(),
-                            SenderJid = (m.From ?? RemoteJid).ToString(),
-                            Body = body,
-                            Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
-                            Timestamp = item.Timestamp,
-                            StanzaId = item.ArchiveId,
-                            IsEncrypted = isEnc,
-                            EncryptionType = isEnc ? "OMEMO" : null
-                        };
-                        chatMsgs.Add(chatMsg);
-                        AddOrUpdateMessage(chatMsg);
-                    }
-                }
+                var chatMsgs = ProcessMamMessages(mamResult.Messages);
 
                 if (chatMsgs.Count > 0)
                 {
@@ -247,30 +263,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                         before: oldestStanzaId,
                         end: string.IsNullOrEmpty(oldestStanzaId) ? oldestTimestamp : null);
 
-                    var chatMsgs = new List<ChatMessage>();
-                    foreach (var item in mamResult.Messages)
-                    {
-                        var m = item.Message;
-                        var (body, isEnc) = ExtractMessageBody(m);
-                        if (!string.IsNullOrEmpty(body))
-                        {
-                            var chatMsg = new ChatMessage
-                            {
-                                Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
-                                AccountJid = _accountJid,
-                                RemoteJid = RemoteJid.ToString(),
-                                SenderJid = (m.From ?? RemoteJid).ToString(),
-                                Body = body,
-                                Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
-                                Timestamp = item.Timestamp,
-                                StanzaId = item.ArchiveId,
-                                IsEncrypted = isEnc,
-                                EncryptionType = isEnc ? "OMEMO" : null
-                            };
-                            chatMsgs.Add(chatMsg);
-                            AddOrUpdateMessage(chatMsg);
-                        }
-                    }
+                    var chatMsgs = ProcessMamMessages(mamResult.Messages);
 
                     if (chatMsgs.Count > 0)
                     {
