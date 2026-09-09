@@ -1,11 +1,22 @@
 using System;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using NetChatx.Gui.Helpers;
 using NetChatx.Storage.Models;
 
 namespace NetChatx.Gui.ViewModels;
 
 public sealed partial class MessageBubbleViewModel : ViewModelBase
 {
+    private static readonly Regex ImageUrlRegex = new(
+        @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?|file:///[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     [ObservableProperty]
     private string _id = Guid.NewGuid().ToString("N");
 
@@ -43,6 +54,21 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     [ObservableProperty]
     private string? _dateHeader;
 
+    [ObservableProperty]
+    private string? _imageUrl;
+
+    [ObservableProperty]
+    private bool _hasImage;
+
+    [ObservableProperty]
+    private bool _isOnlyImage;
+
+    [ObservableProperty]
+    private Bitmap? _imageThumbnail;
+
+    [ObservableProperty]
+    private bool _isLoadingImage;
+
     public string FormattedTime
     {
         get
@@ -73,6 +99,71 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
 
+    public void ExtractImageUrl(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            HasImage = false;
+            ImageUrl = null;
+            IsOnlyImage = false;
+            return;
+        }
+
+        var match = ImageUrlRegex.Match(body);
+        if (match.Success)
+        {
+            ImageUrl = match.Value;
+            HasImage = true;
+            IsOnlyImage = body.Trim().Equals(match.Value, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            HasImage = false;
+            ImageUrl = null;
+            IsOnlyImage = false;
+        }
+    }
+
+    public async Task LoadThumbnailAsync()
+    {
+        if (string.IsNullOrEmpty(ImageUrl) || ImageThumbnail is not null) return;
+        IsLoadingImage = true;
+        try
+        {
+            var bmp = await AsyncImageLoader.LoadImageAsync(ImageUrl);
+            if (bmp is not null)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ImageThumbnail = bmp;
+                    IsLoadingImage = false;
+                });
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(() => IsLoadingImage = false);
+            }
+        }
+        catch
+        {
+            Dispatcher.UIThread.Post(() => IsLoadingImage = false);
+        }
+    }
+
+    [RelayCommand]
+    public void OpenImage()
+    {
+        if (string.IsNullOrEmpty(ImageUrl)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(ImageUrl) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Soft failure
+        }
+    }
+
     public static string FormatDateHeader(DateTimeOffset dto)
     {
         var local = dto.ToLocalTime();
@@ -90,7 +181,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     public static MessageBubbleViewModel FromChatMessage(ChatMessage msg)
     {
-        return new MessageBubbleViewModel
+        var vm = new MessageBubbleViewModel
         {
             Id = msg.Id,
             Body = msg.Body,
@@ -102,5 +193,13 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             IsRead = msg.IsRead,
             StanzaId = msg.StanzaId
         };
+
+        vm.ExtractImageUrl(msg.Body);
+        if (vm.HasImage)
+        {
+            _ = vm.LoadThumbnailAsync();
+        }
+
+        return vm;
     }
 }

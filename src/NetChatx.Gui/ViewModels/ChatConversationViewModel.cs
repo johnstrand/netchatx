@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,6 +10,7 @@ using NetChatx.Core.Client;
 using NetChatx.Core.Stanzas;
 using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Protocol.Xeps.Omemo;
+using NetChatx.Protocol.Xeps.Sharing;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
 
@@ -20,6 +22,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly MessageRepository _messageRepo;
     private readonly Xep0313MessageArchiveManagement? _mamManager;
     private readonly Xep0384OmemoManager? _omemoManager;
+    private readonly Xep0363HttpFileUpload? _httpUploadManager;
     private readonly string _accountJid;
 
     [ObservableProperty]
@@ -83,7 +86,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         MessageRepository messageRepo,
         XmppClient? client = null,
         Xep0313MessageArchiveManagement? mamManager = null,
-        Xep0384OmemoManager? omemoManager = null)
+        Xep0384OmemoManager? omemoManager = null,
+        Xep0363HttpFileUpload? httpUploadManager = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -94,6 +98,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _client = client;
         _mamManager = mamManager;
         _omemoManager = omemoManager;
+        _httpUploadManager = httpUploadManager;
     }
 
     public async Task EnsureHistoryLoadedAsync()
@@ -278,6 +283,47 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         AddOrUpdateMessage(chatMsg);
         UpdateDateHeaders();
         RequestScrollToBottom();
+    }
+
+    public async Task SendImageAsync(byte[] imageBytes, string? fileName = null)
+    {
+        if (imageBytes is null || imageBytes.Length == 0 || _client is null) return;
+
+        fileName ??= $"image_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.png";
+        string? imageUrl = null;
+
+        // 1. Try XEP-0363 HTTP File Upload if available
+        if (_httpUploadManager is not null)
+        {
+            try
+            {
+                var domain = _client.Options.Jid.Domain;
+                var serviceJid = await _httpUploadManager.DiscoverUploadServiceAsync(Jid.Parse(domain));
+                if (serviceJid is not null)
+                {
+                    imageUrl = await _httpUploadManager.UploadBytesAsync(serviceJid, imageBytes, fileName, "image/png");
+                }
+            }
+            catch
+            {
+                // Soft fallback to local media file
+            }
+        }
+
+        // 2. Fallback: Save to local media cache directory and send file URI
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            var mediaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NetChatx", "media");
+            Directory.CreateDirectory(mediaDir);
+            var id = Guid.NewGuid().ToString("N")[..8];
+            var localPath = Path.Combine(mediaDir, $"{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}_{id}.png");
+            await File.WriteAllBytesAsync(localPath, imageBytes);
+            imageUrl = new Uri(localPath).AbsoluteUri;
+        }
+
+        // Send message with imageUrl as body
+        InputText = imageUrl;
+        await SendMessageAsync();
     }
 
     public void ReceiveMessage(ChatMessage msg)

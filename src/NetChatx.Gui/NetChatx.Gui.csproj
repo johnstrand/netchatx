@@ -25,4 +25,8 @@
     <ProjectReference Include="..\NetChatx.Protocol.Xeps\NetChatx.Protocol.Xeps.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="NetChatx.Gui.Tests" />
+  </ItemGroup>
+
 </Project>

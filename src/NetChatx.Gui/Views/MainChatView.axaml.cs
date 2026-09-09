@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using NetChatx.Gui.Helpers;
 using NetChatx.Gui.ViewModels;
 
 namespace NetChatx.Gui.Views;
@@ -14,6 +18,7 @@ public partial class MainChatView : UserControl
     private ChatConversationViewModel? _currentConversation;
     private ScrollViewer? _messagesScrollViewer;
     private TextBox? _messageInputBox;
+    private Button? _attachFileButton;
 
     public MainChatView()
     {
@@ -26,10 +31,16 @@ public partial class MainChatView : UserControl
 
         _messagesScrollViewer = this.FindControl<ScrollViewer>("MessagesScrollViewer");
         _messageInputBox = this.FindControl<TextBox>("MessageInputBox");
+        _attachFileButton = this.FindControl<Button>("AttachFileButton");
 
         if (_messageInputBox is not null)
         {
             _messageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown, RoutingStrategies.Tunnel);
+        }
+
+        if (_attachFileButton is not null)
+        {
+            _attachFileButton.Click += OnAttachFileButtonClick;
         }
 
         if (_messagesScrollViewer is not null)
@@ -51,6 +62,11 @@ public partial class MainChatView : UserControl
         if (_messageInputBox is not null)
         {
             _messageInputBox.RemoveHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown);
+        }
+
+        if (_attachFileButton is not null)
+        {
+            _attachFileButton.Click -= OnAttachFileButtonClick;
         }
 
         if (_messagesScrollViewer is not null)
@@ -133,8 +149,18 @@ public partial class MainChatView : UserControl
         }
     }
 
-    private void OnMessageInputKeyDown(object? sender, KeyEventArgs e)
+    private async void OnMessageInputKeyDown(object? sender, KeyEventArgs e)
     {
+        // Check for Image Paste (Ctrl+V or Cmd+V)
+        if (e.Key == Key.V && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)))
+        {
+            if (await TryPasteImageAsync())
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key is Key.Enter or Key.Return)
         {
             if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
@@ -161,6 +187,59 @@ public partial class MainChatView : UserControl
                     textBox.Text = string.Empty;
                 }
             }
+        }
+    }
+
+    private async Task<bool> TryPasteImageAsync()
+    {
+        if (DataContext is not MainChatViewModel mainVm ||
+            mainVm.ActiveConversation is not { } conv)
+        {
+            return false;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        var imageBytes = await ClipboardImageHelper.GetClipboardImageBytesAsync(topLevel);
+        if (imageBytes is not null && imageBytes.Length > 0)
+        {
+            await conv.SendImageAsync(imageBytes);
+            return true;
+        }
+
+        return false;
+    }
+
+    private async void OnAttachFileButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainChatViewModel mainVm ||
+            mainVm.ActiveConversation is not { } conv)
+        {
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider is null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select Image to Send",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Images (*.png, *.jpg, *.jpeg, *.gif, *.webp, *.bmp)")
+                {
+                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"]
+                }
+            ]
+        });
+
+        if (files.Count > 0)
+        {
+            var file = files[0];
+            await using var stream = await file.OpenReadAsync();
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            await conv.SendImageAsync(ms.ToArray(), file.Name);
         }
     }
 

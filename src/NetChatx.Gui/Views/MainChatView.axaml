@@ -13,6 +13,18 @@
         <conv:BoolToLockIconConverter x:Key="BoolToLockIcon" />
     </UserControl.Resources>
 
+    <UserControl.Styles>
+        <Style Selector="Button.image-btn">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Button.image-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+    </UserControl.Styles>
+
     <Grid ColumnDefinitions="300,2,*,Auto">
         <!-- ================= LEFT COLUMN: SIDEBAR ================= -->
         <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*,Auto" Background="{DynamicResource SystemChromeLowColor}">
@@ -212,7 +224,29 @@
                                                 <TextBlock Text="{Binding Body}"
                                                            Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
                                                            FontSize="13"
-                                                           TextWrapping="Wrap" />
+                                                           TextWrapping="Wrap"
+                                                           IsVisible="{Binding !IsOnlyImage}" />
+
+                                                <!-- Image Thumbnail Preview if present -->
+                                                <Button Classes="image-btn"
+                                                        Command="{Binding OpenImageCommand}"
+                                                        CornerRadius="8" ClipToBounds="True" Margin="0,2"
+                                                        IsVisible="{Binding HasImage}"
+                                                        MaxWidth="380" MaxHeight="260" HorizontalAlignment="Left"
+                                                        Cursor="Hand">
+                                                    <Panel Background="#15888888">
+                                                        <!-- Loading indicator -->
+                                                        <ProgressBar IsIndeterminate="True" Width="80" Height="4"
+                                                                     IsVisible="{Binding IsLoadingImage}"
+                                                                     VerticalAlignment="Center" HorizontalAlignment="Center" />
+
+                                                        <!-- Thumbnail Image -->
+                                                        <Image Source="{Binding ImageThumbnail}"
+                                                               Stretch="Uniform"
+                                                               MaxWidth="380" MaxHeight="260"
+                                                               IsVisible="{Binding ImageThumbnail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                    </Panel>
+                                                </Button>
 
                                                 <!-- Message Footer: Time + Receipt -->
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,2,0,0">
@@ -250,15 +284,23 @@
             <Border Grid.Row="3" Padding="14,10" Background="{DynamicResource SystemChromeMediumLowColor}"
                     BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,1,0,0"
                     IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto">
                     <TextBox x:Name="MessageInputBox"
                              Grid.Column="0"
                              Text="{Binding ActiveConversation.InputText, Mode=TwoWay}"
-                             Watermark="Type a message... (Enter to send, Shift+Enter for newline)"
+                             Watermark="Type a message... (Enter to send, Shift+Enter for newline, or paste image)"
                              AcceptsReturn="True"
                              MaxHeight="100"
                              VerticalContentAlignment="Center" />
-                    <Button Grid.Column="1"
+                    <Button x:Name="AttachFileButton"
+                            Grid.Column="1"
+                            Content="📎"
+                            ToolTip.Tip="Attach Image"
+                            Height="36" Width="36"
+                            Padding="0"
+                            Margin="8,0,0,0"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                    <Button Grid.Column="2"
                             Content="Send"
                             Classes="accent"
                             Command="{Binding ActiveConversation.SendMessageCommand}"

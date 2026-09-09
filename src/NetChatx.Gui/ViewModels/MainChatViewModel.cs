@@ -32,6 +32,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0313MessageArchiveManagement? _mam;
     private Xep0384OmemoManager? _omemo;
     private Xep0045MultiUserChat? _muc;
+    private Xep0363HttpFileUpload? _httpUpload;
 
     [ObservableProperty]
     private string _accountJid;
@@ -88,10 +89,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _mam = new Xep0313MessageArchiveManagement();
         _omemo = new Xep0384OmemoManager();
         _muc = new Xep0045MultiUserChat();
+        _httpUpload = new Xep0363HttpFileUpload();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
         await _muc.AttachAsync(_client);
+        await _httpUpload.AttachAsync(_client);
 
         // Wire incoming messages
         _client.MessageReceived += async msg =>
@@ -212,7 +215,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _messageRepo,
             _client,
             _mam,
-            _omemo);
+            _omemo,
+            _httpUpload);
 
         Conversations.Add(newConv);
         return newConv;
