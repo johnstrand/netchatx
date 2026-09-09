@@ -12,16 +12,22 @@ public sealed class MessageRepository
         _context = context;
     }
 
-    public async Task SaveMessageAsync(ChatMessage message, CancellationToken cancellationToken = default)
+    public Task SaveMessageAsync(ChatMessage message, CancellationToken cancellationToken = default)
     {
-        using var connection = _context.CreateConnection();
-        using var cmd = connection.CreateCommand();
+        return SaveMessagesAsync(new[] { message }, cancellationToken);
+    }
 
-        // Comprehensive deduplication:
-        // 1. By primary key id
-        // 2. By stanza_id or origin_id (if non-null)
-        // 3. By content similarity: same account_jid, remote_jid, direction, body, and timestamp within +/- 60s
+    public async Task SaveMessagesAsync(IEnumerable<ChatMessage> messages, CancellationToken cancellationToken = default)
+    {
+        var messageList = messages as IReadOnlyList<ChatMessage> ?? messages.ToList();
+        if (messageList.Count == 0) return;
+
+        using var connection = _context.CreateConnection();
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Comprehensive deduplication statement
         using var checkCmd = connection.CreateCommand();
+        checkCmd.Transaction = (SqliteTransaction)transaction;
         checkCmd.CommandText = """
             SELECT id FROM messages
             WHERE account_jid = $account_jid
@@ -39,23 +45,20 @@ public sealed class MessageRepository
               )
             LIMIT 1;
         """;
-        checkCmd.Parameters.AddWithValue("$account_jid", message.AccountJid);
-        checkCmd.Parameters.AddWithValue("$id", message.Id);
-        checkCmd.Parameters.AddWithValue("$stanza_id", (object?)message.StanzaId ?? DBNull.Value);
-        checkCmd.Parameters.AddWithValue("$origin_id", (object?)message.OriginId ?? DBNull.Value);
-        checkCmd.Parameters.AddWithValue("$remote_jid", message.RemoteJid);
-        checkCmd.Parameters.AddWithValue("$direction", (int)message.Direction);
-        checkCmd.Parameters.AddWithValue("$body", message.Body);
-        checkCmd.Parameters.AddWithValue("$time_min", message.Timestamp.AddSeconds(-60).ToString("O"));
-        checkCmd.Parameters.AddWithValue("$time_max", message.Timestamp.AddSeconds(60).ToString("O"));
 
-        var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
-        if (existingId is not null)
-        {
-            message.Id = (string)existingId;
-        }
+        var pCheckAccountJid = checkCmd.Parameters.Add("$account_jid", SqliteType.Text);
+        var pCheckId = checkCmd.Parameters.Add("$id", SqliteType.Text);
+        var pCheckStanzaId = checkCmd.Parameters.Add("$stanza_id", SqliteType.Text);
+        var pCheckOriginId = checkCmd.Parameters.Add("$origin_id", SqliteType.Text);
+        var pCheckRemoteJid = checkCmd.Parameters.Add("$remote_jid", SqliteType.Text);
+        var pCheckDirection = checkCmd.Parameters.Add("$direction", SqliteType.Integer);
+        var pCheckBody = checkCmd.Parameters.Add("$body", SqliteType.Text);
+        var pCheckTimeMin = checkCmd.Parameters.Add("$time_min", SqliteType.Text);
+        var pCheckTimeMax = checkCmd.Parameters.Add("$time_max", SqliteType.Text);
 
-        cmd.CommandText = """
+        using var insertCmd = connection.CreateCommand();
+        insertCmd.Transaction = (SqliteTransaction)transaction;
+        insertCmd.CommandText = """
             INSERT INTO messages (
                 id, account_jid, remote_jid, sender_jid, timestamp, direction,
                 body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read
@@ -71,21 +74,56 @@ public sealed class MessageRepository
                 is_read = excluded.is_read;
         """;
 
-        cmd.Parameters.AddWithValue("$id", message.Id);
-        cmd.Parameters.AddWithValue("$account_jid", message.AccountJid);
-        cmd.Parameters.AddWithValue("$remote_jid", message.RemoteJid);
-        cmd.Parameters.AddWithValue("$sender_jid", message.SenderJid);
-        cmd.Parameters.AddWithValue("$timestamp", message.Timestamp.ToString("O"));
-        cmd.Parameters.AddWithValue("$direction", (int)message.Direction);
-        cmd.Parameters.AddWithValue("$body", message.Body);
-        cmd.Parameters.AddWithValue("$stanza_id", (object?)message.StanzaId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$origin_id", (object?)message.OriginId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$replace_id", (object?)message.ReplaceId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$is_encrypted", message.IsEncrypted ? 1 : 0);
-        cmd.Parameters.AddWithValue("$encryption_type", (object?)message.EncryptionType ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$is_read", message.IsRead ? 1 : 0);
+        var pInsertId = insertCmd.Parameters.Add("$id", SqliteType.Text);
+        var pInsertAccountJid = insertCmd.Parameters.Add("$account_jid", SqliteType.Text);
+        var pInsertRemoteJid = insertCmd.Parameters.Add("$remote_jid", SqliteType.Text);
+        var pInsertSenderJid = insertCmd.Parameters.Add("$sender_jid", SqliteType.Text);
+        var pInsertTimestamp = insertCmd.Parameters.Add("$timestamp", SqliteType.Text);
+        var pInsertDirection = insertCmd.Parameters.Add("$direction", SqliteType.Integer);
+        var pInsertBody = insertCmd.Parameters.Add("$body", SqliteType.Text);
+        var pInsertStanzaId = insertCmd.Parameters.Add("$stanza_id", SqliteType.Text);
+        var pInsertOriginId = insertCmd.Parameters.Add("$origin_id", SqliteType.Text);
+        var pInsertReplaceId = insertCmd.Parameters.Add("$replace_id", SqliteType.Text);
+        var pInsertIsEncrypted = insertCmd.Parameters.Add("$is_encrypted", SqliteType.Integer);
+        var pInsertEncryptionType = insertCmd.Parameters.Add("$encryption_type", SqliteType.Text);
+        var pInsertIsRead = insertCmd.Parameters.Add("$is_read", SqliteType.Integer);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        foreach (var message in messageList)
+        {
+            pCheckAccountJid.Value = message.AccountJid;
+            pCheckId.Value = message.Id;
+            pCheckStanzaId.Value = (object?)message.StanzaId ?? DBNull.Value;
+            pCheckOriginId.Value = (object?)message.OriginId ?? DBNull.Value;
+            pCheckRemoteJid.Value = message.RemoteJid;
+            pCheckDirection.Value = (int)message.Direction;
+            pCheckBody.Value = message.Body;
+            pCheckTimeMin.Value = message.Timestamp.AddSeconds(-60).ToString("O");
+            pCheckTimeMax.Value = message.Timestamp.AddSeconds(60).ToString("O");
+
+            var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
+            if (existingId is not null)
+            {
+                message.Id = (string)existingId;
+            }
+
+            pInsertId.Value = message.Id;
+            pInsertAccountJid.Value = message.AccountJid;
+            pInsertRemoteJid.Value = message.RemoteJid;
+            pInsertSenderJid.Value = message.SenderJid;
+            pInsertTimestamp.Value = message.Timestamp.ToString("O");
+            pInsertDirection.Value = (int)message.Direction;
+            pInsertBody.Value = message.Body;
+            pInsertStanzaId.Value = (object?)message.StanzaId ?? DBNull.Value;
+            pInsertOriginId.Value = (object?)message.OriginId ?? DBNull.Value;
+            pInsertReplaceId.Value = (object?)message.ReplaceId ?? DBNull.Value;
+            pInsertIsEncrypted.Value = message.IsEncrypted ? 1 : 0;
+            pInsertEncryptionType.Value = (object?)message.EncryptionType ?? DBNull.Value;
+            pInsertIsRead.Value = message.IsRead ? 1 : 0;
+
+            await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<List<ChatMessage>> GetMessagesAsync(

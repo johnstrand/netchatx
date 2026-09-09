@@ -243,6 +243,104 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task MessageRepository_SaveMessagesAsync_SavesAndDeduplicatesCorrectly()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+        var t0 = DateTimeOffset.UtcNow.AddHours(-1);
+
+        var batch1 = new List<ChatMessage>
+        {
+            new ChatMessage
+            {
+                Id = "msg_1",
+                AccountJid = account,
+                RemoteJid = remote,
+                SenderJid = remote,
+                Timestamp = t0,
+                Direction = MessageDirection.Inbound,
+                Body = "Batch message 1",
+                StanzaId = "st_1"
+            },
+            new ChatMessage
+            {
+                Id = "msg_2",
+                AccountJid = account,
+                RemoteJid = remote,
+                SenderJid = account,
+                Timestamp = t0.AddSeconds(5),
+                Direction = MessageDirection.Outbound,
+                Body = "Batch message 2",
+                StanzaId = "st_2"
+            }
+        };
+
+        await repo.SaveMessagesAsync(batch1);
+
+        var retrieved1 = await repo.GetMessagesAsync(account, remote);
+        Assert.Equal(2, retrieved1.Count);
+        Assert.Equal("Batch message 1", retrieved1[0].Body);
+        Assert.Equal("Batch message 2", retrieved1[1].Body);
+
+        // Batch duplicate with new IDs but same stanza IDs
+        var batchDuplicate = new List<ChatMessage>
+        {
+            new ChatMessage
+            {
+                Id = "new_guid_1",
+                AccountJid = account,
+                RemoteJid = remote,
+                SenderJid = remote,
+                Timestamp = t0,
+                Direction = MessageDirection.Inbound,
+                Body = "Batch message 1",
+                StanzaId = "st_1"
+            }
+        };
+
+        await repo.SaveMessagesAsync(batchDuplicate);
+
+        var retrieved2 = await repo.GetMessagesAsync(account, remote);
+        Assert.Equal(2, retrieved2.Count);
+    }
+
+    [Fact]
+    public async Task MessageRepository_PerformanceBenchmark()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+        int messageCount = 500;
+
+        var messagesBatch = new List<ChatMessage>(messageCount);
+        var baseTime = DateTimeOffset.UtcNow.AddDays(-1);
+        for (int i = 0; i < messageCount; i++)
+        {
+            messagesBatch.Add(new ChatMessage
+            {
+                Id = $"bench_{i}",
+                AccountJid = account,
+                RemoteJid = remote,
+                SenderJid = (i % 2 == 0) ? account : remote,
+                Timestamp = baseTime.AddSeconds(i),
+                Direction = (i % 2 == 0) ? MessageDirection.Outbound : MessageDirection.Inbound,
+                Body = $"Benchmark message payload test #{i}",
+                StanzaId = $"stanza_{i}"
+            });
+        }
+
+        var swBatch = System.Diagnostics.Stopwatch.StartNew();
+        await repo.SaveMessagesAsync(messagesBatch);
+        swBatch.Stop();
+
+        _output.WriteLine($"[OPTIMIZED] SaveMessagesAsync ({messageCount} msgs): {swBatch.ElapsedMilliseconds} ms");
+
+        var retrieved = await repo.GetMessagesAsync(account, remote, limit: messageCount + 10);
+        Assert.Equal(messageCount, retrieved.Count);
+    }
+
+    [Fact]
     public void DatabaseContext_DefaultPath_IsInUserDataDirectory()
     {
         var defaultPath = DatabaseContext.GetDefaultDatabasePath();
