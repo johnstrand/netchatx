@@ -24,6 +24,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0313MessageArchiveManagement? _mamManager;
     private readonly Xep0384OmemoManager? _omemoManager;
     private readonly Xep0363HttpFileUpload? _httpUploadManager;
+    private readonly Xep0333ChatMarkers? _chatMarkers;
     private readonly string _accountJid;
 
     [ObservableProperty]
@@ -88,7 +89,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         XmppClient? client = null,
         Xep0313MessageArchiveManagement? mamManager = null,
         Xep0384OmemoManager? omemoManager = null,
-        Xep0363HttpFileUpload? httpUploadManager = null)
+        Xep0363HttpFileUpload? httpUploadManager = null,
+        Xep0333ChatMarkers? chatMarkers = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -100,12 +102,80 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _mamManager = mamManager;
         _omemoManager = omemoManager;
         _httpUploadManager = httpUploadManager;
+        _chatMarkers = chatMarkers;
     }
 
     public async Task EnsureHistoryLoadedAsync()
     {
-        if (HasLoadedHistory) return;
-        await LoadHistoryAsync();
+        if (!HasLoadedHistory)
+        {
+            await LoadHistoryAsync();
+        }
+        await MarkUnreadMessagesAsReadAsync();
+    }
+
+    public void MarkMessageAsRead(string stanzaOrMessageId)
+    {
+        void Apply()
+        {
+            foreach (var msg in Messages)
+            {
+                if (msg.Id == stanzaOrMessageId || msg.StanzaId == stanzaOrMessageId)
+                {
+                    msg.IsRead = true;
+                }
+            }
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(Apply);
+        }
+    }
+
+    public async Task MarkUnreadMessagesAsReadAsync()
+    {
+        var markedIds = await _messageRepo.MarkUnreadMessagesAsReadAsync(_accountJid, RemoteJid.ToString());
+        if (markedIds.Count == 0) return;
+
+        void Apply()
+        {
+            foreach (var msg in Messages)
+            {
+                if (msg.Direction == MessageDirection.Inbound)
+                {
+                    msg.IsRead = true;
+                }
+            }
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(Apply);
+        }
+
+        if (_chatMarkers is not null)
+        {
+            foreach (var id in markedIds)
+            {
+                try
+                {
+                    await _chatMarkers.SendDisplayedMarkerAsync(RemoteJid, id);
+                }
+                catch
+                {
+                    // Soft failure sending displayed marker
+                }
+            }
+        }
     }
 
     [RelayCommand]
