@@ -441,6 +441,49 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task RosterRepository_IndividualVsBatchUpserts_PerformanceComparison()
+    {
+        var repo = new RosterRepository(_context);
+        string account = "alice@example.com";
+        int count = 200;
+
+        var contacts1 = Enumerable.Range(1, count).Select(i => new RosterContact
+        {
+            AccountJid = account,
+            ContactJid = $"indiv_user{i}@example.com",
+            Name = $"User {i}",
+            Subscription = "both",
+            Groups = "Friends"
+        }).ToList();
+
+        var swIndiv = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var c in contacts1)
+        {
+            await repo.UpsertContactAsync(c);
+        }
+        swIndiv.Stop();
+
+        var contacts2 = Enumerable.Range(1, count).Select(i => new RosterContact
+        {
+            AccountJid = account,
+            ContactJid = $"batch_user{i}@example.com",
+            Name = $"Batch User {i}",
+            Subscription = "both",
+            Groups = "Friends"
+        }).ToList();
+
+        var swBatch = System.Diagnostics.Stopwatch.StartNew();
+        await repo.UpsertContactsAsync(contacts2);
+        swBatch.Stop();
+
+        _output.WriteLine($"Individual upserts for {count} contacts took {swIndiv.ElapsedMilliseconds} ms");
+        _output.WriteLine($"Batch upsert for {count} contacts took {swBatch.ElapsedMilliseconds} ms");
+
+        var retrieved = await repo.GetContactsAsync(account);
+        Assert.Equal(count * 2, retrieved.Count);
+    }
+
+    [Fact]
     public async Task MessageRepository_SaveMessagesAsync_SavesAndDeduplicatesCorrectly()
     {
         var repo = new MessageRepository(_context);
