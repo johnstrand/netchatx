@@ -899,7 +899,6 @@ public class ViewModelTests : IDisposable
 
     public void Dispose()
     {
-        _dbContext.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }
