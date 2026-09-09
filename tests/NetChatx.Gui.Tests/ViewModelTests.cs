@@ -578,7 +578,7 @@ public class ViewModelTests : IDisposable
     [Theory]
     [InlineData("https://example.com/avatar.png", true, true, "https://example.com/avatar.png")]
     [InlineData("http://xmpp.org/files/photo.jpeg?token=123", true, true, "http://xmpp.org/files/photo.jpeg?token=123")]
-    [InlineData("file:///C:/AppData/NetChatx/media/snapshot.webp", true, true, "file:///C:/AppData/NetChatx/media/snapshot.webp")]
+    [InlineData("file:///C:/AppData/NetChatx/media/snapshot.webp", false, false, null)]
     [InlineData("Here is the screenshot: https://test.org/image.gif please check it", true, false, "https://test.org/image.gif")]
     [InlineData("Just regular text message with no links", false, false, null)]
     [InlineData("https://example.com/document.pdf", false, false, null)]
@@ -641,15 +641,50 @@ public class ViewModelTests : IDisposable
 
         Assert.Single(conv.Messages);
         var sentMsg = conv.Messages[0];
-        Assert.True(sentMsg.HasImage);
-        Assert.True(sentMsg.IsOnlyImage);
-        Assert.NotNull(sentMsg.ImageUrl);
-        Assert.StartsWith("file:///", sentMsg.ImageUrl);
+        Assert.False(sentMsg.HasImage); // file:// URIs are no longer auto-loaded as image URLs for security
+        Assert.StartsWith("file:///", sentMsg.Body);
 
         // Verify stored in repository
         var history = await _messageRepo.GetMessagesAsync(account, remote.ToString(), 10);
         Assert.Single(history);
-        Assert.Equal(sentMsg.ImageUrl, history[0].Body);
+        Assert.Equal(sentMsg.Body, history[0].Body);
+    }
+
+    [Fact]
+    public async Task AsyncImageLoader_Security_RejectsFileAndUncPaths()
+    {
+        // file:// URIs
+        Assert.Null(await AsyncImageLoader.LoadImageAsync("file:///C:/Windows/System32/cmd.exe"));
+        Assert.Null(await AsyncImageLoader.LoadImageAsync("file://attacker.com/share/test.png"));
+
+        // UNC paths
+        Assert.Null(await AsyncImageLoader.LoadImageAsync(@"\\attacker.com\share\test.png"));
+
+        // Local file paths
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            Assert.Null(await AsyncImageLoader.LoadImageAsync(tempFile));
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Theory]
+    [InlineData("file:///C:/Windows/System32/cmd.exe")]
+    [InlineData("file://attacker.com/share/test.png")]
+    [InlineData(@"\\attacker.com\share\image.png")]
+    [InlineData(@"C:\Users\Public\secret.png")]
+    public void MessageBubbleViewModel_Security_RejectsLocalAndUncPaths(string payload)
+    {
+        var vm = new MessageBubbleViewModel();
+        vm.ExtractImageUrl(payload);
+
+        Assert.False(vm.HasImage);
+        Assert.False(vm.IsOnlyImage);
+        Assert.Null(vm.ImageUrl);
     }
 
     [Fact]

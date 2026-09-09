@@ -26,25 +26,8 @@ public static class AsyncImageLoader
 
         try
         {
-            if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-            {
-                if (Uri.TryCreate(url, UriKind.Absolute, out var fileUri) && File.Exists(fileUri.LocalPath))
-                {
-                    await using var fs = File.OpenRead(fileUri.LocalPath);
-                    var bitmap = new Bitmap(fs);
-                    Cache[url] = bitmap;
-                    return bitmap;
-                }
-            }
-            else if (File.Exists(url))
-            {
-                await using var fs = File.OpenRead(url);
-                var bitmap = new Bitmap(fs);
-                Cache[url] = bitmap;
-                return bitmap;
-            }
-            else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                     url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
                 var bytes = await HttpClient.GetByteArrayAsync(url, ct);
                 using var ms = new MemoryStream(bytes);
