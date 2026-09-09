@@ -33,6 +33,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0384OmemoManager? _omemo;
     private Xep0045MultiUserChat? _muc;
     private Xep0363HttpFileUpload? _httpUpload;
+    private Xep0280MessageCarbons? _carbons;
 
     [ObservableProperty]
     private string _accountJid;
@@ -90,16 +91,33 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _omemo = new Xep0384OmemoManager();
         _muc = new Xep0045MultiUserChat();
         _httpUpload = new Xep0363HttpFileUpload();
+        _carbons = new Xep0280MessageCarbons();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
         await _muc.AttachAsync(_client);
         await _httpUpload.AttachAsync(_client);
+        await _carbons.AttachAsync(_client);
+
+        try
+        {
+            await _carbons.EnableAsync();
+        }
+        catch
+        {
+            // Soft failure if server does not support carbons
+        }
 
         // Wire incoming messages
         _client.MessageReceived += async msg =>
         {
             await HandleIncomingMessageAsync(msg);
+        };
+
+        // Wire carbon copy messages
+        _carbons.CarbonMessageReceived += async (msg, isSentByUs) =>
+        {
+            await HandleCarbonMessageAsync(msg, isSentByUs);
         };
 
         // Wire OMEMO decrypted messages
@@ -281,8 +299,24 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(msg.Body)) return;
 
-        var sender = msg.From ?? Jid.Parse(AccountJid);
-        var remote = msg.Type == MessageStanza.TypeGroupChat ? sender.BareJid : sender.BareJid;
+        var accountJid = Jid.Parse(AccountJid);
+        var sender = msg.From ?? accountJid;
+
+        bool isFromSelf = sender.EqualsBare(accountJid);
+        Jid remote;
+        MessageDirection direction;
+
+        if (isFromSelf)
+        {
+            remote = (msg.To ?? accountJid).BareJid;
+            direction = MessageDirection.Outbound;
+        }
+        else
+        {
+            remote = msg.Type == MessageStanza.TypeGroupChat ? sender.BareJid : sender.BareJid;
+            direction = MessageDirection.Inbound;
+        }
+
         bool isGroup = msg.Type == MessageStanza.TypeGroupChat;
 
         var chatMsg = new ChatMessage
@@ -291,14 +325,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
             RemoteJid = remote.ToString(),
             SenderJid = sender.ToString(),
             Body = msg.Body,
-            Direction = MessageDirection.Inbound,
+            Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
             StanzaId = msg.Id
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
 
-        Dispatcher.UIThread.Post(() =>
+        PostToUi(() =>
         {
             var conv = GetOrCreateConversation(remote.ToString(), remote.ToString(), remote, isGroup);
             conv.ReceiveMessage(chatMsg);
@@ -307,7 +341,59 @@ public sealed partial class MainChatViewModel : ViewModelBase
             if (contact is not null)
             {
                 contact.LastMessagePreview = msg.Body;
-                if (ActiveConversation?.Id != remote.ToString())
+                if (ActiveConversation?.Id != remote.ToString() && direction == MessageDirection.Inbound)
+                {
+                    contact.UnreadCount++;
+                }
+            }
+        });
+    }
+
+    private async Task HandleCarbonMessageAsync(MessageStanza msg, bool isSentByUs)
+    {
+        if (string.IsNullOrEmpty(msg.Body)) return;
+
+        var accountJid = Jid.Parse(AccountJid);
+        Jid remote;
+        MessageDirection direction;
+
+        if (isSentByUs)
+        {
+            remote = (msg.To ?? accountJid).BareJid;
+            direction = MessageDirection.Outbound;
+        }
+        else
+        {
+            remote = (msg.From ?? accountJid).BareJid;
+            direction = MessageDirection.Inbound;
+        }
+
+        bool isGroup = msg.Type == MessageStanza.TypeGroupChat;
+        var sender = msg.From ?? (isSentByUs ? accountJid : remote);
+
+        var chatMsg = new ChatMessage
+        {
+            AccountJid = AccountJid,
+            RemoteJid = remote.ToString(),
+            SenderJid = sender.ToString(),
+            Body = msg.Body,
+            Direction = direction,
+            Timestamp = DateTimeOffset.UtcNow,
+            StanzaId = msg.Id
+        };
+
+        await _messageRepo.SaveMessageAsync(chatMsg);
+
+        PostToUi(() =>
+        {
+            var conv = GetOrCreateConversation(remote.ToString(), remote.ToString(), remote, isGroup);
+            conv.ReceiveMessage(chatMsg);
+
+            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
+            if (contact is not null)
+            {
+                contact.LastMessagePreview = msg.Body;
+                if (ActiveConversation?.Id != remote.ToString() && direction == MessageDirection.Inbound)
                 {
                     contact.UnreadCount++;
                 }
@@ -332,11 +418,23 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         await _messageRepo.SaveMessageAsync(chatMsg);
 
-        Dispatcher.UIThread.Post(() =>
+        PostToUi(() =>
         {
             var conv = GetOrCreateConversation(remoteJid.ToString(), remoteJid.ToString(), remoteJid, isGroupChat: false);
             conv.IsEncrypted = true;
             conv.ReceiveMessage(chatMsg);
         });
+    }
+
+    private static void PostToUi(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(action);
+        }
     }
 }

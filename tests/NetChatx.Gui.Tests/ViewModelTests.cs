@@ -3,9 +3,11 @@ using System.IO;
 using System.Threading.Tasks;
 using NetChatx.Core;
 using NetChatx.Core.Client;
+using NetChatx.Core.Stanzas;
 using NetChatx.Core.Transport;
 using NetChatx.Gui.Helpers;
 using NetChatx.Gui.ViewModels;
+using NetChatx.MockServer;
 using NetChatx.Storage;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
@@ -655,6 +657,86 @@ public class ViewModelTests : IDisposable
     {
         Assert.Null(Win32ClipboardHelper.ConvertDibToPngBytes(Array.Empty<byte>()));
         Assert.Null(Win32ClipboardHelper.ConvertDibToPngBytes(new byte[10]));
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_AutomaticReception_InboundAndOutboundCarbons_UpdatesConversation()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("peer@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        // 1. Inbound direct message automatic reception
+        var inboundStanza = new MessageStanza(to: Jid.Parse(account), type: MessageStanza.TypeChat)
+        {
+            From = remote,
+            Body = "Automatic live message!"
+        };
+
+        await server.InjectStanzaAsync(inboundStanza);
+        await Task.Delay(100);
+
+        // Verify conversation was automatically created and updated with message
+        var conv = mainVm.GetOrCreateConversation(remote.ToString(), "Peer", remote, isGroupChat: false);
+        Assert.Single(conv.Messages);
+        Assert.Equal("Automatic live message!", conv.Messages[0].Body);
+        Assert.Equal(MessageDirection.Inbound, conv.Messages[0].Direction);
+
+        // 2. Inbound Carbon copy message automatic reception (sent to us, received on another device)
+        var carbonInboundElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", account)
+            .Attr("to", $"{account}/desktop")
+            .Child(new NetChatx.Core.Xml.XmppElement("received", "urn:xmpp:carbons:2")
+                .Child(new NetChatx.Core.Xml.XmppElement("forwarded", "urn:xmpp:forward:0")
+                    .Child(new NetChatx.Core.Xml.XmppElement("message")
+                        .Attr("from", "peer@mock.example.com/mobile")
+                        .Attr("to", account)
+                        .Child(new NetChatx.Core.Xml.XmppElement("body") { Value = "Inbound Carbon message" }))));
+
+        await server.InjectElementAsync(carbonInboundElem);
+        await Task.Delay(100);
+
+        Assert.Equal(2, conv.Messages.Count);
+        Assert.Equal("Inbound Carbon message", conv.Messages[1].Body);
+        Assert.Equal(MessageDirection.Inbound, conv.Messages[1].Direction);
+
+        // 3. Outbound Carbon copy message automatic reception (sent by us from mobile device)
+        var carbonOutboundElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", account)
+            .Attr("to", $"{account}/desktop")
+            .Child(new NetChatx.Core.Xml.XmppElement("sent", "urn:xmpp:carbons:2")
+                .Child(new NetChatx.Core.Xml.XmppElement("forwarded", "urn:xmpp:forward:0")
+                    .Child(new NetChatx.Core.Xml.XmppElement("message")
+                        .Attr("from", $"{account}/mobile")
+                        .Attr("to", "peer@mock.example.com")
+                        .Child(new NetChatx.Core.Xml.XmppElement("body") { Value = "Outbound Carbon message from phone" }))));
+
+        await server.InjectElementAsync(carbonOutboundElem);
+        await Task.Delay(100);
+
+        Assert.Equal(3, conv.Messages.Count);
+        Assert.Equal("Outbound Carbon message from phone", conv.Messages[2].Body);
+        Assert.Equal(MessageDirection.Outbound, conv.Messages[2].Direction);
+
+        // Verify stored in DB
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Equal(3, dbMessages.Count);
+
+        await client.DisconnectAsync();
     }
 
     public void Dispose()
