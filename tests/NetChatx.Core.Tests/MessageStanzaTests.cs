@@ -236,4 +236,62 @@ public class MessageStanzaTests
         Assert.Equal("groupchat", stanza.Type);
         Assert.Equal("Hello Room", stanza.Body);
     }
+
+    [Fact]
+    public void CreateGroupChat_WithoutFrom_SetsPropertiesCorrectly()
+    {
+        var roomJid = Jid.Parse("room@conference.example.com");
+        string bodyText = "Hello room!";
+
+        var stanza = MessageStanza.CreateGroupChat(roomJid, bodyText);
+
+        Assert.Equal(roomJid, stanza.To);
+        Assert.Equal(bodyText, stanza.Body);
+        Assert.Equal(MessageStanza.TypeGroupChat, stanza.Type);
+        Assert.Null(stanza.From);
+    }
+
+    [Fact]
+    public void CreateGroupChat_WithFrom_SetsPropertiesCorrectly()
+    {
+        var roomJid = Jid.Parse("room@conference.example.com");
+        var senderJid = Jid.Parse("user@example.com/res");
+        string bodyText = "Hello room with from!";
+
+        var stanza = MessageStanza.CreateGroupChat(roomJid, bodyText, senderJid);
+
+        Assert.Equal(roomJid, stanza.To);
+        Assert.Equal(bodyText, stanza.Body);
+        Assert.Equal(MessageStanza.TypeGroupChat, stanza.Type);
+        Assert.Equal(senderJid, stanza.From);
+    }
+
+    [Fact]
+    public void CreateChat_WithoutFrom_SetsPropertiesCorrectly()
+    {
+        var recipientJid = Jid.Parse("alice@example.com");
+        string bodyText = "Hello Alice!";
+
+        var stanza = MessageStanza.CreateChat(recipientJid, bodyText);
+
+        Assert.Equal(recipientJid, stanza.To);
+        Assert.Equal(bodyText, stanza.Body);
+        Assert.Equal(MessageStanza.TypeChat, stanza.Type);
+        Assert.Null(stanza.From);
+    }
+
+    [Fact]
+    public void CreateChat_WithFrom_SetsPropertiesCorrectly()
+    {
+        var recipientJid = Jid.Parse("alice@example.com");
+        var senderJid = Jid.Parse("bob@example.com/mobile");
+        string bodyText = "Hello Alice from Bob!";
+
+        var stanza = MessageStanza.CreateChat(recipientJid, bodyText, senderJid);
+
+        Assert.Equal(recipientJid, stanza.To);
+        Assert.Equal(bodyText, stanza.Body);
+        Assert.Equal(MessageStanza.TypeChat, stanza.Type);
+        Assert.Equal(senderJid, stanza.From);
+    }
 }
