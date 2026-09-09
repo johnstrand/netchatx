@@ -39,7 +39,7 @@ public sealed class TcpTlsTransport : IXmppTransport
         if (_networkStream is null)
             throw new InvalidOperationException("Cannot upgrade to TLS before connecting.");
 
-        _sslStream = new SslStream(_networkStream, false, (sender, cert, chain, sslPolicyErrors) => true);
+        _sslStream = new SslStream(_networkStream, false);
 
         var sslOptions = new SslClientAuthenticationOptions
         {
