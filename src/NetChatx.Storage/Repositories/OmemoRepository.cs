@@ -154,4 +154,23 @@ public sealed class OmemoRepository
 
         return list;
     }
+
+    public async Task UpdateTrustStateAsync(string accountJid, string remoteJid, uint deviceId, OmemoTrustState trustState, CancellationToken cancellationToken = default)
+    {
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        cmd.CommandText = """
+            UPDATE omemo_sessions
+            SET trust_state = $trust_state
+            WHERE account_jid = $account_jid AND remote_jid = $remote_jid AND device_id = $device_id;
+        """;
+
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+        cmd.Parameters.AddWithValue("$device_id", (int)deviceId);
+        cmd.Parameters.AddWithValue("$trust_state", (int)trustState);
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
 }

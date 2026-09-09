@@ -136,6 +136,15 @@ public sealed class MockXmppServer : IAsyncDisposable
             await InjectStanzaAsync(result);
             return;
         }
+
+        var mam = iq.RawElement.Element("query", "urn:xmpp:mam:2");
+        if (mam is not null && iq.IsSet)
+        {
+            var fin = new XmppElement("fin", "urn:xmpp:mam:2").Attr("complete", "true");
+            var result = iq.CreateResult(fin);
+            await InjectStanzaAsync(result);
+            return;
+        }
     }
 
     public async Task InjectStanzaAsync(Stanza stanza)

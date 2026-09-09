@@ -21,7 +21,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\NetChatx.Core\NetChatx.Core.csproj" />
     <ProjectReference Include="..\..\src\NetChatx.Storage\NetChatx.Storage.csproj" />
-    <ProjectReference Include="..\..\src\NetChatx.Tui\NetChatx.Tui.csproj" />
   </ItemGroup>
 
 </Project>

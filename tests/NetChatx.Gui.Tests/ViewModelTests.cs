@@ -1,0 +1,583 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using NetChatx.Core;
+using NetChatx.Core.Client;
+using NetChatx.Core.Transport;
+using NetChatx.Gui.ViewModels;
+using NetChatx.Storage;
+using NetChatx.Storage.Models;
+using NetChatx.Storage.Repositories;
+using Xunit;
+
+namespace NetChatx.Gui.Tests;
+
+public class ViewModelTests : IDisposable
+{
+    private readonly string _dbPath;
+    private readonly DatabaseContext _dbContext;
+    private readonly MessageRepository _messageRepo;
+    private readonly AccountRepository _accountRepo;
+    private readonly OmemoRepository _omemoRepo;
+
+    public ViewModelTests()
+    {
+        _dbPath = $"testgui_{Guid.NewGuid():N}.db";
+        _dbContext = new DatabaseContext(_dbPath);
+        _messageRepo = new MessageRepository(_dbContext);
+        _accountRepo = new AccountRepository(_dbContext);
+        _omemoRepo = new OmemoRepository(_dbContext);
+    }
+
+    [Fact]
+    public async Task LoginViewModel_Validation_FailsOnEmptyOrInvalidInputs()
+    {
+        AccountProfile? capturedProfile = null;
+        var vm = new LoginViewModel(profile =>
+        {
+            capturedProfile = profile;
+            return Task.FromResult(true);
+        });
+
+        // 1. Empty JID
+        await vm.ConnectAsync();
+        Assert.NotNull(vm.ErrorMessage);
+        Assert.Contains("JID", vm.ErrorMessage);
+        Assert.Null(capturedProfile);
+
+        // 2. Invalid JID format
+        vm.Jid = "invalid@@jid@@format";
+        await vm.ConnectAsync();
+        Assert.NotNull(vm.ErrorMessage);
+        Assert.Contains("Invalid JID", vm.ErrorMessage);
+        Assert.Null(capturedProfile);
+
+        // 3. Missing password
+        vm.Jid = "alice@example.com";
+        vm.Password = "";
+        await vm.ConnectAsync();
+        Assert.NotNull(vm.ErrorMessage);
+        Assert.Contains("password", vm.ErrorMessage);
+        Assert.Null(capturedProfile);
+
+        // 4. Valid inputs
+        vm.Password = "secret123";
+        vm.Host = "xmpp.example.com";
+        vm.Port = "5222";
+        await vm.ConnectAsync();
+        Assert.Null(vm.ErrorMessage);
+        Assert.NotNull(capturedProfile);
+        Assert.Equal("alice@example.com", capturedProfile.Jid);
+        Assert.Equal("secret123", capturedProfile.Password);
+        Assert.Equal("xmpp.example.com", capturedProfile.Host);
+        Assert.Equal(5222, capturedProfile.Port);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_FormattingAndReceipts_WorkCorrectly()
+    {
+        var inboundMsg = new ChatMessage
+        {
+            AccountJid = "me@example.com",
+            RemoteJid = "bob@example.com",
+            SenderJid = "bob@example.com",
+            Body = "Hello there!",
+            Direction = MessageDirection.Inbound,
+            Timestamp = new DateTimeOffset(2026, 9, 9, 14, 30, 0, TimeSpan.Zero),
+            IsEncrypted = true,
+            EncryptionType = "OMEMO"
+        };
+
+        var bubbleIn = MessageBubbleViewModel.FromChatMessage(inboundMsg);
+        Assert.Equal("bob@example.com", bubbleIn.SenderName);
+        Assert.Equal("Hello there!", bubbleIn.Body);
+        Assert.True(bubbleIn.IsEncrypted);
+        Assert.Equal("OMEMO", bubbleIn.EncryptionType);
+        Assert.Empty(bubbleIn.ReceiptIcon); // Inbound doesn't have receipt checkmarks
+
+        var outboundMsg = new ChatMessage
+        {
+            AccountJid = "me@example.com",
+            RemoteJid = "bob@example.com",
+            SenderJid = "me@example.com",
+            Body = "General Kenobi!",
+            Direction = MessageDirection.Outbound,
+            Timestamp = new DateTimeOffset(2026, 9, 9, 14, 31, 0, TimeSpan.Zero),
+            IsRead = true
+        };
+
+        var bubbleOut = MessageBubbleViewModel.FromChatMessage(outboundMsg);
+        Assert.Equal("Me", bubbleOut.SenderName);
+        Assert.Equal("✓✓", bubbleOut.ReceiptIcon); // Read receipt
+    }
+
+    [Fact]
+    public void ContactItemViewModel_DisplayName_PrefersNameOverJid()
+    {
+        var contactWithName = new ContactItemViewModel
+        {
+            AccountJid = "me@example.com",
+            ContactJid = "alice@example.com",
+            Name = "Alice Wonderland"
+        };
+        Assert.Equal("Alice Wonderland", contactWithName.DisplayName);
+
+        var contactWithoutName = new ContactItemViewModel
+        {
+            AccountJid = "me@example.com",
+            ContactJid = "bob@example.com",
+            Name = null
+        };
+        Assert.Equal("bob@example.com", contactWithoutName.DisplayName);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_LoadHistoryAndPaging_Succeeds()
+    {
+        string account = "me@example.com";
+        var remoteJid = Jid.Parse("charlie@example.com");
+
+        var baseTime = DateTimeOffset.UtcNow.AddHours(-2);
+        for (int i = 0; i < 15; i++)
+        {
+            await _messageRepo.SaveMessageAsync(new ChatMessage
+            {
+                AccountJid = account,
+                RemoteJid = remoteJid.ToString(),
+                SenderJid = (i % 2 == 0) ? account : remoteJid.ToString(),
+                Body = $"Message #{i}",
+                Timestamp = baseTime.AddMinutes(i),
+                Direction = (i % 2 == 0) ? MessageDirection.Outbound : MessageDirection.Inbound
+            });
+        }
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remoteJid.ToString(),
+            "Charlie",
+            remoteJid,
+            isGroupChat: false,
+            _messageRepo);
+
+        Assert.Empty(conv.Messages);
+        Assert.False(conv.HasLoadedHistory);
+
+        // Load history
+        await conv.LoadHistoryAsync();
+        Assert.True(conv.HasLoadedHistory);
+        Assert.Equal(15, conv.Messages.Count);
+        Assert.Equal("Message #0", conv.Messages[0].Body);
+        Assert.Equal("Message #14", conv.Messages[14].Body);
+    }
+
+    [Fact]
+    public async Task OmemoDeviceItemViewModel_ToggleTrust_UpdatesDatabase()
+    {
+        string account = "me@example.com";
+        string remote = "deviceuser@example.com";
+        uint devId = 12345;
+
+        await _omemoRepo.SaveSessionAsync(new OmemoSessionRecord
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            DeviceId = (int)devId,
+            SessionData = [1, 2, 3],
+            LastActive = DateTimeOffset.UtcNow,
+            TrustState = OmemoTrustState.Undecided
+        });
+
+        var devVm = new OmemoDeviceItemViewModel(
+            _omemoRepo,
+            account,
+            remote,
+            devId,
+            "AA BB CC DD",
+            OmemoTrustState.Undecided);
+
+        Assert.False(devVm.IsTrusted);
+
+        // Toggle to Trusted
+        await devVm.ToggleTrustAsync();
+        Assert.True(devVm.IsTrusted);
+        Assert.Equal(OmemoTrustState.Trusted, devVm.TrustState);
+
+        var saved = await _omemoRepo.GetSessionAsync(account, remote, (int)devId);
+        Assert.NotNull(saved);
+        Assert.Equal(OmemoTrustState.Trusted, saved.TrustState);
+
+        // Toggle to Untrusted
+        await devVm.ToggleTrustAsync();
+        Assert.False(devVm.IsTrusted);
+        Assert.Equal(OmemoTrustState.Untrusted, devVm.TrustState);
+
+        var saved2 = await _omemoRepo.GetSessionAsync(account, remote, (int)devId);
+        Assert.NotNull(saved2);
+        Assert.Equal(OmemoTrustState.Untrusted, saved2.TrustState);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_Search_ReturnsMatchedMessages()
+    {
+        string account = "me@example.com";
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = "work@example.com",
+            SenderJid = "work@example.com",
+            Body = "Project roadmap for Q4 is ready.",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound
+        });
+
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = "friend@example.com",
+            SenderJid = "friend@example.com",
+            Body = "Want to grab pizza tonight?",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound
+        });
+
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "pw"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        mainVm.SearchQuery = "roadmap";
+        await mainVm.ExecuteSearchAsync();
+
+        Assert.True(mainVm.IsSearching);
+        Assert.Single(mainVm.SearchResults);
+        Assert.Contains("Project roadmap", mainVm.SearchResults[0].Body);
+
+        mainVm.CloseSearch();
+        Assert.False(mainVm.IsSearching);
+        Assert.Empty(mainVm.SearchResults);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendMessageAsync_SavesToDatabaseAndAddsBubble()
+    {
+        string account = "user@chat.net";
+        var remote = Jid.Parse("dest@chat.net");
+
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Dest User",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client);
+
+        conv.InputText = "Hello from Avalonia GUI!";
+        await conv.SendMessageAsync();
+
+        Assert.Empty(conv.InputText);
+        Assert.Single(conv.Messages);
+        Assert.Equal("Hello from Avalonia GUI!", conv.Messages[0].Body);
+        Assert.Equal(MessageDirection.Outbound, conv.Messages[0].Direction);
+
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMessages);
+        Assert.Equal("Hello from Avalonia GUI!", dbMessages[0].Body);
+    }
+
+    [Fact]
+    public async Task MainWindowViewModel_InitializeAsync_WithNoAccounts_SwitchesToLogin()
+    {
+        var mainWinVm = new MainWindowViewModel(_dbContext);
+        await mainWinVm.InitializeAsync();
+
+        Assert.NotNull(mainWinVm.CurrentView);
+        Assert.IsType<LoginViewModel>(mainWinVm.CurrentView);
+        Assert.Equal("Disconnected", mainWinVm.StatusText);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_SetPresence_UpdatesUserPresence()
+    {
+        string account = "presence@test.com";
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "pw"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        Assert.Equal("available", mainVm.UserPresence);
+
+        await mainVm.SetPresenceAsync("dnd");
+        Assert.Equal("dnd", mainVm.UserPresence);
+
+        await mainVm.SetPresenceAsync("away");
+        Assert.Equal("away", mainVm.UserPresence);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_FormattedTime_ShowsDateWhenOlderThanToday()
+    {
+        var now = DateTimeOffset.Now;
+
+        // Today's message -> HH:mm
+        var todayMsg = new MessageBubbleViewModel
+        {
+            Timestamp = now
+        };
+        Assert.Equal(now.ToString("HH:mm"), todayMsg.FormattedTime);
+
+        // Yesterday's message -> Yesterday HH:mm
+        var yesterday = now.AddDays(-1);
+        var yesterdayMsg = new MessageBubbleViewModel
+        {
+            Timestamp = yesterday
+        };
+        Assert.StartsWith("Yesterday ", yesterdayMsg.FormattedTime);
+
+        // Message from 10 days ago (same year) -> MMM d, HH:mm
+        var tenDaysAgo = now.AddDays(-10);
+        var olderThisYearMsg = new MessageBubbleViewModel
+        {
+            Timestamp = tenDaysAgo
+        };
+        Assert.Contains(tenDaysAgo.ToString("MMM d"), olderThisYearMsg.FormattedTime);
+
+        // Message from previous year -> yyyy-MM-dd HH:mm
+        var lastYear = now.AddYears(-1);
+        var lastYearMsg = new MessageBubbleViewModel
+        {
+            Timestamp = lastYear
+        };
+        Assert.Contains(lastYear.ToString("yyyy-MM-dd"), lastYearMsg.FormattedTime);
+
+        // Date Header test
+        Assert.Equal("Today", MessageBubbleViewModel.FormatDateHeader(now));
+        Assert.Equal("Yesterday", MessageBubbleViewModel.FormatDateHeader(yesterday));
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_DeduplicationAndDateHeaders_WorkCorrectly()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+        var now = DateTimeOffset.UtcNow;
+
+        // Seed 2 messages across 2 different days
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Day 1 message",
+            Timestamp = now.AddDays(-2),
+            Direction = MessageDirection.Inbound,
+            StanzaId = "stanza_1"
+        });
+
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Day 2 message",
+            Timestamp = now,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "stanza_2"
+        });
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        await conv.LoadHistoryAsync();
+        Assert.Equal(2, conv.Messages.Count);
+
+        // Verify date headers are shown on day boundaries
+        Assert.True(conv.Messages[0].ShowDateHeader);
+        Assert.True(conv.Messages[1].ShowDateHeader);
+
+        // Try to load history again or load duplicate - count should NOT increase
+        await conv.LoadHistoryAsync();
+        Assert.Equal(2, conv.Messages.Count);
+
+        // Receive already existing message - should be deduplicated
+        conv.ReceiveMessage(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Day 2 message",
+            Timestamp = now,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "stanza_2"
+        });
+        Assert.Equal(2, conv.Messages.Count);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_LoadsBothOlderAndNewer_WithoutDuplicates()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        // Simulate August 12th cached message in SQLite
+        var aug12 = new DateTimeOffset(2026, 8, 12, 10, 0, 0, TimeSpan.Zero);
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            Id = "msg_aug12",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "August 12 message",
+            Timestamp = aug12,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s_aug12"
+        });
+
+        // Simulate older July 15th message in SQLite
+        var jul15 = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            Id = "msg_jul15",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "July 15 message",
+            Timestamp = jul15,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s_jul15"
+        });
+
+        // Simulate newer September 9th message in SQLite
+        var sep9 = new DateTimeOffset(2026, 9, 9, 15, 0, 0, TimeSpan.Zero);
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            Id = "msg_sep9",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "September 9 message",
+            Timestamp = sep9,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s_sep9"
+        });
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        // Load initial history
+        await conv.LoadHistoryAsync();
+
+        // Verify all 3 messages are loaded in strict chronological order
+        Assert.Equal(3, conv.Messages.Count);
+        Assert.Equal("July 15 message", conv.Messages[0].Body);
+        Assert.Equal("August 12 message", conv.Messages[1].Body);
+        Assert.Equal("September 9 message", conv.Messages[2].Body);
+
+        // Verify date headers are set for distinct dates
+        Assert.True(conv.Messages[0].ShowDateHeader);
+        Assert.True(conv.Messages[1].ShowDateHeader);
+        Assert.True(conv.Messages[2].ShowDateHeader);
+
+        // Simulate receiving a MAM sync item matching the August 12 message with 2-second clock drift and new archive id
+        var mamAug12Duplicate = new ChatMessage
+        {
+            Id = $"mam_{account}_{remote}_arch123",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "August 12 message",
+            Timestamp = aug12.AddSeconds(2), // 2s drift
+            Direction = MessageDirection.Inbound,
+            StanzaId = "arch123"
+        };
+        conv.ReceiveMessage(mamAug12Duplicate);
+
+        // Must still be 3 messages - no duplicate created!
+        Assert.Equal(3, conv.Messages.Count);
+
+        // Paging backwards should not re-add existing messages
+        await conv.LoadOlderHistoryAsync();
+        Assert.Equal(3, conv.Messages.Count);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_ScrollToBottomRequested_TriggeredOnHistoryLoadSendAndReceive()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/desktop"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        int scrollRequests = 0;
+        conv.ScrollToBottomRequested += () => scrollRequests++;
+
+        // 1. Initial history load triggers scroll
+        await conv.LoadHistoryAsync();
+        Assert.Equal(1, scrollRequests);
+
+        // 2. Inbound message received triggers scroll
+        conv.ReceiveMessage(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Inbound message",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound
+        });
+        Assert.Equal(2, scrollRequests);
+
+        // 3. Paging backwards (older history) must NOT trigger scroll to bottom
+        await conv.LoadOlderHistoryAsync();
+        Assert.Equal(2, scrollRequests); // still 2!
+    }
+
+    public void Dispose()
+    {
+        _dbContext.Dispose();
+        if (File.Exists(_dbPath))
+        {
+            try { File.Delete(_dbPath); } catch { }
+        }
+    }
+}

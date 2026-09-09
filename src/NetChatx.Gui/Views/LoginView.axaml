@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NetChatx.Gui.ViewModels"
+             x:Class="NetChatx.Gui.Views.LoginView"
+             x:DataType="vm:LoginViewModel">
+
+    <Grid Background="{DynamicResource SystemChromeLowColor}">
+        <!-- Centered Login Card -->
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                Width="420"
+                Padding="32"
+                CornerRadius="12"
+                Background="{DynamicResource SystemChromeAltHighColor}"
+                BorderBrush="{DynamicResource SystemChromeMediumColor}"
+                BorderThickness="1"
+                BoxShadow="0 8 24 0 #20000000">
+
+            <StackPanel Spacing="16">
+                <!-- Branding Header -->
+                <StackPanel HorizontalAlignment="Center" Spacing="6" Margin="0,0,0,8">
+                    <TextBlock Text="💬 NetChatx" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" />
+                    <TextBlock Text="Modern Cross-Platform XMPP Client" Classes="muted" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Error Banner -->
+                <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1"
+                        CornerRadius="6" Padding="12,8"
+                        IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#B91C1C" TextWrapping="Wrap" FontSize="12" />
+                </Border>
+
+                <!-- Status Banner -->
+                <Border Background="#E0E7FF" BorderBrush="#6366F1" BorderThickness="1"
+                        CornerRadius="6" Padding="12,8"
+                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="#4338CA" TextWrapping="Wrap" FontSize="12" />
+                </Border>
+
+                <!-- JID Input -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Jabber ID (JID)" FontSize="12" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding Jid}" Watermark="username@domain.tld" IsEnabled="{Binding !IsConnecting}" />
+                </StackPanel>
+
+                <!-- Password Input -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Password" FontSize="12" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding Password}" PasswordChar="•" Watermark="Account password" IsEnabled="{Binding !IsConnecting}" />
+                </StackPanel>
+
+                <!-- Advanced Connection Options -->
+                <Button Content="Advanced Connection Options ▼" Classes="accent" HorizontalAlignment="Left"
+                        Command="{Binding ToggleAdvancedCommand}" Margin="0,4"
+                        Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" />
+
+                <StackPanel Spacing="12" IsVisible="{Binding ShowAdvanced}">
+                    <Grid ColumnDefinitions="*,100">
+                        <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                            <TextBlock Text="Custom Host" FontSize="12" FontWeight="SemiBold" />
+                            <TextBox Text="{Binding Host}" Watermark="xmpp.example.com" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="Port" FontSize="12" FontWeight="SemiBold" />
+                            <TextBox Text="{Binding Port}" Watermark="5222" />
+                        </StackPanel>
+                    </Grid>
+                    <CheckBox IsChecked="{Binding UseDirectTls}" Content="Direct TLS (Port 5223)" />
+                </StackPanel>
+
+                <!-- Connect Button -->
+                <Button Content="Connect" HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Height="40"
+                        Command="{Binding ConnectCommand}"
+                        IsEnabled="{Binding !IsConnecting}"
+                        Classes="accent"
+                        Margin="0,8,0,0" />
+
+                <!-- Progress Bar -->
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}" Height="4" Margin="0,4,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

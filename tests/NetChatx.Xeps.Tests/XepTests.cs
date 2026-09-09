@@ -196,4 +196,84 @@ public class XepTests
         Assert.Equal("Top Secret OMEMO Message", bobReceived.PlaintextBody);
         Assert.Equal(aliceOmemo.LocalDeviceId, bobReceived.SenderDeviceId);
     }
+
+    [Fact]
+    public async Task Xep0313_MAM_QueryAndParsing_WorksCorrectly()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, transport);
+
+        var mam = new Xep0313MessageArchiveManagement();
+        await mam.AttachAsync(client);
+        await client.ConnectAsync();
+
+        IqStanza? capturedQueryIq = null;
+        server.OnIqReceived += iq =>
+        {
+            if (iq.RawElement.Element("query", "urn:xmpp:mam:2") is not null)
+            {
+                capturedQueryIq = iq;
+            }
+        };
+
+        // 1. Query with full JID and 'end' timestamp (backward paging)
+        var endTimestamp = new DateTimeOffset(2026, 8, 12, 14, 30, 0, TimeSpan.Zero);
+        var queryTask = mam.QueryArchiveAsync(
+            withJid: Jid.Parse("bob@mock.example.com/mobile"),
+            maxResults: 30,
+            end: endTimestamp);
+
+        // Inject MAM result message while query is in-flight
+        var mamResultMsg = new XmppElement("message")
+            .Child(new XmppElement("result", "urn:xmpp:mam:2")
+                .Attr("id", "mam_arch_42")
+                .Child(new XmppElement("forwarded", "urn:xmpp:forward:0")
+                    .Child(new XmppElement("delay", "urn:xmpp:delay")
+                        .Attr("stamp", "2026-08-12T14:29:50Z"))
+                    .Child(new XmppElement("message")
+                        .Attr("from", "bob@mock.example.com")
+                        .Attr("to", "alice@mock.example.com")
+                        .Child(new XmppElement("body") { Value = "Historical MAM message" }))));
+
+        await server.InjectElementAsync(mamResultMsg);
+
+        var result = await queryTask;
+
+        Assert.NotNull(capturedQueryIq);
+        var queryElem = capturedQueryIq.RawElement.Element("query", "urn:xmpp:mam:2");
+        Assert.NotNull(queryElem);
+
+        // Verify with filter uses bare JID
+        var form = queryElem.Element("x", "jabber:x:data");
+        Assert.NotNull(form);
+        var withField = form.Elements("field").FirstOrDefault(f => f.GetAttr("var") == "with");
+        Assert.NotNull(withField);
+        Assert.Equal("bob@mock.example.com", withField.Element("value")?.Value);
+
+        // Verify end field
+        var endField = form.Elements("field").FirstOrDefault(f => f.GetAttr("var") == "end");
+        Assert.NotNull(endField);
+        Assert.Equal("2026-08-12T14:30:00Z", endField.Element("value")?.Value);
+
+        // Verify RSM before element is present for backward paging
+        var rsm = queryElem.Element("set", "http://jabber.org/protocol/rsm");
+        Assert.NotNull(rsm);
+        Assert.NotNull(rsm.Element("before"));
+
+        // Verify parsed result item
+        Assert.Single(result.Messages);
+        var item = result.Messages[0];
+        Assert.Equal("mam_arch_42", item.ArchiveId);
+        Assert.Equal("Historical MAM message", item.Message.Body);
+        Assert.Equal(new DateTimeOffset(2026, 8, 12, 14, 29, 50, TimeSpan.Zero), item.Timestamp);
+
+        await client.DisconnectAsync();
+    }
 }

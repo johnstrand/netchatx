@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NetChatx.Gui.ViewModels"
+        xmlns:views="using:NetChatx.Gui.Views"
+        x:Class="NetChatx.Gui.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="NetChatx - XMPP Client (.NET 10)"
+        Width="1050" Height="700"
+        MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.DataTemplates>
+        <DataTemplate DataType="{x:Type vm:LoginViewModel}">
+            <views:LoginView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MainChatViewModel}">
+            <views:MainChatView />
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid RowDefinitions="*,Auto">
+        <!-- Main Content Area -->
+        <ContentControl Grid.Row="0" Content="{Binding CurrentView}" />
+
+        <!-- Global Status Bar -->
+        <Border Grid.Row="1" Background="{DynamicResource SystemChromeMediumColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}" BorderThickness="0,1,0,0"
+                Padding="12,4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center" FontSize="11" Opacity="0.8" />
+                <TextBlock Grid.Column="1" Text="NetChatx v1.0 • Avalonia UI • .NET 10" VerticalAlignment="Center" FontSize="11" Opacity="0.6" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

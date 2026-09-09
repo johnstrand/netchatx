@@ -140,6 +140,84 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task MessageRepository_SaveMessageAsync_DeduplicatesByStanzaIdAndContent()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+        var t0 = DateTimeOffset.UtcNow.AddHours(-3);
+
+        // 1. Save initial message
+        var msg1 = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = t0,
+            Direction = MessageDirection.Inbound,
+            Body = "Sync message",
+            StanzaId = "archive_item_99"
+        };
+        await repo.SaveMessageAsync(msg1);
+
+        var list1 = await repo.GetMessagesAsync(account, remote);
+        Assert.Single(list1);
+        Assert.Equal("Sync message", list1[0].Body);
+
+        // 2. Save identical message again with different GUID id (simulating multiple sync clicks)
+        var msgDuplicate = new ChatMessage
+        {
+            Id = Guid.NewGuid().ToString("N"), // different ID
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = t0,
+            Direction = MessageDirection.Inbound,
+            Body = "Sync message",
+            StanzaId = "archive_item_99" // same archive/stanza ID
+        };
+        await repo.SaveMessageAsync(msgDuplicate);
+
+        // Verify still only ONE message in database
+        var list2 = await repo.GetMessagesAsync(account, remote);
+        Assert.Single(list2);
+
+        // 3. Save without stanza_id but matching timestamp & body
+        var msgContentMatch = new ChatMessage
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = t0,
+            Direction = MessageDirection.Inbound,
+            Body = "Sync message"
+        };
+        await repo.SaveMessageAsync(msgContentMatch);
+
+        var list3 = await repo.GetMessagesAsync(account, remote);
+        Assert.Single(list3);
+
+        // 4. Save MAM message with slight clock drift (+3 seconds) and server archive ID - should update existing message, not duplicate
+        var msgDriftMAM = new ChatMessage
+        {
+            Id = $"mam_{account}_{remote}_arch99",
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = t0.AddSeconds(3),
+            Direction = MessageDirection.Inbound,
+            Body = "Sync message",
+            StanzaId = "arch99"
+        };
+        await repo.SaveMessageAsync(msgDriftMAM);
+
+        var list4 = await repo.GetMessagesAsync(account, remote);
+        Assert.Single(list4);
+        Assert.Equal("arch99", list4[0].StanzaId);
+    }
+
+    [Fact]
     public async Task RosterRepository_UpsertAndGet_Succeeds()
     {
         var repo = new RosterRepository(_context);

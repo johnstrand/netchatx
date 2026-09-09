@@ -60,15 +60,15 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
 
             if (withJid is not null)
             {
-                form.Child(new XmppElement("field").Attr("var", "with").Child(new XmppElement("value") { Value = withJid.ToString() }));
+                form.Child(new XmppElement("field").Attr("var", "with").Child(new XmppElement("value") { Value = withJid.BareJid.ToString() }));
             }
             if (start.HasValue)
             {
-                form.Child(new XmppElement("field").Attr("var", "start").Child(new XmppElement("value") { Value = start.Value.ToString("yyyy-MM-ddTHH:mm:ssZ") }));
+                form.Child(new XmppElement("field").Attr("var", "start").Child(new XmppElement("value") { Value = start.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") }));
             }
             if (end.HasValue)
             {
-                form.Child(new XmppElement("field").Attr("var", "end").Child(new XmppElement("value") { Value = end.Value.ToString("yyyy-MM-ddTHH:mm:ssZ") }));
+                form.Child(new XmppElement("field").Attr("var", "end").Child(new XmppElement("value") { Value = end.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") }));
             }
 
             queryElem.Child(form);
@@ -77,9 +77,19 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
             var rsm = new XmppElement("set", NsRsm);
             rsm.Child(new XmppElement("max") { Value = maxResults.ToString() });
             if (before is not null)
-                rsm.Child(new XmppElement("before") { Value = before });
+            {
+                rsm.Child(new XmppElement("before") { Value = string.IsNullOrEmpty(before) ? null : before });
+            }
+            else if (after is null && !start.HasValue)
+            {
+                // Default to most recent page (or page ending at 'end') per XEP-0313 Section 4.1.4
+                rsm.Child(new XmppElement("before"));
+            }
+
             if (after is not null)
+            {
                 rsm.Child(new XmppElement("after") { Value = after });
+            }
 
             queryElem.Child(rsm);
             iq.RawElement.Child(queryElem);
@@ -132,7 +142,10 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
                 if (innerMsgElem is not null)
                 {
                     var innerMsg = new MessageStanza(innerMsgElem);
-                    var delayElem = forwarded?.Element("delay", NsDelay);
+                    var delayElem = forwarded?.Element("delay", NsDelay)
+                                 ?? forwarded?.Element("x", "jabber:x:delay")
+                                 ?? innerMsgElem.Element("delay", NsDelay)
+                                 ?? innerMsgElem.Element("x", "jabber:x:delay");
                     DateTimeOffset timestamp = DateTimeOffset.UtcNow;
 
                     if (delayElem?.GetAttr("stamp") is string stampStr &&
@@ -153,6 +166,17 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
                         lock (list)
                         {
                             list.Add(item);
+                        }
+                    }
+                    else if (_activeQueries.Count == 1)
+                    {
+                        var singleList = _activeQueries.Values.FirstOrDefault();
+                        if (singleList is not null)
+                        {
+                            lock (singleList)
+                            {
+                                singleList.Add(item);
+                            }
                         }
                     }
                 }

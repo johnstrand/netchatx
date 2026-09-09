@@ -20,6 +20,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\NetChatx.Core\NetChatx.Core.csproj" />
+    <ProjectReference Include="..\..\src\NetChatx.Storage\NetChatx.Storage.csproj" />
+    <ProjectReference Include="..\..\src\NetChatx.Protocol.Xeps\NetChatx.Protocol.Xeps.csproj" />
+    <ProjectReference Include="..\..\src\NetChatx.Gui\NetChatx.Gui.csproj" />
     <ProjectReference Include="..\NetChatx.MockServer\NetChatx.MockServer.csproj" />
   </ItemGroup>
 

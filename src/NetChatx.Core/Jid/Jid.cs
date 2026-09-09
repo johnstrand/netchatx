@@ -92,7 +92,7 @@ public sealed class Jid : IEquatable<Jid>, IComparable<Jid>
         if (slashIndex >= 0)
         {
             var domainSpan = remaining[..slashIndex];
-            if (domainSpan.IsEmpty || domainSpan.Length > 1023)
+            if (domainSpan.IsEmpty || domainSpan.Length > 1023 || domainSpan.IndexOf('@') >= 0)
                 return false;
 
             domain = domainSpan.ToString();
@@ -104,7 +104,7 @@ public sealed class Jid : IEquatable<Jid>, IComparable<Jid>
         }
         else
         {
-            if (remaining.IsEmpty || remaining.Length > 1023)
+            if (remaining.IsEmpty || remaining.Length > 1023 || remaining.IndexOf('@') >= 0)
                 return false;
 
             domain = remaining.ToString();

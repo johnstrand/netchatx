@@ -1,0 +1,320 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NetChatx.Gui.ViewModels"
+             xmlns:conv="using:NetChatx.Gui.Converters"
+             x:Class="NetChatx.Gui.Views.MainChatView"
+             x:DataType="vm:MainChatViewModel">
+
+    <UserControl.Resources>
+        <conv:DirectionToAlignmentConverter x:Key="DirectionToAlignment" />
+        <conv:DirectionToBackgroundConverter x:Key="DirectionToBackground" />
+        <conv:DirectionToForegroundConverter x:Key="DirectionToForeground" />
+        <conv:PresenceToBrushConverter x:Key="PresenceToBrush" />
+        <conv:BoolToLockIconConverter x:Key="BoolToLockIcon" />
+    </UserControl.Resources>
+
+    <Grid ColumnDefinitions="300,2,*,Auto">
+        <!-- ================= LEFT COLUMN: SIDEBAR ================= -->
+        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*,Auto" Background="{DynamicResource SystemChromeLowColor}">
+
+            <!-- Row 0: Current User Presence Bar -->
+            <Border Grid.Row="0" Padding="14,12" Background="{DynamicResource SystemChromeMediumLowColor}"
+                    BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <!-- User Status Dot & Avatar -->
+                    <Ellipse Grid.Column="0" Width="32" Height="32" Fill="{DynamicResource AccentButtonBackground}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding UserBoundJid}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <!-- Status Menu Button -->
+                    <DropDownButton Grid.Column="2" Content="●"
+                                    Foreground="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
+                                    Background="Transparent" BorderThickness="0">
+                        <DropDownButton.Flyout>
+                            <MenuFlyout>
+                                <MenuItem Header="Online" Command="{Binding SetPresenceCommand}" CommandParameter="available" />
+                                <MenuItem Header="Away" Command="{Binding SetPresenceCommand}" CommandParameter="away" />
+                                <MenuItem Header="Do Not Disturb" Command="{Binding SetPresenceCommand}" CommandParameter="dnd" />
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </Grid>
+            </Border>
+
+            <!-- Row 1: Search Bar -->
+            <Border Grid.Row="1" Padding="10,8" BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0" Text="{Binding SearchQuery}" Watermark="Search messages or contacts..."
+                             Height="32" VerticalContentAlignment="Center" />
+                    <Button Grid.Column="1" Content="🔍" Command="{Binding ExecuteSearchCommand}" Margin="6,0,0,0" Height="32" Width="36" />
+                </Grid>
+            </Border>
+
+            <!-- Row 2: Search Results or Tabs (Chats & Contacts) -->
+            <!-- Search Results View -->
+            <Grid Grid.Row="2" RowDefinitions="Auto,*" IsVisible="{Binding IsSearching}">
+                <Border Grid.Row="0" Padding="12,6" Background="{DynamicResource SystemChromeMediumColor}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Search Results" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Close ✕" Command="{Binding CloseSearchCommand}" FontSize="11" Padding="6,2" />
+                    </Grid>
+                </Border>
+                <ListBox Grid.Row="1" ItemsSource="{Binding SearchResults}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:MessageBubbleViewModel}">
+                            <StackPanel Spacing="2" Margin="4">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding SenderName}" FontWeight="SemiBold" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding FormattedDateTime}" Classes="muted" FontSize="10" />
+                                </Grid>
+                                <TextBlock Text="{Binding Body}" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- Normal Navigation Tabs (Chats / Contacts) -->
+            <TabControl Grid.Row="2" IsVisible="{Binding !IsSearching}" Margin="0">
+                <!-- Chats Tab -->
+                <TabItem Header="Chats">
+                    <ListBox ItemsSource="{Binding Conversations}"
+                             SelectedItem="{Binding ActiveConversation, Mode=TwoWay}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
+                                <Grid ColumnDefinitions="*,Auto" Margin="4,2">
+                                    <StackPanel Grid.Column="0" Spacing="2">
+                                        <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding RemoteJid}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="🔒" IsVisible="{Binding IsEncrypted}" FontSize="12" VerticalAlignment="Center" Margin="4,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+
+                <!-- Contacts Roster Tab -->
+                <TabItem Header="Contacts">
+                    <ListBox ItemsSource="{Binding Contacts}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ContactItemViewModel}">
+                                <Button Command="{Binding ((vm:MainChatViewModel)DataContext).SelectContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                        Background="Transparent" BorderThickness="0" Padding="4,2">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <!-- Online indicator -->
+                                        <Ellipse Grid.Column="0" Width="10" Height="10"
+                                                 Fill="{Binding PresenceShow, Converter={StaticResource PresenceToBrush}}"
+                                                 Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding ContactJid}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <!-- Unread badge -->
+                                        <Border Grid.Column="2" Background="{DynamicResource AccentButtonBackground}"
+                                                CornerRadius="10" Padding="6,2"
+                                                IsVisible="{Binding UnreadCount}" Margin="4,0,0,0">
+                                            <TextBlock Text="{Binding UnreadCount}" Foreground="White" FontSize="10" FontWeight="Bold" />
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+            </TabControl>
+
+            <!-- Row 3: Bottom Action Bar -->
+            <Border Grid.Row="3" Padding="12,8" Background="{DynamicResource SystemChromeMediumLowColor}"
+                    BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,1,0,0">
+                <Button Content="Disconnect" Command="{Binding DisconnectCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <!-- Column 1: Grid Splitter -->
+        <GridSplitter Grid.Column="1" Width="2" Background="{DynamicResource SystemChromeMediumColor}" ResizeDirection="Columns" />
+
+        <!-- ================= CENTER COLUMN: CONVERSATION PANE ================= -->
+        <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Background="{DynamicResource SystemChromeAltHighColor}">
+
+            <!-- Top Chat Header -->
+            <Border Grid.Row="0" Padding="16,10" Background="{DynamicResource SystemChromeMediumLowColor}"
+                    BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,0,0,1"
+                    IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="{Binding ActiveConversation.Title}" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ActiveConversation.RemoteJid}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                    <!-- Encryption Badge -->
+                    <Border Grid.Column="1" Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="12" Padding="8,4" Margin="0,0,10,0"
+                            IsVisible="{Binding ActiveConversation.IsEncrypted}">
+                        <TextBlock Text="🔒 OMEMO Active" FontSize="11" FontWeight="SemiBold" />
+                    </Border>
+                    <!-- Sync Button -->
+                    <Button Grid.Column="2" Content="Sync 🔄"
+                            Command="{Binding ActiveConversation.SyncArchiveCommand}"
+                            IsEnabled="{Binding !ActiveConversation.IsSyncing}"
+                            FontSize="12" Margin="0,0,8,0" />
+                    <!-- Toggle Details Button -->
+                    <Button Grid.Column="3" Content="Details ℹ" Command="{Binding ToggleDetailsCommand}" FontSize="12" />
+                </Grid>
+            </Border>
+
+            <!-- Center: Messages Scroll Area -->
+            <Grid Grid.Row="1" IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <ScrollViewer x:Name="MessagesScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="8" Margin="16">
+                        <!-- Load Older Messages Button -->
+                        <Button Content="{Binding ActiveConversation.LoadOlderButtonText}"
+                                Command="{Binding ActiveConversation.LoadOlderHistoryCommand}"
+                                IsEnabled="{Binding !ActiveConversation.IsLoadingOlderHistory}"
+                                HorizontalAlignment="Center"
+                                FontSize="12" Padding="12,4" Margin="0,0,0,8" />
+
+                        <!-- Messages List -->
+                        <ItemsControl ItemsSource="{Binding ActiveConversation.Messages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:MessageBubbleViewModel}">
+                                    <StackPanel Margin="0,2">
+                                        <!-- Centered Date Header Separator -->
+                                        <Border HorizontalAlignment="Center"
+                                                Background="{DynamicResource SystemChromeMediumColor}"
+                                                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12,3"
+                                                Margin="0,8,0,6"
+                                                IsVisible="{Binding ShowDateHeader}">
+                                            <TextBlock Text="{Binding DateHeader}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.85" />
+                                        </Border>
+
+                                        <!-- Message Bubble Container -->
+                                        <Border HorizontalAlignment="{Binding Direction, Converter={StaticResource DirectionToAlignment}}"
+                                                Background="{Binding Direction, Converter={StaticResource DirectionToBackground}}"
+                                                CornerRadius="14"
+                                                Padding="12,8"
+                                                MaxWidth="580"
+                                                BoxShadow="0 1 3 0 #15000000">
+                                            <StackPanel Spacing="4">
+                                                <!-- Sender Name for group chats -->
+                                                <TextBlock Text="{Binding SenderName}" FontWeight="Bold" FontSize="11"
+                                                           Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                           Opacity="0.85" />
+
+                                                <!-- Message Content -->
+                                                <TextBlock Text="{Binding Body}"
+                                                           Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                           FontSize="13"
+                                                           TextWrapping="Wrap" />
+
+                                                <!-- Message Footer: Time + Receipt -->
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding FormattedTime}" FontSize="10"
+                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                               Opacity="0.75" />
+                                                    <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
+                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                               Opacity="0.9" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Empty State Placeholder when no active conversation -->
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8"
+                        IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNull}}">
+                <TextBlock Text="💬" FontSize="48" HorizontalAlignment="Center" />
+                <TextBlock Text="Welcome to NetChatx" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="Select a contact or conversation from the sidebar to begin." Classes="muted" HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Typing Indicator -->
+            <Border Grid.Row="2" Padding="16,4" IsVisible="{Binding ActiveConversation.IsComposing}">
+                <TextBlock Text="Contact is typing..." FontStyle="Italic" Classes="muted" FontSize="11" />
+            </Border>
+
+            <!-- Bottom Message Input Bar -->
+            <Border Grid.Row="3" Padding="14,10" Background="{DynamicResource SystemChromeMediumLowColor}"
+                    BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,1,0,0"
+                    IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox x:Name="MessageInputBox"
+                             Grid.Column="0"
+                             Text="{Binding ActiveConversation.InputText, Mode=TwoWay}"
+                             Watermark="Type a message... (Enter to send, Shift+Enter for newline)"
+                             AcceptsReturn="True"
+                             MaxHeight="100"
+                             VerticalContentAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Content="Send"
+                            Classes="accent"
+                            Command="{Binding ActiveConversation.SendMessageCommand}"
+                            Height="36"
+                            Padding="16,0"
+                            Margin="8,0,0,0" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= RIGHT COLUMN: COLLAPSIBLE DETAILS DRAWER ================= -->
+        <Border Grid.Column="3" Width="300" Background="{DynamicResource SystemChromeLowColor}"
+                BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="1,0,0,0"
+                IsVisible="{Binding IsDetailsOpen}">
+            <ScrollViewer>
+                <StackPanel Spacing="16" Margin="16">
+                    <!-- Drawer Header -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Details &amp; Security" FontWeight="Bold" FontSize="15" />
+                        <Button Grid.Column="1" Content="✕" Command="{Binding ToggleDetailsCommand}" Padding="6,2" />
+                    </Grid>
+
+                    <!-- Contact Details -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Contact JID" FontSize="11" FontWeight="SemiBold" Classes="muted" />
+                        <TextBlock Text="{Binding ActiveConversation.RemoteJid}" FontSize="13" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Separator />
+
+                    <!-- OMEMO E2EE Fingerprints -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="OMEMO Device Fingerprints" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Text="Verify device identity keys to ensure communication is secure against eavesdropping." Classes="muted" TextWrapping="Wrap" FontSize="11" />
+
+                        <ItemsControl ItemsSource="{Binding OmemoDetails.Devices}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OmemoDeviceItemViewModel}">
+                                    <Border Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="8" Padding="10" Margin="0,4">
+                                        <StackPanel Spacing="6">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding DeviceId, StringFormat='Device #{0}'}" FontWeight="Medium" FontSize="12" />
+                                                <TextBlock Grid.Column="1" Text="{Binding TrustState}" FontSize="11" Classes="muted" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding Fingerprint}" FontFamily="Consolas, monospace" FontSize="10" Classes="muted" TextWrapping="Wrap" />
+                                            <Button Content="{Binding IsTrusted, Converter={StaticResource BoolToLockIcon}}"
+                                                    Command="{Binding ToggleTrustCommand}"
+                                                    HorizontalAlignment="Right" FontSize="11" Padding="8,4" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

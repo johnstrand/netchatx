@@ -17,6 +17,44 @@ public sealed class MessageRepository
         using var connection = _context.CreateConnection();
         using var cmd = connection.CreateCommand();
 
+        // Comprehensive deduplication:
+        // 1. By primary key id
+        // 2. By stanza_id or origin_id (if non-null)
+        // 3. By content similarity: same account_jid, remote_jid, direction, body, and timestamp within +/- 60s
+        using var checkCmd = connection.CreateCommand();
+        checkCmd.CommandText = """
+            SELECT id FROM messages
+            WHERE account_jid = $account_jid
+              AND (
+                  id = $id
+                  OR ($stanza_id IS NOT NULL AND stanza_id = $stanza_id)
+                  OR ($origin_id IS NOT NULL AND origin_id = $origin_id)
+                  OR (
+                      remote_jid = $remote_jid
+                      AND direction = $direction
+                      AND body = $body
+                      AND timestamp >= $time_min
+                      AND timestamp <= $time_max
+                  )
+              )
+            LIMIT 1;
+        """;
+        checkCmd.Parameters.AddWithValue("$account_jid", message.AccountJid);
+        checkCmd.Parameters.AddWithValue("$id", message.Id);
+        checkCmd.Parameters.AddWithValue("$stanza_id", (object?)message.StanzaId ?? DBNull.Value);
+        checkCmd.Parameters.AddWithValue("$origin_id", (object?)message.OriginId ?? DBNull.Value);
+        checkCmd.Parameters.AddWithValue("$remote_jid", message.RemoteJid);
+        checkCmd.Parameters.AddWithValue("$direction", (int)message.Direction);
+        checkCmd.Parameters.AddWithValue("$body", message.Body);
+        checkCmd.Parameters.AddWithValue("$time_min", message.Timestamp.AddSeconds(-60).ToString("O"));
+        checkCmd.Parameters.AddWithValue("$time_max", message.Timestamp.AddSeconds(60).ToString("O"));
+
+        var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
+        if (existingId is not null)
+        {
+            message.Id = (string)existingId;
+        }
+
         cmd.CommandText = """
             INSERT INTO messages (
                 id, account_jid, remote_jid, sender_jid, timestamp, direction,
@@ -27,6 +65,8 @@ public sealed class MessageRepository
             )
             ON CONFLICT(id) DO UPDATE SET
                 body = excluded.body,
+                stanza_id = COALESCE(excluded.stanza_id, messages.stanza_id),
+                origin_id = COALESCE(excluded.origin_id, messages.origin_id),
                 replace_id = excluded.replace_id,
                 is_read = excluded.is_read;
         """;
