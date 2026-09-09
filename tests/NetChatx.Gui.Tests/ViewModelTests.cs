@@ -33,6 +33,51 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatConversationViewModel_ToggleReaction_UpdatesUIAndDatabase()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        var msg = new ChatMessage
+        {
+            Id = "msg_react_vm_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Reaction test bubble",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s_react_1"
+        };
+        await _messageRepo.SaveMessageAsync(msg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        await conv.LoadHistoryAsync();
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.Empty(bubble.Reactions);
+
+        // Toggle 👍 reaction by me
+        await conv.ToggleReactionAsync(bubble, "👍");
+
+        Assert.Single(bubble.Reactions);
+        Assert.Equal("👍", bubble.Reactions[0].Emoji);
+        Assert.Equal(1, bubble.Reactions[0].Count);
+        Assert.True(bubble.Reactions[0].IsReactedByMe);
+
+        // Toggle 👍 again to remove
+        await conv.ToggleReactionAsync(bubble, "👍");
+        Assert.Empty(bubble.Reactions);
+    }
+
+    [Fact]
     public async Task LoginViewModel_Validation_FailsOnEmptyOrInvalidInputs()
     {
         AccountProfile? capturedProfile = null;

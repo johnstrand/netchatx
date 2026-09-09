@@ -23,6 +23,15 @@ public sealed class ChatMessage
     public bool IsRead { get; set; }
 }
 
+public sealed class MessageReaction
+{
+    public required string AccountJid { get; set; }
+    public required string RemoteJid { get; set; }
+    public required string MessageId { get; set; }
+    public required string SenderJid { get; set; }
+    public required string Emoji { get; set; }
+}
+
 public sealed class RosterContact
 {
     public required string AccountJid { get; set; }

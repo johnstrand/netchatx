@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
@@ -16,6 +19,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     private static readonly Regex ImageUrlRegex = new(
         @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public Func<MessageBubbleViewModel, string, Task>? ToggleReactionHandler { get; set; }
 
     [ObservableProperty]
     private string _id = Guid.NewGuid().ToString("N");
@@ -69,6 +74,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoadingImage;
 
+    public ObservableCollection<ReactionCountViewModel> Reactions { get; } = [];
+
+    public IReadOnlyList<string> QuickEmojis { get; } = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
+
     public string FormattedTime
     {
         get
@@ -98,6 +107,35 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     public string FormattedDateTime => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
+
+    [RelayCommand]
+    public async Task QuickReactAsync(string emoji)
+    {
+        if (ToggleReactionHandler is not null && !string.IsNullOrWhiteSpace(emoji))
+        {
+            await ToggleReactionHandler(this, emoji);
+        }
+    }
+
+    public void UpdateReactions(IEnumerable<MessageReaction> rawReactions, string currentAccountJid)
+    {
+        var grouped = rawReactions
+            .GroupBy(r => r.Emoji)
+            .Select(g => new
+            {
+                Emoji = g.Key,
+                Count = g.Count(),
+                IsReactedByMe = g.Any(r => r.SenderJid.Equals(currentAccountJid, StringComparison.OrdinalIgnoreCase) ||
+                                           r.SenderJid.StartsWith(currentAccountJid + "/", StringComparison.OrdinalIgnoreCase))
+            })
+            .ToList();
+
+        Reactions.Clear();
+        foreach (var item in grouped)
+        {
+            Reactions.Add(new ReactionCountViewModel(item.Emoji, item.Count, item.IsReactedByMe, emoji => QuickReactAsync(emoji)));
+        }
+    }
 
     public void ExtractImageUrl(string body)
     {

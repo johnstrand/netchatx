@@ -16,6 +16,42 @@ namespace NetChatx.Xeps.Tests;
 public class XepTests
 {
     [Fact]
+    public async Task Xep0444_Reactions_ParsingAndBuilding_Succeeds()
+    {
+        var reactions = new Xep0444Reactions();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+
+        await reactions.AttachAsync(client);
+
+        ReactionEventArgs? receivedArgs = null;
+        reactions.ReactionReceived += args => receivedArgs = args;
+
+        // Simulate incoming reaction stanza per XEP-0444
+        var reactionStanza = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com/res")
+            .Attr("to", "alice@mock.example.com")
+            .Attr("type", "chat")
+            .Child(new XmppElement("reactions", "urn:xmpp:reactions:0")
+                .Attr("id", "msg123")
+                .Child(new XmppElement("reaction") { Value = "👍" })
+                .Child(new XmppElement("reaction") { Value = "🎉" }));
+
+        await reactions.OnIncomingElementAsync(client, reactionStanza);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal("msg123", receivedArgs.TargetMessageId);
+        Assert.Equal("bob@mock.example.com/res", receivedArgs.SenderJid.ToString());
+        Assert.Equal("bob@mock.example.com", receivedArgs.RemoteJid.ToString());
+        Assert.Equal(2, receivedArgs.Emojis.Count);
+        Assert.Contains("👍", receivedArgs.Emojis);
+        Assert.Contains("🎉", receivedArgs.Emojis);
+    }
+
+    [Fact]
     public async Task Xep0030_And_Xep0199_PingAndDisco_Succeeds()
     {
         var transport = new LoopbackTransport();

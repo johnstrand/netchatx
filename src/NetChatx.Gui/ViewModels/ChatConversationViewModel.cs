@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +25,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0313MessageArchiveManagement? _mamManager;
     private readonly Xep0384OmemoManager? _omemoManager;
     private readonly Xep0363HttpFileUpload? _httpUploadManager;
+    private readonly Xep0444Reactions? _reactionsManager;
     private readonly string _accountJid;
 
     [ObservableProperty]
@@ -88,7 +90,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         XmppClient? client = null,
         Xep0313MessageArchiveManagement? mamManager = null,
         Xep0384OmemoManager? omemoManager = null,
-        Xep0363HttpFileUpload? httpUploadManager = null)
+        Xep0363HttpFileUpload? httpUploadManager = null,
+        Xep0444Reactions? reactionsManager = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -100,6 +103,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _mamManager = mamManager;
         _omemoManager = omemoManager;
         _httpUploadManager = httpUploadManager;
+        _reactionsManager = reactionsManager;
     }
 
     public async Task EnsureHistoryLoadedAsync()
@@ -118,6 +122,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         {
             AddOrUpdateMessage(msg);
         }
+        await LoadReactionsForCurrentMessagesAsync();
         UpdateDateHeaders();
         HasLoadedHistory = true;
         RequestScrollToBottom();
@@ -221,6 +226,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 beforeId = mamResult.FirstId;
             }
 
+            await LoadReactionsForCurrentMessagesAsync();
             UpdateDateHeaders();
             RequestScrollToBottom();
         }
@@ -289,11 +295,103 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 OldestMessageTimestamp = Messages[0].Timestamp;
             }
 
+            await LoadReactionsForCurrentMessagesAsync();
             UpdateDateHeaders();
         }
         finally
         {
             IsLoadingOlderHistory = false;
+        }
+    }
+
+    public async Task LoadReactionsForCurrentMessagesAsync()
+    {
+        if (Messages.Count == 0) return;
+
+        var messageIds = Messages.Select(m => m.Id).ToList();
+        var rawReactions = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, messageIds);
+
+        var reactionsByMsgId = rawReactions.GroupBy(r => r.MessageId).ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var bubble in Messages)
+        {
+            if (reactionsByMsgId.TryGetValue(bubble.Id, out var msgReactions))
+            {
+                bubble.UpdateReactions(msgReactions, _accountJid);
+            }
+            else
+            {
+                bubble.UpdateReactions([], _accountJid);
+            }
+        }
+    }
+
+    public async Task ToggleReactionAsync(MessageBubbleViewModel bubble, string emoji)
+    {
+        if (string.IsNullOrWhiteSpace(emoji)) return;
+
+        // Check if I already reacted with this emoji
+        var mySenderJid = _client?.BoundJid.ToString() ?? _accountJid;
+        var existingForMsg = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, [bubble.Id]);
+
+        var myCurrentEmojis = existingForMsg
+            .Where(r => r.SenderJid.Equals(mySenderJid, StringComparison.OrdinalIgnoreCase) ||
+                        r.SenderJid.StartsWith(_accountJid + "/", StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.Emoji)
+            .Distinct()
+            .ToList();
+
+        if (myCurrentEmojis.Contains(emoji))
+        {
+            myCurrentEmojis.Remove(emoji);
+        }
+        else
+        {
+            myCurrentEmojis.Add(emoji);
+        }
+
+        // Save new reaction set in DB
+        await _messageRepo.SaveReactionsAsync(_accountJid, RemoteJid.ToString(), bubble.Id, mySenderJid, myCurrentEmojis);
+
+        // Update UI
+        var updatedReactions = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, [bubble.Id]);
+        bubble.UpdateReactions(updatedReactions, _accountJid);
+
+        // Send XEP-0444 Reaction stanza over wire
+        if (_reactionsManager is not null && _client is not null)
+        {
+            var targetId = !string.IsNullOrEmpty(bubble.StanzaId) ? bubble.StanzaId : bubble.Id;
+            var stanzaType = IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat;
+            try
+            {
+                await _reactionsManager.SendReactionAsync(RemoteJid, targetId, myCurrentEmojis, stanzaType);
+            }
+            catch
+            {
+                // Soft failure over wire
+            }
+        }
+    }
+
+    public async Task HandleIncomingReactionAsync(ReactionEventArgs args)
+    {
+        var bubble = Messages.FirstOrDefault(m =>
+            m.Id == args.TargetMessageId ||
+            (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == args.TargetMessageId));
+
+        string targetId = bubble?.Id ?? args.TargetMessageId;
+
+        await _messageRepo.SaveReactionsAsync(
+            _accountJid,
+            RemoteJid.ToString(),
+            targetId,
+            args.SenderJid.ToString(),
+            args.Emojis);
+
+        if (bubble is not null)
+        {
+            var updatedReactions = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, [bubble.Id]);
+            PostToUi(() => bubble.UpdateReactions(updatedReactions, _accountJid));
         }
     }
 
@@ -456,6 +554,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+        bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
+
         int index = 0;
         while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
         {
@@ -466,6 +566,18 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
         {
             OldestMessageTimestamp = bubble.Timestamp;
+        }
+    }
+
+    private static void PostToUi(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(action);
         }
     }
 }

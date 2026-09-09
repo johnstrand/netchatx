@@ -34,6 +34,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0045MultiUserChat? _muc;
     private Xep0363HttpFileUpload? _httpUpload;
     private Xep0280MessageCarbons? _carbons;
+    private Xep0444Reactions? _reactions;
 
     [ObservableProperty]
     private string _accountJid;
@@ -92,12 +93,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _muc = new Xep0045MultiUserChat();
         _httpUpload = new Xep0363HttpFileUpload();
         _carbons = new Xep0280MessageCarbons();
+        _reactions = new Xep0444Reactions();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
         await _muc.AttachAsync(_client);
         await _httpUpload.AttachAsync(_client);
         await _carbons.AttachAsync(_client);
+        await _reactions.AttachAsync(_client);
 
         try
         {
@@ -124,6 +127,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _omemo.MessageDecrypted += async dec =>
         {
             await HandleDecryptedMessageAsync(dec);
+        };
+
+        // Wire reactions
+        _reactions.ReactionReceived += async args =>
+        {
+            await HandleIncomingReactionAsync(args);
         };
 
         // Load cached contacts from SQLite
@@ -240,7 +249,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _client,
             _mam,
             _omemo,
-            _httpUpload);
+            _httpUpload,
+            _reactions);
 
         Conversations.Add(newConv);
         return newConv;
@@ -299,6 +309,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         await _client.DisconnectAsync();
         await _onDisconnectRequested();
+    }
+
+    private async Task HandleIncomingReactionAsync(ReactionEventArgs args)
+    {
+        var conv = GetOrCreateConversation(args.RemoteJid.ToString(), args.RemoteJid.ToString(), args.RemoteJid, isGroupChat: false);
+        await conv.HandleIncomingReactionAsync(args);
     }
 
     private async Task HandleIncomingMessageAsync(MessageStanza msg)

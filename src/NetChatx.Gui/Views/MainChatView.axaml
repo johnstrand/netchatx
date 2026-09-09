@@ -23,6 +23,28 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Opacity" Value="0.9" />
         </Style>
+        <Style Selector="Button.reaction-picker-btn">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Button.reaction-picker-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="1.0" />
+        </Style>
+        <Style Selector="Button.reaction-badge">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeMediumColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemChromeHighColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="6,2" />
+        </Style>
+        <Style Selector="Button.reaction-badge.reacted">
+            <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+        </Style>
     </UserControl.Styles>
 
     <Grid ColumnDefinitions="300,2,*,Auto">
@@ -248,15 +270,65 @@
                                                     </Panel>
                                                 </Button>
 
-                                                <!-- Message Footer: Time + Receipt -->
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,2,0,0">
-                                                    <TextBlock Text="{Binding FormattedTime}" FontSize="10"
-                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                               Opacity="0.75" />
-                                                    <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
-                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                               Opacity="0.9" />
-                                                </StackPanel>
+                                                <!-- Message Reactions Display Badges -->
+                                                <ItemsControl ItemsSource="{Binding Reactions}" Margin="0,2,0,0">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:ReactionCountViewModel}">
+                                                            <Button Classes="reaction-badge"
+                                                                    Classes.reacted="{Binding IsReactedByMe}"
+                                                                    Command="{Binding ToggleCommand}"
+                                                                    Margin="0,2,4,2">
+                                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                    <TextBlock Text="{Binding Emoji}" FontSize="12" VerticalAlignment="Center" />
+                                                                    <TextBlock Text="{Binding Count}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <!-- Message Footer: Time + Quick Reaction Picker + Receipt -->
+                                                <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                                                    <!-- Quick Emoji Reaction Picker Flyout Button -->
+                                                    <DropDownButton Grid.Column="0" Content="😀+" Classes="reaction-picker-btn"
+                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                    HorizontalAlignment="Left">
+                                                        <DropDownButton.Flyout>
+                                                            <Flyout Placement="Top">
+                                                                <ItemsControl ItemsSource="{Binding QuickEmojis}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate DataType="{x:Type x:String}">
+                                                                            <Button Content="{Binding}"
+                                                                                    Command="{Binding ((vm:MessageBubbleViewModel)DataContext).QuickReactCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                    CommandParameter="{Binding}"
+                                                                                    FontSize="16" Padding="6,4"
+                                                                                    Background="Transparent" BorderThickness="0" />
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Flyout>
+                                                        </DropDownButton.Flyout>
+                                                    </DropDownButton>
+
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding FormattedTime}" FontSize="10"
+                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Opacity="0.75" />
+                                                        <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
+                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Opacity="0.9" />
+                                                    </StackPanel>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

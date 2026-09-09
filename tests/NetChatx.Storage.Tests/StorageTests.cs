@@ -18,6 +18,48 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task MessageRepository_ReactionsSaveAndRetrieve_WorksCorrectly()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+        string msgId = "msg_reaction_test_1";
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            Id = msgId,
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound,
+            Body = "Test message for reactions",
+            StanzaId = "stanza_react_1"
+        });
+
+        // 1. Bob reacts with 👍 and ❤️
+        await repo.SaveReactionsAsync(account, remote, "stanza_react_1", "bob@example.com", ["👍", "❤️"]);
+
+        var reactions1 = await repo.GetReactionsForMessagesAsync(account, [msgId]);
+        Assert.Equal(2, reactions1.Count);
+        Assert.Contains(reactions1, r => r.SenderJid == "bob@example.com" && r.Emoji == "👍");
+        Assert.Contains(reactions1, r => r.SenderJid == "bob@example.com" && r.Emoji == "❤️");
+
+        // 2. Alice reacts with 👍
+        await repo.SaveReactionsAsync(account, remote, msgId, "alice@example.com", ["👍"]);
+
+        var reactions2 = await repo.GetReactionsForMessagesAsync(account, [msgId]);
+        Assert.Equal(3, reactions2.Count);
+
+        // 3. Bob removes ❤️ (leaving only 👍)
+        await repo.SaveReactionsAsync(account, remote, "stanza_react_1", "bob@example.com", ["👍"]);
+
+        var reactions3 = await repo.GetReactionsForMessagesAsync(account, [msgId]);
+        Assert.Equal(2, reactions3.Count);
+        Assert.All(reactions3, r => Assert.Equal("👍", r.Emoji));
+    }
+
+    [Fact]
     public async Task AccountRepository_Crud_Succeeds()
     {
         var repo = new AccountRepository(_context);
