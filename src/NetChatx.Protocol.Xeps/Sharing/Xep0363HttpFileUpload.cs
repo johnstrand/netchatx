@@ -122,4 +122,90 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
 
         return slot.GetUrl;
     }
+
+    public async Task<string> UploadBytesAsync(
+        Jid uploadServiceJid,
+        byte[] data,
+        string filename,
+        string contentType = "image/png",
+        IProgress<double>? progress = null,
+        CancellationToken ct = default)
+    {
+        var slot = await RequestSlotAsync(uploadServiceJid, filename, data.Length, contentType, ct);
+
+        using var ms = new MemoryStream(data);
+        using var content = new StreamContent(ms);
+        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, slot.PutUrl)
+        {
+            Content = content
+        };
+
+        foreach (var kv in slot.Headers)
+        {
+            request.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+        }
+
+        progress?.Report(0.1);
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        progress?.Report(1.0);
+
+        return slot.GetUrl;
+    }
+
+    public async Task<Jid?> DiscoverUploadServiceAsync(Jid domainJid, CancellationToken ct = default)
+    {
+        if (Client is null) return null;
+
+        try
+        {
+            // 1. Check if domain itself supports HTTP upload
+            var infoIq = IqStanza.CreateGet(domainJid);
+            infoIq.RawElement.Child(new XmppElement("query", "http://jabber.org/protocol/disco#info"));
+            var infoResult = await Client.SendIqAsync(infoIq, cancellationToken: ct);
+            var queryInfo = infoResult.RawElement.Element("query", "http://jabber.org/protocol/disco#info");
+            if (queryInfo is not null)
+            {
+                foreach (var f in queryInfo.Elements("feature"))
+                {
+                    if (f.GetAttr("var") == NsHttpUpload) return domainJid;
+                }
+            }
+
+            // 2. Query disco#items of the domain
+            var itemsIq = IqStanza.CreateGet(domainJid);
+            itemsIq.RawElement.Child(new XmppElement("query", "http://jabber.org/protocol/disco#items"));
+            var itemsResult = await Client.SendIqAsync(itemsIq, cancellationToken: ct);
+            var queryItems = itemsResult.RawElement.Element("query", "http://jabber.org/protocol/disco#items");
+            if (queryItems is not null)
+            {
+                foreach (var item in queryItems.Elements("item"))
+                {
+                    string? jidStr = item.GetAttr("jid");
+                    if (!string.IsNullOrEmpty(jidStr) && Jid.TryParse(jidStr, out var itemJid))
+                    {
+                        var subInfoIq = IqStanza.CreateGet(itemJid);
+                        subInfoIq.RawElement.Child(new XmppElement("query", "http://jabber.org/protocol/disco#info"));
+                        var subInfoResult = await Client.SendIqAsync(subInfoIq, cancellationToken: ct);
+                        var subQueryInfo = subInfoResult.RawElement.Element("query", "http://jabber.org/protocol/disco#info");
+                        if (subQueryInfo is not null)
+                        {
+                            foreach (var f in subQueryInfo.Elements("feature"))
+                            {
+                                if (f.GetAttr("var") == NsHttpUpload) return itemJid;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure during service discovery
+        }
+
+        return null;
+    }
 }

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Transport;
+using NetChatx.Gui.Helpers;
 using NetChatx.Gui.ViewModels;
 using NetChatx.Storage;
 using NetChatx.Storage.Models;
@@ -570,6 +571,90 @@ public class ViewModelTests : IDisposable
         // 3. Paging backwards (older history) must NOT trigger scroll to bottom
         await conv.LoadOlderHistoryAsync();
         Assert.Equal(2, scrollRequests); // still 2!
+    }
+
+    [Theory]
+    [InlineData("https://example.com/avatar.png", true, true, "https://example.com/avatar.png")]
+    [InlineData("http://xmpp.org/files/photo.jpeg?token=123", true, true, "http://xmpp.org/files/photo.jpeg?token=123")]
+    [InlineData("file:///C:/AppData/NetChatx/media/snapshot.webp", true, true, "file:///C:/AppData/NetChatx/media/snapshot.webp")]
+    [InlineData("Here is the screenshot: https://test.org/image.gif please check it", true, false, "https://test.org/image.gif")]
+    [InlineData("Just regular text message with no links", false, false, null)]
+    [InlineData("https://example.com/document.pdf", false, false, null)]
+    [InlineData("", false, false, null)]
+    [InlineData(null, false, false, null)]
+    public void MessageBubbleViewModel_ExtractImageUrl_DetectsHttpAndFileLinks(string? body, bool expectedHasImage, bool expectedIsOnlyImage, string? expectedUrl)
+    {
+        var vm = new MessageBubbleViewModel();
+        vm.ExtractImageUrl(body!);
+
+        Assert.Equal(expectedHasImage, vm.HasImage);
+        Assert.Equal(expectedIsOnlyImage, vm.IsOnlyImage);
+        Assert.Equal(expectedUrl, vm.ImageUrl);
+    }
+
+    [Theory]
+    [InlineData("C:\\photos\\img.png", true)]
+    [InlineData("photo.PNG", true)]
+    [InlineData("avatar.jpg", true)]
+    [InlineData("/tmp/pic.jpeg", true)]
+    [InlineData("anim.gif", true)]
+    [InlineData("image.webp", true)]
+    [InlineData("icon.bmp", true)]
+    [InlineData("logo.ico", true)]
+    [InlineData("doc.pdf", false)]
+    [InlineData("archive.zip", false)]
+    [InlineData("text.txt", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void ClipboardImageHelper_IsImageFile_ValidatesExtensions(string? path, bool expected)
+    {
+        var result = ClipboardImageHelper.IsImageFile(path!);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendImageAsync_CreatesMessageWithImageUrl()
+    {
+        string account = "alice@example.com";
+        var remote = Jid.Parse("bob@example.com");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/desktop"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        var dummyBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }; // PNG header bytes
+        await conv.SendImageAsync(dummyBytes, "test_pic.png");
+
+        Assert.Single(conv.Messages);
+        var sentMsg = conv.Messages[0];
+        Assert.True(sentMsg.HasImage);
+        Assert.True(sentMsg.IsOnlyImage);
+        Assert.NotNull(sentMsg.ImageUrl);
+        Assert.StartsWith("file:///", sentMsg.ImageUrl);
+
+        // Verify stored in repository
+        var history = await _messageRepo.GetMessagesAsync(account, remote.ToString(), 10);
+        Assert.Single(history);
+        Assert.Equal(sentMsg.ImageUrl, history[0].Body);
+    }
+
+    [Fact]
+    public void Win32ClipboardHelper_ConvertDibToPngBytes_HandlesInvalidOrCorruptDataSafely()
+    {
+        Assert.Null(Win32ClipboardHelper.ConvertDibToPngBytes(Array.Empty<byte>()));
+        Assert.Null(Win32ClipboardHelper.ConvertDibToPngBytes(new byte[10]));
     }
 
     public void Dispose()
