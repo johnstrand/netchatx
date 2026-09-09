@@ -220,6 +220,146 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task OmemoRepository_SaveAndGetIdentity_Succeeds()
+    {
+        var repo = new OmemoRepository(_context);
+        string account = "alice@example.com";
+
+        // Non-existent identity returns null
+        var nonExistent = await repo.GetIdentityAsync("nonexistent@example.com");
+        Assert.Null(nonExistent);
+
+        // Save identity
+        await repo.SaveIdentityAsync(account, 12345, "priv_key_1", "pub_key_1");
+
+        // Retrieve identity
+        var identity = await repo.GetIdentityAsync(account);
+        Assert.NotNull(identity);
+        Assert.Equal(12345, identity.Value.DeviceId);
+        Assert.Equal("priv_key_1", identity.Value.PrivateKey);
+        Assert.Equal("pub_key_1", identity.Value.PublicKey);
+
+        // Upsert / update identity on conflict
+        await repo.SaveIdentityAsync(account, 54321, "priv_key_2", "pub_key_2");
+
+        var updatedIdentity = await repo.GetIdentityAsync(account);
+        Assert.NotNull(updatedIdentity);
+        Assert.Equal(54321, updatedIdentity.Value.DeviceId);
+        Assert.Equal("priv_key_2", updatedIdentity.Value.PrivateKey);
+        Assert.Equal("pub_key_2", updatedIdentity.Value.PublicKey);
+    }
+
+    [Fact]
+    public async Task OmemoRepository_SaveAndGetSession_Succeeds()
+    {
+        var repo = new OmemoRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+
+        // Non-existent session returns null
+        var nonExistent = await repo.GetSessionAsync(account, remote, 100);
+        Assert.Null(nonExistent);
+
+        // Non-existent sessions list returns empty list
+        var emptyList = await repo.GetSessionsAsync(account, remote);
+        Assert.Empty(emptyList);
+
+        var now = DateTimeOffset.UtcNow;
+        // Truncate sub-second precision to match ISO string roundtrip accuracy if needed
+        var nowTruncated = DateTimeOffset.Parse(now.ToString("O"));
+
+        var session1 = new OmemoSessionRecord
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            DeviceId = 100,
+            SessionData = new byte[] { 0x01, 0x02, 0x03, 0x04 },
+            LastActive = nowTruncated,
+            TrustState = OmemoTrustState.Undecided
+        };
+
+        var session2 = new OmemoSessionRecord
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            DeviceId = 200,
+            SessionData = new byte[] { 0x05, 0x06, 0x07, 0x08 },
+            LastActive = nowTruncated,
+            TrustState = OmemoTrustState.Trusted
+        };
+
+        await repo.SaveSessionAsync(session1);
+        await repo.SaveSessionAsync(session2);
+
+        // Get single session
+        var fetched1 = await repo.GetSessionAsync(account, remote, 100);
+        Assert.NotNull(fetched1);
+        Assert.Equal(account, fetched1.AccountJid);
+        Assert.Equal(remote, fetched1.RemoteJid);
+        Assert.Equal(100, fetched1.DeviceId);
+        Assert.Equal(session1.SessionData, fetched1.SessionData);
+        Assert.Equal(nowTruncated, fetched1.LastActive);
+        Assert.Equal(OmemoTrustState.Undecided, fetched1.TrustState);
+
+        // Get all sessions for account & remote
+        var sessions = await repo.GetSessionsAsync(account, remote);
+        Assert.Equal(2, sessions.Count);
+        Assert.Contains(sessions, s => s.DeviceId == 100);
+        Assert.Contains(sessions, s => s.DeviceId == 200);
+
+        // Upsert/update session
+        var updatedSession1 = new OmemoSessionRecord
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            DeviceId = 100,
+            SessionData = new byte[] { 0x0A, 0x0B, 0x0C },
+            LastActive = nowTruncated.AddMinutes(5),
+            TrustState = OmemoTrustState.Trusted
+        };
+
+        await repo.SaveSessionAsync(updatedSession1);
+
+        var refetched1 = await repo.GetSessionAsync(account, remote, 100);
+        Assert.NotNull(refetched1);
+        Assert.Equal(new byte[] { 0x0A, 0x0B, 0x0C }, refetched1.SessionData);
+        Assert.Equal(nowTruncated.AddMinutes(5), refetched1.LastActive);
+        Assert.Equal(OmemoTrustState.Trusted, refetched1.TrustState);
+    }
+
+    [Fact]
+    public async Task OmemoRepository_UpdateTrustState_Succeeds()
+    {
+        var repo = new OmemoRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+        uint deviceId = 300;
+
+        var session = new OmemoSessionRecord
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            DeviceId = (int)deviceId,
+            SessionData = new byte[] { 0x10, 0x20 },
+            LastActive = DateTimeOffset.UtcNow,
+            TrustState = OmemoTrustState.Undecided
+        };
+
+        await repo.SaveSessionAsync(session);
+
+        var initial = await repo.GetSessionAsync(account, remote, (int)deviceId);
+        Assert.NotNull(initial);
+        Assert.Equal(OmemoTrustState.Undecided, initial.TrustState);
+
+        // Update trust state
+        await repo.UpdateTrustStateAsync(account, remote, deviceId, OmemoTrustState.Untrusted);
+
+        var updated = await repo.GetSessionAsync(account, remote, (int)deviceId);
+        Assert.NotNull(updated);
+        Assert.Equal(OmemoTrustState.Untrusted, updated.TrustState);
+    }
+
+    [Fact]
     public async Task RosterRepository_UpsertAndGet_Succeeds()
     {
         var repo = new RosterRepository(_context);
