@@ -140,7 +140,13 @@ public sealed class MockXmppServer : IAsyncDisposable
         var mam = iq.RawElement.Element("query", "urn:xmpp:mam:2");
         if (mam is not null && iq.IsSet)
         {
+            string? queryId = mam.GetAttr("queryid");
+            await Task.Delay(100, ct);
             var fin = new XmppElement("fin", "urn:xmpp:mam:2").Attr("complete", "true");
+            if (!string.IsNullOrEmpty(queryId))
+            {
+                fin.Attr("queryid", queryId);
+            }
             var result = iq.CreateResult(fin);
             await InjectStanzaAsync(result);
             return;

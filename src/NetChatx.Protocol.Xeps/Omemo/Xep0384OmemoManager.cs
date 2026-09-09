@@ -110,6 +110,22 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
         if (element.Name == "message")
         {
             var encElem = element.Element("encrypted", NsOmemo2);
+            if (encElem is null)
+            {
+                var receivedCarbon = element.Element("received", NsOmemo2) ?? element.Element("received", "urn:xmpp:carbons:2");
+                var sentCarbon = element.Element("sent", NsOmemo2) ?? element.Element("sent", "urn:xmpp:carbons:2");
+                var carbonWrapper = receivedCarbon ?? sentCarbon;
+                if (carbonWrapper is not null)
+                {
+                    var inner = carbonWrapper.Element("forwarded", "urn:xmpp:forward:0")?.Element("message");
+                    if (inner is not null)
+                    {
+                        element = inner;
+                        encElem = element.Element("encrypted", NsOmemo2);
+                    }
+                }
+            }
+
             if (encElem is not null)
             {
                 try
