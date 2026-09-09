@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
@@ -168,6 +169,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 if (mamResult.Messages.Count == 0)
                     break;
 
+                var chatMsgs = new List<ChatMessage>();
                 foreach (var item in mamResult.Messages)
                 {
                     var m = item.Message;
@@ -187,9 +189,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                             IsEncrypted = isEnc,
                             EncryptionType = isEnc ? "OMEMO" : null
                         };
-                        await _messageRepo.SaveMessageAsync(chatMsg);
+                        chatMsgs.Add(chatMsg);
                         AddOrUpdateMessage(chatMsg);
                     }
+                }
+
+                if (chatMsgs.Count > 0)
+                {
+                    await _messageRepo.SaveMessagesAsync(chatMsgs);
                 }
 
                 if (mamResult.IsComplete || string.IsNullOrEmpty(mamResult.FirstId) || mamResult.FirstId == beforeId)
@@ -240,6 +247,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                         before: oldestStanzaId,
                         end: string.IsNullOrEmpty(oldestStanzaId) ? oldestTimestamp : null);
 
+                    var chatMsgs = new List<ChatMessage>();
                     foreach (var item in mamResult.Messages)
                     {
                         var m = item.Message;
@@ -259,9 +267,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                                 IsEncrypted = isEnc,
                                 EncryptionType = isEnc ? "OMEMO" : null
                             };
-                            await _messageRepo.SaveMessageAsync(chatMsg);
+                            chatMsgs.Add(chatMsg);
                             AddOrUpdateMessage(chatMsg);
                         }
+                    }
+
+                    if (chatMsgs.Count > 0)
+                    {
+                        await _messageRepo.SaveMessagesAsync(chatMsgs);
                     }
 
                     // Reload older from SQLite after ingesting MAM
