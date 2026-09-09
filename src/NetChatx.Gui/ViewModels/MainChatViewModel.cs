@@ -291,7 +291,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _ => PresenceStanza.Available(status: StatusMessage)
         };
 
-        await _client.SendStanzaAsync(stanza);
+        try
+        {
+            await _client.SendStanzaAsync(stanza);
+        }
+        catch
+        {
+            // Soft failure on presence send error
+        }
     }
 
     [RelayCommand]
