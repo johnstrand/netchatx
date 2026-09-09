@@ -6,8 +6,40 @@ public sealed class DatabaseContext : IDisposable
 {
     private readonly string _connectionString;
 
-    public DatabaseContext(string databasePath = "netchatx.db")
+    public static string GetDefaultDatabasePath()
     {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NetChatx");
+        Directory.CreateDirectory(dir);
+        var targetDb = Path.Combine(dir, "netchatx.db");
+
+        // Migrate legacy database from working directory or app directory if present and target does not exist yet
+        if (!File.Exists(targetDb))
+        {
+            string[] legacyPaths = [
+                "netchatx.db",
+                Path.Combine(AppContext.BaseDirectory, "netchatx.db")
+            ];
+            foreach (var legacy in legacyPaths)
+            {
+                if (File.Exists(legacy) && !string.Equals(Path.GetFullPath(legacy), Path.GetFullPath(targetDb), StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        File.Copy(legacy, targetDb, overwrite: false);
+                        break;
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        return targetDb;
+    }
+
+    public DatabaseContext(string? databasePath = null)
+    {
+        databasePath ??= GetDefaultDatabasePath();
+
         _connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,
@@ -62,6 +94,13 @@ public sealed class DatabaseContext : IDisposable
             CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(account_jid, remote_jid, timestamp);
             CREATE INDEX IF NOT EXISTS idx_messages_stanza_id ON messages(stanza_id);
             CREATE INDEX IF NOT EXISTS idx_messages_origin_id ON messages(origin_id);
+
+            DELETE FROM messages
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM messages
+                GROUP BY account_jid, remote_jid, COALESCE(stanza_id, id), timestamp, body
+            );
 
             CREATE TABLE IF NOT EXISTS roster (
                 account_jid TEXT NOT NULL,

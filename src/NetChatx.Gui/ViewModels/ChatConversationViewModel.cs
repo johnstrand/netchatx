@@ -128,6 +128,24 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
     }
 
+    private static (string body, bool isEncrypted) ExtractMessageBody(MessageStanza m)
+    {
+        if (!string.IsNullOrEmpty(m.Body))
+        {
+            return (m.Body, false);
+        }
+
+        var encElem = m.RawElement.Element("encrypted", "eu.siacs.conversations.axolotl")
+                   ?? m.RawElement.Element("encrypted", "urn:xmpp:omemo:2")
+                   ?? m.RawElement.Element("encrypted", "urn:xmpp:omemo:1");
+        if (encElem is not null)
+        {
+            return ("[Encrypted Message]", true);
+        }
+
+        return (string.Empty, false);
+    }
+
     [RelayCommand]
     public async Task SyncArchiveAsync()
     {
@@ -136,29 +154,48 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         try
         {
-            // Retrieve the most recent 50 messages from MAM
-            // (Empty <before/> per XEP-0313 4.1.4 retrieves the latest page up to now)
-            var mamResult = await _mamManager.QueryArchiveAsync(withJid: RemoteJid, maxResults: 50);
+            // Sync archive backwards from the server (up to 10 pages / 500 messages)
+            // to retrieve latest messages and seamlessly bridge any history gaps
+            string? beforeId = null;
+            const int maxPages = 10;
+            int pagesFetched = 0;
 
-            foreach (var item in mamResult.Messages)
+            while (pagesFetched < maxPages)
             {
-                var m = item.Message;
-                if (!string.IsNullOrEmpty(m.Body))
+                var mamResult = await _mamManager.QueryArchiveAsync(withJid: RemoteJid, maxResults: 50, before: beforeId);
+                pagesFetched++;
+
+                if (mamResult.Messages.Count == 0)
+                    break;
+
+                foreach (var item in mamResult.Messages)
                 {
-                    var chatMsg = new ChatMessage
+                    var m = item.Message;
+                    var (body, isEnc) = ExtractMessageBody(m);
+                    if (!string.IsNullOrEmpty(body))
                     {
-                        Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
-                        AccountJid = _accountJid,
-                        RemoteJid = RemoteJid.ToString(),
-                        SenderJid = (m.From ?? RemoteJid).ToString(),
-                        Body = m.Body,
-                        Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
-                        Timestamp = item.Timestamp,
-                        StanzaId = item.ArchiveId
-                    };
-                    await _messageRepo.SaveMessageAsync(chatMsg);
-                    AddOrUpdateMessage(chatMsg);
+                        var chatMsg = new ChatMessage
+                        {
+                            Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
+                            AccountJid = _accountJid,
+                            RemoteJid = RemoteJid.ToString(),
+                            SenderJid = (m.From ?? RemoteJid).ToString(),
+                            Body = body,
+                            Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
+                            Timestamp = item.Timestamp,
+                            StanzaId = item.ArchiveId,
+                            IsEncrypted = isEnc,
+                            EncryptionType = isEnc ? "OMEMO" : null
+                        };
+                        await _messageRepo.SaveMessageAsync(chatMsg);
+                        AddOrUpdateMessage(chatMsg);
+                    }
                 }
+
+                if (mamResult.IsComplete || string.IsNullOrEmpty(mamResult.FirstId) || mamResult.FirstId == beforeId)
+                    break;
+
+                beforeId = mamResult.FirstId;
             }
 
             UpdateDateHeaders();
@@ -182,27 +219,32 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         try
         {
-            var oldestTimestamp = Messages.Count > 0 ? Messages[0].Timestamp : OldestMessageTimestamp;
-            if (!oldestTimestamp.HasValue) return;
+            var oldestBubble = Messages.FirstOrDefault();
+            if (oldestBubble is null) return;
+
+            var oldestTimestamp = oldestBubble.Timestamp;
+            var oldestStanzaId = oldestBubble.StanzaId;
 
             // 1. Fetch from SQLite before oldest timestamp
-            var olderLocal = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 30, before: oldestTimestamp);
+            var olderLocal = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50, before: oldestTimestamp);
 
-            // 2. If SQLite has fewer than 30 older messages, query MAM paging backwards
-            if (olderLocal.Count < 30 && _mamManager is not null)
+            // 2. If SQLite has fewer than 20 older messages, query MAM paging backwards
+            if (olderLocal.Count < 20 && _mamManager is not null)
             {
                 try
                 {
-                    // XEP-0313 Section 4.1.4: Page backwards with 'end' timestamp and empty <before/>
+                    // Pass the oldest known archive ID to RSM <before>{id}</before> to fetch preceding messages
                     var mamResult = await _mamManager.QueryArchiveAsync(
                         withJid: RemoteJid,
-                        maxResults: 30,
-                        end: oldestTimestamp.Value);
+                        maxResults: 50,
+                        before: oldestStanzaId,
+                        end: string.IsNullOrEmpty(oldestStanzaId) ? oldestTimestamp : null);
 
                     foreach (var item in mamResult.Messages)
                     {
                         var m = item.Message;
-                        if (!string.IsNullOrEmpty(m.Body))
+                        var (body, isEnc) = ExtractMessageBody(m);
+                        if (!string.IsNullOrEmpty(body))
                         {
                             var chatMsg = new ChatMessage
                             {
@@ -210,17 +252,20 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                                 AccountJid = _accountJid,
                                 RemoteJid = RemoteJid.ToString(),
                                 SenderJid = (m.From ?? RemoteJid).ToString(),
-                                Body = m.Body,
+                                Body = body,
                                 Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
                                 Timestamp = item.Timestamp,
-                                StanzaId = item.ArchiveId
+                                StanzaId = item.ArchiveId,
+                                IsEncrypted = isEnc,
+                                EncryptionType = isEnc ? "OMEMO" : null
                             };
                             await _messageRepo.SaveMessageAsync(chatMsg);
+                            AddOrUpdateMessage(chatMsg);
                         }
                     }
 
                     // Reload older from SQLite after ingesting MAM
-                    olderLocal = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 30, before: oldestTimestamp);
+                    olderLocal = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50, before: oldestTimestamp);
                 }
                 catch
                 {

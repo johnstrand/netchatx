@@ -1,6 +1,6 @@
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
-using Xunit;
+using Xunit.Abstractions;
 
 namespace NetChatx.Storage.Tests;
 
@@ -8,9 +8,11 @@ public class StorageTests : IDisposable
 {
     private readonly string _dbPath;
     private readonly DatabaseContext _context;
+    private readonly ITestOutputHelper _output;
 
-    public StorageTests()
+    public StorageTests(ITestOutputHelper output)
     {
+        _output = output;
         _dbPath = $"test_{Guid.NewGuid():N}.db";
         _context = new DatabaseContext(_dbPath);
     }
@@ -238,6 +240,17 @@ public class StorageTests : IDisposable
         Assert.Single(contacts);
         Assert.Equal("Charlie Brown", contacts[0].Name);
         Assert.Equal("both", contacts[0].Subscription);
+    }
+
+    [Fact]
+    public void DatabaseContext_DefaultPath_IsInUserDataDirectory()
+    {
+        var defaultPath = DatabaseContext.GetDefaultDatabasePath();
+        Assert.NotNull(defaultPath);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        Assert.StartsWith(appData, defaultPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("netchatx.db", defaultPath, StringComparison.OrdinalIgnoreCase);
+        Assert.True(Directory.Exists(Path.GetDirectoryName(defaultPath)));
     }
 
     public void Dispose()
