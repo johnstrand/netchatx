@@ -439,6 +439,35 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         return Messages.Any(m => IsSameMessage(m, msg));
     }
 
+    [RelayCommand]
+    public void ReplyToMessage(MessageBubbleViewModel message)
+    {
+        if (message is null) return;
+
+        string textToQuote = !string.IsNullOrEmpty(message.Body) ? message.Body : (message.ImageUrl ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(textToQuote)) return;
+
+        var sender = message.SenderName;
+        var lines = textToQuote.Split(['\r', '\n'], StringSplitOptions.None);
+
+        var quoteBuilder = new System.Text.StringBuilder();
+        quoteBuilder.AppendLine($"> {sender}: {lines[0]}");
+        for (int i = 1; i < lines.Length; i++)
+        {
+            quoteBuilder.AppendLine($"> {lines[i]}");
+        }
+        quoteBuilder.AppendLine();
+
+        if (string.IsNullOrWhiteSpace(InputText))
+        {
+            InputText = quoteBuilder.ToString();
+        }
+        else
+        {
+            InputText = quoteBuilder.ToString() + InputText.TrimStart();
+        }
+    }
+
     public void AddOrUpdateMessage(ChatMessage msg)
     {
         var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
@@ -456,6 +485,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+        bubble.ReplyRequested = ReplyToMessage;
         int index = 0;
         while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
         {
