@@ -371,9 +371,10 @@ public sealed class XmppClient : IAsyncDisposable
             await _transport.Output.WriteAsync(closeTag);
             await _transport.Output.FlushAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore transport close errors
+            // Transport errors during disconnect are expected if the underlying connection or socket is already broken/closed.
+            System.Diagnostics.Debug.WriteLine($"Error sending stream close tag during disconnect: {ex.Message}");
         }
 
         _sessionCts?.Cancel();
