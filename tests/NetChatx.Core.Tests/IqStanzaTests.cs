@@ -1,3 +1,4 @@
+using NetChatx.Core;
 using NetChatx.Core.Stanzas;
 using NetChatx.Core.Xml;
 using Xunit;
@@ -61,5 +62,78 @@ public class IqStanzaTests
         Assert.Null(result.From);
         Assert.Equal("iq-999", result.Id);
         Assert.True(result.IsResult);
+    }
+
+    [Fact]
+    public void CreateError_DefaultParameters_CreatesValidErrorStanza()
+    {
+        // Arrange
+        var requestIq = new IqStanza(IqStanza.TypeGet, Jid.Parse("server.com"), Jid.Parse("user@example.com/res"), "iq123");
+
+        // Act
+        var errorIq = requestIq.CreateError("item-not-found");
+
+        // Assert
+        Assert.True(errorIq.IsError);
+        Assert.Equal(IqStanza.TypeError, errorIq.Type);
+        Assert.Equal("user@example.com/res", errorIq.To?.ToString());
+        Assert.Equal("server.com", errorIq.From?.ToString());
+        Assert.Equal("iq123", errorIq.Id);
+
+        var errorElem = errorIq.RawElement.Element("error");
+        Assert.NotNull(errorElem);
+        Assert.Equal("cancel", errorElem.GetAttr("type"));
+
+        var conditionElem = errorElem.Element("item-not-found");
+        Assert.NotNull(conditionElem);
+        Assert.Equal("urn:ietf:params:xml:ns:xmpp-stanzas", conditionElem.Namespace);
+
+        var textElem = errorElem.Element("text");
+        Assert.Null(textElem);
+    }
+
+    [Fact]
+    public void CreateError_WithCustomTypeAndText_CreatesValidErrorStanzaWithText()
+    {
+        // Arrange
+        var requestIq = new IqStanza(IqStanza.TypeSet, Jid.Parse("server.com"), Jid.Parse("user@example.com/res"), "iq456");
+
+        // Act
+        var errorIq = requestIq.CreateError("bad-request", "Invalid payload received", "modify");
+
+        // Assert
+        Assert.True(errorIq.IsError);
+        Assert.Equal(IqStanza.TypeError, errorIq.Type);
+        Assert.Equal("user@example.com/res", errorIq.To?.ToString());
+        Assert.Equal("server.com", errorIq.From?.ToString());
+        Assert.Equal("iq456", errorIq.Id);
+
+        var errorElem = errorIq.RawElement.Element("error");
+        Assert.NotNull(errorElem);
+        Assert.Equal("modify", errorElem.GetAttr("type"));
+
+        var conditionElem = errorElem.Element("bad-request");
+        Assert.NotNull(conditionElem);
+        Assert.Equal("urn:ietf:params:xml:ns:xmpp-stanzas", conditionElem.Namespace);
+
+        var textElem = errorElem.Element("text");
+        Assert.NotNull(textElem);
+        Assert.Equal("urn:ietf:params:xml:ns:xmpp-stanzas", textElem.Namespace);
+        Assert.Equal("Invalid payload received", textElem.Value);
+    }
+
+    [Fact]
+    public void CreateError_WithEmptyText_DoesNotAddTextElement()
+    {
+        // Arrange
+        var requestIq = new IqStanza(IqStanza.TypeGet, Jid.Parse("server.com"), Jid.Parse("user@example.com/res"), "iq789");
+
+        // Act
+        var errorIq = requestIq.CreateError("service-unavailable", "");
+
+        // Assert
+        var errorElem = errorIq.RawElement.Element("error");
+        Assert.NotNull(errorElem);
+        Assert.Null(errorElem.Element("text"));
     }
 }
