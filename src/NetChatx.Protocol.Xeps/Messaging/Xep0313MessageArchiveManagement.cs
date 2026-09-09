@@ -1,0 +1,166 @@
+using System.Collections.Concurrent;
+using NetChatx.Core;
+using NetChatx.Core.Client;
+using NetChatx.Core.Stanzas;
+using NetChatx.Core.Xml;
+using NetChatx.Protocol.Xeps.Common;
+
+namespace NetChatx.Protocol.Xeps.Messaging;
+
+public sealed class MamMessageItem
+{
+    public required string ArchiveId { get; init; }
+    public required DateTimeOffset Timestamp { get; init; }
+    public required MessageStanza Message { get; init; }
+}
+
+public sealed class MamQueryResult
+{
+    public required IReadOnlyList<MamMessageItem> Messages { get; init; }
+    public bool IsComplete { get; init; }
+    public string? FirstId { get; init; }
+    public string? LastId { get; init; }
+    public int? Count { get; init; }
+}
+
+public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
+{
+    public const string NsMam = "urn:xmpp:mam:2";
+    public const string NsForward = "urn:xmpp:forward:0";
+    public const string NsDelay = "urn:xmpp:delay";
+    public const string NsRsm = "http://jabber.org/protocol/rsm";
+
+    public override string Name => "XEP-0313: Message Archive Management";
+    public override string FeatureUri => NsMam;
+
+    private readonly ConcurrentDictionary<string, List<MamMessageItem>> _activeQueries = new();
+
+    public async Task<MamQueryResult> QueryArchiveAsync(
+        Jid? withJid = null,
+        int maxResults = 50,
+        string? before = null,
+        string? after = null,
+        DateTimeOffset? start = null,
+        DateTimeOffset? end = null,
+        CancellationToken ct = default)
+    {
+        if (Client is null) throw new InvalidOperationException("Client not attached.");
+
+        string queryId = Guid.NewGuid().ToString("N");
+        var items = new List<MamMessageItem>();
+        _activeQueries[queryId] = items;
+
+        try
+        {
+            var iq = IqStanza.CreateSet();
+            var queryElem = new XmppElement("query", NsMam).Attr("queryid", queryId);
+
+            var form = new XmppElement("x", "jabber:x:data").Attr("type", "submit");
+            form.Child(new XmppElement("field").Attr("var", "FORM_TYPE").Child(new XmppElement("value") { Value = NsMam }));
+
+            if (withJid is not null)
+            {
+                form.Child(new XmppElement("field").Attr("var", "with").Child(new XmppElement("value") { Value = withJid.ToString() }));
+            }
+            if (start.HasValue)
+            {
+                form.Child(new XmppElement("field").Attr("var", "start").Child(new XmppElement("value") { Value = start.Value.ToString("yyyy-MM-ddTHH:mm:ssZ") }));
+            }
+            if (end.HasValue)
+            {
+                form.Child(new XmppElement("field").Attr("var", "end").Child(new XmppElement("value") { Value = end.Value.ToString("yyyy-MM-ddTHH:mm:ssZ") }));
+            }
+
+            queryElem.Child(form);
+
+            // RSM
+            var rsm = new XmppElement("set", NsRsm);
+            rsm.Child(new XmppElement("max") { Value = maxResults.ToString() });
+            if (before is not null)
+                rsm.Child(new XmppElement("before") { Value = before });
+            if (after is not null)
+                rsm.Child(new XmppElement("after") { Value = after });
+
+            queryElem.Child(rsm);
+            iq.RawElement.Child(queryElem);
+
+            var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
+            var fin = resultIq.RawElement.Element("fin", NsMam);
+
+            bool isComplete = fin?.GetAttr("complete") == "true";
+            string? first = null;
+            string? last = null;
+            int? count = null;
+
+            var resSet = fin?.Element("set", NsRsm);
+            if (resSet is not null)
+            {
+                first = resSet.Element("first")?.Value;
+                last = resSet.Element("last")?.Value;
+                if (int.TryParse(resSet.Element("count")?.Value, out int c))
+                    count = c;
+            }
+
+            return new MamQueryResult
+            {
+                Messages = items,
+                IsComplete = isComplete,
+                FirstId = first,
+                LastId = last,
+                Count = count
+            };
+        }
+        finally
+        {
+            _activeQueries.TryRemove(queryId, out _);
+        }
+    }
+
+    public override ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)
+    {
+        if (element.Name == "message")
+        {
+            var resultElem = element.Element("result", NsMam);
+            if (resultElem is not null)
+            {
+                string? queryId = resultElem.GetAttr("queryid");
+                string? archiveId = resultElem.GetAttr("id") ?? Guid.NewGuid().ToString("N");
+
+                var forwarded = resultElem.Element("forwarded", NsForward);
+                var innerMsgElem = forwarded?.Element("message");
+
+                if (innerMsgElem is not null)
+                {
+                    var innerMsg = new MessageStanza(innerMsgElem);
+                    var delayElem = forwarded?.Element("delay", NsDelay);
+                    DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+
+                    if (delayElem?.GetAttr("stamp") is string stampStr &&
+                        DateTimeOffset.TryParse(stampStr, out var parsedStamp))
+                    {
+                        timestamp = parsedStamp;
+                    }
+
+                    var item = new MamMessageItem
+                    {
+                        ArchiveId = archiveId,
+                        Timestamp = timestamp,
+                        Message = innerMsg
+                    };
+
+                    if (!string.IsNullOrEmpty(queryId) && _activeQueries.TryGetValue(queryId, out var list))
+                    {
+                        lock (list)
+                        {
+                            list.Add(item);
+                        }
+                    }
+                }
+
+                return ValueTask.FromResult(false); // Handled MAM result
+            }
+        }
+
+        return ValueTask.FromResult(true);
+    }
+}

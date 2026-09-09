@@ -1,0 +1,173 @@
+using NetChatx.Storage.Models;
+using NetChatx.Storage.Repositories;
+using Xunit;
+
+namespace NetChatx.Storage.Tests;
+
+public class StorageTests : IDisposable
+{
+    private readonly string _dbPath;
+    private readonly DatabaseContext _context;
+
+    public StorageTests()
+    {
+        _dbPath = $"test_{Guid.NewGuid():N}.db";
+        _context = new DatabaseContext(_dbPath);
+    }
+
+    [Fact]
+    public async Task AccountRepository_Crud_Succeeds()
+    {
+        var repo = new AccountRepository(_context);
+        var account = new AccountProfile
+        {
+            Jid = "alice@example.com",
+            Password = "secretpassword",
+            Resource = "CustomRes",
+            Host = "xmpp.example.com",
+            Port = 5222,
+            UseDirectTls = false,
+            IsActive = true
+        };
+
+        await repo.SaveAccountAsync(account);
+
+        var retrieved = await repo.GetAccountAsync("alice@example.com");
+        Assert.NotNull(retrieved);
+        Assert.Equal("secretpassword", retrieved.Password);
+        Assert.Equal("CustomRes", retrieved.Resource);
+        Assert.Equal("xmpp.example.com", retrieved.Host);
+
+        var all = await repo.GetAccountsAsync();
+        Assert.Single(all);
+
+        await repo.DeleteAccountAsync("alice@example.com");
+        var deleted = await repo.GetAccountAsync("alice@example.com");
+        Assert.Null(deleted);
+    }
+
+    [Fact]
+    public async Task MessageRepository_SaveAndGetPaged_ReturnsChronologicalOrder()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+
+        var t0 = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var msg1 = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = t0,
+            Direction = MessageDirection.Inbound,
+            Body = "First message",
+            StanzaId = "s1"
+        };
+
+        var msg2 = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = account,
+            Timestamp = t0.AddMinutes(1),
+            Direction = MessageDirection.Outbound,
+            Body = "Second message",
+            StanzaId = "s2"
+        };
+
+        await repo.SaveMessageAsync(msg1);
+        await repo.SaveMessageAsync(msg2);
+
+        var messages = await repo.GetMessagesAsync(account, remote, limit: 10);
+        Assert.Equal(2, messages.Count);
+        Assert.Equal("First message", messages[0].Body);
+        Assert.Equal("Second message", messages[1].Body);
+
+        // Test search
+        var searchResults = await repo.SearchMessagesAsync(account, "Second");
+        Assert.Single(searchResults);
+        Assert.Equal("Second message", searchResults[0].Body);
+
+        // Test replacement (XEP-0308)
+        bool replaced = await repo.UpdateMessageByReplaceIdAsync(account, "s1", "First message (edited)");
+        Assert.True(replaced);
+
+        var updatedMessages = await repo.GetMessagesAsync(account, remote, limit: 10);
+        Assert.Equal("First message (edited)", updatedMessages[0].Body);
+    }
+
+    [Fact]
+    public async Task MessageRepository_GetMessagesWithBeforePaging_ReturnsOlderBatches()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+
+        var baseTime = DateTimeOffset.UtcNow.AddHours(-1);
+
+        for (int i = 0; i < 20; i++)
+        {
+            await repo.SaveMessageAsync(new ChatMessage
+            {
+                AccountJid = account,
+                RemoteJid = remote,
+                SenderJid = (i % 2 == 0) ? account : remote,
+                Timestamp = baseTime.AddMinutes(i),
+                Direction = (i % 2 == 0) ? MessageDirection.Outbound : MessageDirection.Inbound,
+                Body = $"Message #{i}",
+                StanzaId = $"id_{i}"
+            });
+        }
+
+        // Fetch latest 5 (messages 15 to 19)
+        var latest5 = await repo.GetMessagesAsync(account, remote, limit: 5);
+        Assert.Equal(5, latest5.Count);
+        Assert.Equal("Message #15", latest5[0].Body);
+        Assert.Equal("Message #19", latest5[4].Body);
+
+        // Fetch older 5 before the oldest in latest5 (Message #15's timestamp)
+        var older5 = await repo.GetMessagesAsync(account, remote, limit: 5, before: latest5[0].Timestamp);
+        Assert.Equal(5, older5.Count);
+        Assert.Equal("Message #10", older5[0].Body);
+        Assert.Equal("Message #14", older5[4].Body);
+
+        // Fetch older 5 before Message #10's timestamp
+        var evenOlder5 = await repo.GetMessagesAsync(account, remote, limit: 5, before: older5[0].Timestamp);
+        Assert.Equal(5, evenOlder5.Count);
+        Assert.Equal("Message #5", evenOlder5[0].Body);
+        Assert.Equal("Message #9", evenOlder5[4].Body);
+    }
+
+    [Fact]
+    public async Task RosterRepository_UpsertAndGet_Succeeds()
+    {
+        var repo = new RosterRepository(_context);
+        string account = "alice@example.com";
+
+        var contact = new RosterContact
+        {
+            AccountJid = account,
+            ContactJid = "charlie@example.com",
+            Name = "Charlie Brown",
+            Subscription = "both",
+            Groups = "Friends;Family"
+        };
+
+        await repo.UpsertContactAsync(contact);
+
+        var contacts = await repo.GetContactsAsync(account);
+        Assert.Single(contacts);
+        Assert.Equal("Charlie Brown", contacts[0].Name);
+        Assert.Equal("both", contacts[0].Subscription);
+    }
+
+    public void Dispose()
+    {
+        _context.Dispose();
+        if (File.Exists(_dbPath))
+        {
+            try { File.Delete(_dbPath); } catch { }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NetChatx.App/NetChatx.App.csproj" />
+    <Project Path="src/NetChatx.Core/NetChatx.Core.csproj" />
+    <Project Path="src/NetChatx.Protocol.Xeps/NetChatx.Protocol.Xeps.csproj" />
+    <Project Path="src/NetChatx.Storage/NetChatx.Storage.csproj" />
+    <Project Path="src/NetChatx.Tui/NetChatx.Tui.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NetChatx.Core.Tests/NetChatx.Core.Tests.csproj" />
+    <Project Path="tests/NetChatx.MockServer/NetChatx.MockServer.csproj" />
+    <Project Path="tests/NetChatx.Storage.Tests/NetChatx.Storage.Tests.csproj" />
+    <Project Path="tests/NetChatx.Xeps.Tests/NetChatx.Xeps.Tests.csproj" />
+  </Folder>
+</Solution>
