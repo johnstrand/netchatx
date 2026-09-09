@@ -301,12 +301,14 @@
                             Margin="8,0,0,0"
                             HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
                     <Button Grid.Column="2"
-                            Content="Send"
+                            Content="➤"
+                            ToolTip.Tip="Send Message"
                             Classes="accent"
                             Command="{Binding ActiveConversation.SendMessageCommand}"
-                            Height="36"
-                            Padding="16,0"
-                            Margin="8,0,0,0" />
+                            Height="36" Width="36"
+                            Padding="0"
+                            Margin="8,0,0,0"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
                 </Grid>
             </Border>
         </Grid>
