@@ -795,6 +795,84 @@ public class ViewModelTests : IDisposable
         await client.DisconnectAsync();
     }
 
+    [Fact]
+    public void MessageBubbleViewModel_RawXml_TogglesAndGeneratesFallback()
+    {
+        // 1. Explicit RawXml provided
+        var msgWithXml = new ChatMessage
+        {
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "Explicit XML Test",
+            RawXml = "<message type='chat'><body>Explicit XML Test</body></message>"
+        };
+
+        var bubbleWithXml = MessageBubbleViewModel.FromChatMessage(msgWithXml);
+        Assert.Equal("<message type='chat'><body>Explicit XML Test</body></message>", bubbleWithXml.RawXml);
+        Assert.False(bubbleWithXml.IsRawXmlVisible);
+
+        bubbleWithXml.ToggleRawXml();
+        Assert.True(bubbleWithXml.IsRawXmlVisible);
+
+        bubbleWithXml.ToggleRawXml();
+        Assert.False(bubbleWithXml.IsRawXmlVisible);
+
+        // 2. Fallback RawXml generation when RawXml is null
+        var msgWithoutXml = new ChatMessage
+        {
+            AccountJid = "alice@test.org",
+            RemoteJid = "bob@test.org",
+            SenderJid = "alice@test.org",
+            Body = "Fallback XML Test",
+            Direction = MessageDirection.Outbound,
+            RawXml = null
+        };
+
+        var bubbleWithoutXml = MessageBubbleViewModel.FromChatMessage(msgWithoutXml);
+        Assert.NotNull(bubbleWithoutXml.RawXml);
+        Assert.Contains("alice@test.org", bubbleWithoutXml.RawXml);
+        Assert.Contains("bob@test.org", bubbleWithoutXml.RawXml);
+        Assert.Contains("Fallback XML Test", bubbleWithoutXml.RawXml);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendMessage_CapturesRawXml()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("dest@test.org");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/desktop"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Dest",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        conv.InputText = "Testing RawXml on send";
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.NotNull(bubble.RawXml);
+        Assert.Contains("dest@test.org", bubble.RawXml);
+        Assert.Contains("Testing RawXml on send", bubble.RawXml);
+
+        var history = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(history);
+        Assert.NotNull(history[0].RawXml);
+        Assert.Contains("Testing RawXml on send", history[0].RawXml);
+    }
+
     public void Dispose()
     {
         _dbContext.Dispose();

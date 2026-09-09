@@ -333,7 +333,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Body = msg.Body,
             Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
-            StanzaId = msg.Id
+            StanzaId = msg.Id,
+            RawXml = msg.ToXmlString(indent: true)
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
@@ -385,7 +386,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Body = msg.Body,
             Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
-            StanzaId = msg.Id
+            StanzaId = msg.Id,
+            RawXml = msg.ToXmlString(indent: true)
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
@@ -419,7 +421,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Direction = MessageDirection.Inbound,
             Timestamp = DateTimeOffset.UtcNow,
             IsEncrypted = true,
-            EncryptionType = "OMEMO"
+            EncryptionType = "OMEMO",
+            RawXml = dec.OriginalStanza.ToXmlString(indent: true)
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
