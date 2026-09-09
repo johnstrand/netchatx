@@ -14,7 +14,7 @@ namespace NetChatx.Gui.ViewModels;
 public sealed partial class MessageBubbleViewModel : ViewModelBase
 {
     private static readonly Regex ImageUrlRegex = new(
-        @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?|file:///[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)",
+        @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     [ObservableProperty]
