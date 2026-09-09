@@ -154,6 +154,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     public void OpenImage()
     {
         if (string.IsNullOrEmpty(ImageUrl)) return;
+        if (!Uri.TryCreate(ImageUrl, UriKind.Absolute, out var uri)) return;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return;
+
         try
         {
             Process.Start(new ProcessStartInfo(ImageUrl) { UseShellExecute = true });
