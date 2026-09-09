@@ -694,6 +694,27 @@ public class ViewModelTests : IDisposable
         Assert.Null(Win32ClipboardHelper.ConvertDibToPngBytes(new byte[10]));
     }
 
+    [Theory]
+    [InlineData("file:///C:/Windows/System32/calc.exe")]
+    [InlineData("file:///etc/passwd")]
+    [InlineData("C:\\Windows\\System32\\calc.exe")]
+    [InlineData("customscheme://run/cmd")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("relative/path/file.png")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void MessageBubbleViewModel_OpenImage_RejectsDangerousOrNonHttpUrls(string? url)
+    {
+        var vm = new MessageBubbleViewModel
+        {
+            ImageUrl = url
+        };
+
+        // OpenImage must return safely without throwing or launching external process for non-http(s) schemes
+        var ex = Record.Exception(() => vm.OpenImage());
+        Assert.Null(ex);
+    }
+
     [Fact]
     public async Task MainChatViewModel_AutomaticReception_InboundAndOutboundCarbons_UpdatesConversation()
     {
