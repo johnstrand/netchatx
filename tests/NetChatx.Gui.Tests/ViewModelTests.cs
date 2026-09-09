@@ -333,6 +333,59 @@ public class ViewModelTests : IDisposable
         Assert.Equal("away", mainVm.UserPresence);
     }
 
+    [Theory]
+    [InlineData("available")]
+    [InlineData("away")]
+    [InlineData("dnd")]
+    [InlineData("xa")]
+    [InlineData("custom_show")]
+    [InlineData("")]
+    public async Task MainChatViewModel_SetPresenceAsync_HandlesVariousShowValuesAndStatusMessages(string showValue)
+    {
+        string account = "presence_shows@test.com";
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "pw"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask)
+        {
+            StatusMessage = "Testing status message"
+        };
+
+        await mainVm.SetPresenceAsync(showValue);
+
+        Assert.Equal(showValue, mainVm.UserPresence);
+        Assert.Equal("Testing status message", mainVm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_SetPresenceAsync_HandlesTransportExceptionGracefully()
+    {
+        string account = "presence_error@test.com";
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "pw"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        // Fault the output pipe so SendStanzaAsync throws an InvalidOperationException/IOException
+        await transport.Output.CompleteAsync(new InvalidOperationException("Transport pipe error during presence write"));
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+
+        // Act & Assert: SetPresenceAsync must catch the exception and complete gracefully without throwing
+        var exception = await Record.ExceptionAsync(() => mainVm.SetPresenceAsync("dnd"));
+
+        Assert.Null(exception);
+        Assert.Equal("dnd", mainVm.UserPresence);
+    }
+
     [Fact]
     public void MessageBubbleViewModel_FormattedTime_ShowsDateWhenOlderThanToday()
     {
