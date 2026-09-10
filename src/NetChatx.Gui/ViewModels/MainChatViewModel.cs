@@ -34,6 +34,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0045MultiUserChat? _muc;
     private Xep0363HttpFileUpload? _httpUpload;
     private Xep0280MessageCarbons? _carbons;
+    private Xep0184MessageDeliveryReceipts? _receipts;
+    private Xep0333ChatMarkers? _chatMarkers;
 
     [ObservableProperty]
     private string _accountJid;
@@ -92,12 +94,26 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _muc = new Xep0045MultiUserChat();
         _httpUpload = new Xep0363HttpFileUpload();
         _carbons = new Xep0280MessageCarbons();
+        _receipts = new Xep0184MessageDeliveryReceipts();
+        _chatMarkers = new Xep0333ChatMarkers();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
         await _muc.AttachAsync(_client);
         await _httpUpload.AttachAsync(_client);
         await _carbons.AttachAsync(_client);
+        await _receipts.AttachAsync(_client);
+        await _chatMarkers.AttachAsync(_client);
+
+        _receipts.ReceiptReceived += async (stanzaId, fromJid) =>
+        {
+            await HandleReceiptOrMarkerReceivedAsync(stanzaId, fromJid);
+        };
+
+        _chatMarkers.MarkerReceived += async (stanzaId, fromJid, markerType) =>
+        {
+            await HandleReceiptOrMarkerReceivedAsync(stanzaId, fromJid);
+        };
 
         try
         {
@@ -200,6 +216,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         if (!Jid.TryParse(contact.ContactJid, out var jid)) return;
 
+        contact.UnreadCount = 0;
         var conv = GetOrCreateConversation(jid.BareJid.ToString(), contact.DisplayName, jid.BareJid, isGroupChat: false);
         ActiveConversation = conv;
         await conv.EnsureHistoryLoadedAsync();
@@ -222,6 +239,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public async Task SelectConversationAsync(ChatConversationViewModel conv)
     {
         ActiveConversation = conv;
+
+        var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(conv.RemoteJid.ToString(), StringComparison.OrdinalIgnoreCase));
+        if (contact is not null)
+        {
+            contact.UnreadCount = 0;
+        }
+
         await conv.EnsureHistoryLoadedAsync();
     }
 
@@ -240,10 +264,34 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _client,
             _mam,
             _omemo,
-            _httpUpload);
+            _httpUpload,
+            _chatMarkers);
 
         Conversations.Add(newConv);
         return newConv;
+    }
+
+    private async Task HandleReceiptOrMarkerReceivedAsync(string stanzaId, Jid? fromJid)
+    {
+        if (string.IsNullOrEmpty(stanzaId)) return;
+
+        await _messageRepo.MarkMessageAsReadAsync(AccountJid, stanzaId);
+
+        PostToUi(() =>
+        {
+            if (fromJid is not null)
+            {
+                var conv = Conversations.FirstOrDefault(c => c.RemoteJid.EqualsBare(fromJid));
+                conv?.MarkMessageAsRead(stanzaId);
+            }
+            else
+            {
+                foreach (var conv in Conversations)
+                {
+                    conv.MarkMessageAsRead(stanzaId);
+                }
+            }
+        });
     }
 
     [RelayCommand]
@@ -291,7 +339,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _ => PresenceStanza.Available(status: StatusMessage)
         };
 
-        await _client.SendStanzaAsync(stanza);
+        try
+        {
+            await _client.SendStanzaAsync(stanza);
+        }
+        catch
+        {
+            // Soft failure on presence send error
+        }
     }
 
     [RelayCommand]
@@ -324,6 +379,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         bool isGroup = msg.Type == MessageStanza.TypeGroupChat;
+        bool isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remote) == true;
 
         var chatMsg = new ChatMessage
         {
@@ -334,10 +390,23 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
             StanzaId = msg.Id,
-            RawXml = msg.ToXmlString(indent: true)
+            RawXml = msg.ToXmlString(indent: true),
+            IsRead = (direction == MessageDirection.Outbound) || (isActiveConv && direction == MessageDirection.Inbound)
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
+
+        if (isActiveConv && direction == MessageDirection.Inbound && !string.IsNullOrEmpty(chatMsg.StanzaId) && _chatMarkers is not null)
+        {
+            try
+            {
+                await _chatMarkers.SendDisplayedMarkerAsync(remote, chatMsg.StanzaId);
+            }
+            catch
+            {
+                // Soft failure sending displayed marker
+            }
+        }
 
         PostToUi(() =>
         {
@@ -377,6 +446,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         bool isGroup = msg.Type == MessageStanza.TypeGroupChat;
         var sender = msg.From ?? (isSentByUs ? accountJid : remote);
+        bool isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remote) == true;
 
         var chatMsg = new ChatMessage
         {
@@ -387,10 +457,23 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
             StanzaId = msg.Id,
-            RawXml = msg.ToXmlString(indent: true)
+            RawXml = msg.ToXmlString(indent: true),
+            IsRead = (direction == MessageDirection.Outbound) || (isActiveConv && direction == MessageDirection.Inbound)
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
+
+        if (isActiveConv && direction == MessageDirection.Inbound && !string.IsNullOrEmpty(chatMsg.StanzaId) && _chatMarkers is not null)
+        {
+            try
+            {
+                await _chatMarkers.SendDisplayedMarkerAsync(remote, chatMsg.StanzaId);
+            }
+            catch
+            {
+                // Soft failure sending displayed marker
+            }
+        }
 
         PostToUi(() =>
         {
@@ -412,6 +495,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private async Task HandleDecryptedMessageAsync(DecryptedOmemoMessage dec)
     {
         var remoteJid = dec.SenderJid.BareJid;
+        bool isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remoteJid) == true;
+
         var chatMsg = new ChatMessage
         {
             AccountJid = AccountJid,
@@ -422,7 +507,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Timestamp = DateTimeOffset.UtcNow,
             IsEncrypted = true,
             EncryptionType = "OMEMO",
-            RawXml = dec.OriginalStanza.ToXmlString(indent: true)
+            RawXml = dec.OriginalStanza.ToXmlString(indent: true),
+            IsRead = isActiveConv
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);

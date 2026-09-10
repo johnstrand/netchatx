@@ -234,6 +234,76 @@ public sealed class MessageRepository
         return rows > 0;
     }
 
+    public async Task<bool> MarkMessageAsReadAsync(
+        string accountJid,
+        string messageId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(messageId)) return false;
+
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        cmd.CommandText = """
+            UPDATE messages
+            SET is_read = 1
+            WHERE account_jid = $account_jid AND (id = $messageId OR stanza_id = $messageId OR origin_id = $messageId);
+        """;
+
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        cmd.Parameters.AddWithValue("$messageId", messageId);
+
+        int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        return rows > 0;
+    }
+
+    public async Task<List<string>> MarkUnreadMessagesAsReadAsync(
+        string accountJid,
+        string remoteJid,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(remoteJid)) return [];
+
+        using var connection = _context.CreateConnection();
+
+        // 1. Get IDs of unread inbound messages for this contact
+        using var selectCmd = connection.CreateCommand();
+        selectCmd.CommandText = """
+            SELECT COALESCE(stanza_id, id)
+            FROM messages
+            WHERE account_jid = $account_jid AND remote_jid = $remoteJid AND direction = 0 AND is_read = 0;
+        """;
+        selectCmd.Parameters.AddWithValue("$account_jid", accountJid);
+        selectCmd.Parameters.AddWithValue("$remoteJid", remoteJid);
+
+        var markedIds = new List<string>();
+        using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (!reader.IsDBNull(0))
+                {
+                    markedIds.Add(reader.GetString(0));
+                }
+            }
+        }
+
+        if (markedIds.Count == 0) return markedIds;
+
+        // 2. Mark them as read in DB
+        using var updateCmd = connection.CreateCommand();
+        updateCmd.CommandText = """
+            UPDATE messages
+            SET is_read = 1
+            WHERE account_jid = $account_jid AND remote_jid = $remoteJid AND direction = 0 AND is_read = 0;
+        """;
+        updateCmd.Parameters.AddWithValue("$account_jid", accountJid);
+        updateCmd.Parameters.AddWithValue("$remoteJid", remoteJid);
+
+        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+        return markedIds;
+    }
+
     private static ChatMessage ReadMessage(SqliteDataReader reader)
     {
         return new ChatMessage
