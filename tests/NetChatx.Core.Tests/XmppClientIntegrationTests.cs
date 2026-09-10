@@ -75,4 +75,47 @@ public class XmppClientIntegrationTests
         Assert.True(pingResult.IsResult);
         Assert.Equal(pingIq.Id, pingResult.Id);
     }
+
+    [Fact]
+    public async Task RunReadLoopAsync_OnTransportError_TransitionsToDisconnectedState()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123",
+            Resource = "CustomRes"
+        };
+
+        await using var client = new XmppClient(options, transport);
+
+        var stateChanges = new List<XmppClientState>();
+        var disconnectedTcs = new TaskCompletionSource<bool>();
+
+        client.StateChanged += state =>
+        {
+            stateChanges.Add(state);
+            if (state == XmppClientState.Disconnected)
+            {
+                disconnectedTcs.TrySetResult(true);
+            }
+        };
+
+        // Act: Connect client
+        await client.ConnectAsync();
+        Assert.Equal(XmppClientState.Ready, client.State);
+
+        // Inject transport error by faulting the server's output writer pipe
+        await transport.ServerOutput.CompleteAsync(new IOException("Simulated network drop"));
+
+        // Wait for read loop to detect fault and transition state to Disconnected
+        var disconnected = await disconnectedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(disconnected);
+        Assert.Equal(XmppClientState.Disconnected, client.State);
+        Assert.Contains(XmppClientState.Disconnected, stateChanges);
+    }
 }

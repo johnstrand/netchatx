@@ -21,6 +21,7 @@ public sealed class ChatMessage
     public bool IsEncrypted { get; set; }
     public string? EncryptionType { get; set; }
     public bool IsRead { get; set; }
+    public string? RawXml { get; set; }
 }
 
 public sealed class RosterContact

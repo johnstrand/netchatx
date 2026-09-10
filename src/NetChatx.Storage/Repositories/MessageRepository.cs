@@ -61,17 +61,18 @@ public sealed class MessageRepository
         insertCmd.CommandText = """
             INSERT INTO messages (
                 id, account_jid, remote_jid, sender_jid, timestamp, direction,
-                body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read
+                body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
             ) VALUES (
                 $id, $account_jid, $remote_jid, $sender_jid, $timestamp, $direction,
-                $body, $stanza_id, $origin_id, $replace_id, $is_encrypted, $encryption_type, $is_read
+                $body, $stanza_id, $origin_id, $replace_id, $is_encrypted, $encryption_type, $is_read, $raw_xml
             )
             ON CONFLICT(id) DO UPDATE SET
                 body = excluded.body,
                 stanza_id = COALESCE(excluded.stanza_id, messages.stanza_id),
                 origin_id = COALESCE(excluded.origin_id, messages.origin_id),
                 replace_id = excluded.replace_id,
-                is_read = excluded.is_read;
+                is_read = excluded.is_read,
+                raw_xml = COALESCE(excluded.raw_xml, messages.raw_xml);
         """;
 
         var pInsertId = insertCmd.Parameters.Add("$id", SqliteType.Text);
@@ -87,6 +88,7 @@ public sealed class MessageRepository
         var pInsertIsEncrypted = insertCmd.Parameters.Add("$is_encrypted", SqliteType.Integer);
         var pInsertEncryptionType = insertCmd.Parameters.Add("$encryption_type", SqliteType.Text);
         var pInsertIsRead = insertCmd.Parameters.Add("$is_read", SqliteType.Integer);
+        var pInsertRawXml = insertCmd.Parameters.Add("$raw_xml", SqliteType.Text);
 
         foreach (var message in messageList)
         {
@@ -119,6 +121,7 @@ public sealed class MessageRepository
             pInsertIsEncrypted.Value = message.IsEncrypted ? 1 : 0;
             pInsertEncryptionType.Value = (object?)message.EncryptionType ?? DBNull.Value;
             pInsertIsRead.Value = message.IsRead ? 1 : 0;
+            pInsertRawXml.Value = (object?)message.RawXml ?? DBNull.Value;
 
             await insertCmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -140,7 +143,7 @@ public sealed class MessageRepository
         {
             cmd.CommandText = """
                 SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
-                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read
+                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
                 FROM messages
                 WHERE account_jid = $account_jid AND remote_jid = $remote_jid AND timestamp < $before
                 ORDER BY timestamp DESC
@@ -152,7 +155,7 @@ public sealed class MessageRepository
         {
             cmd.CommandText = """
                 SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
-                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read
+                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
                 FROM messages
                 WHERE account_jid = $account_jid AND remote_jid = $remote_jid
                 ORDER BY timestamp DESC
@@ -187,7 +190,7 @@ public sealed class MessageRepository
 
         cmd.CommandText = """
             SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
-                   body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read
+                   body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
             FROM messages
             WHERE account_jid = $account_jid AND body LIKE $query
             ORDER BY timestamp DESC
@@ -231,6 +234,76 @@ public sealed class MessageRepository
         return rows > 0;
     }
 
+    public async Task<bool> MarkMessageAsReadAsync(
+        string accountJid,
+        string messageId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(messageId)) return false;
+
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        cmd.CommandText = """
+            UPDATE messages
+            SET is_read = 1
+            WHERE account_jid = $account_jid AND (id = $messageId OR stanza_id = $messageId OR origin_id = $messageId);
+        """;
+
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        cmd.Parameters.AddWithValue("$messageId", messageId);
+
+        int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        return rows > 0;
+    }
+
+    public async Task<List<string>> MarkUnreadMessagesAsReadAsync(
+        string accountJid,
+        string remoteJid,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(remoteJid)) return [];
+
+        using var connection = _context.CreateConnection();
+
+        // 1. Get IDs of unread inbound messages for this contact
+        using var selectCmd = connection.CreateCommand();
+        selectCmd.CommandText = """
+            SELECT COALESCE(stanza_id, id)
+            FROM messages
+            WHERE account_jid = $account_jid AND remote_jid = $remoteJid AND direction = 0 AND is_read = 0;
+        """;
+        selectCmd.Parameters.AddWithValue("$account_jid", accountJid);
+        selectCmd.Parameters.AddWithValue("$remoteJid", remoteJid);
+
+        var markedIds = new List<string>();
+        using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (!reader.IsDBNull(0))
+                {
+                    markedIds.Add(reader.GetString(0));
+                }
+            }
+        }
+
+        if (markedIds.Count == 0) return markedIds;
+
+        // 2. Mark them as read in DB
+        using var updateCmd = connection.CreateCommand();
+        updateCmd.CommandText = """
+            UPDATE messages
+            SET is_read = 1
+            WHERE account_jid = $account_jid AND remote_jid = $remoteJid AND direction = 0 AND is_read = 0;
+        """;
+        updateCmd.Parameters.AddWithValue("$account_jid", accountJid);
+        updateCmd.Parameters.AddWithValue("$remoteJid", remoteJid);
+
+        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+        return markedIds;
+    }
+
     private static ChatMessage ReadMessage(SqliteDataReader reader)
     {
         return new ChatMessage
@@ -247,7 +320,8 @@ public sealed class MessageRepository
             ReplaceId = reader.IsDBNull(9) ? null : reader.GetString(9),
             IsEncrypted = reader.GetInt32(10) == 1,
             EncryptionType = reader.IsDBNull(11) ? null : reader.GetString(11),
-            IsRead = reader.GetInt32(12) == 1
+            IsRead = reader.GetInt32(12) == 1,
+            RawXml = reader.IsDBNull(13) ? null : reader.GetString(13)
         };
     }
 }

@@ -51,9 +51,37 @@ public class ChatHistoryTests : IDisposable
         Assert.Empty(noResults);
     }
 
+    [Fact]
+    public async Task MessageRepository_RawXml_SavesAndRetrievesXml()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "user@test.org";
+        string expectedXml = "<message to='remote@test.org' type='chat'><body>Test XML message</body></message>";
+
+        var msg = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = "remote@test.org",
+            SenderJid = account,
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Outbound,
+            Body = "Test XML message",
+            RawXml = expectedXml
+        };
+
+        await repo.SaveMessageAsync(msg);
+
+        var history = await repo.GetMessagesAsync(account, "remote@test.org");
+        Assert.Single(history);
+        Assert.Equal(expectedXml, history[0].RawXml);
+
+        var searchResult = await repo.SearchMessagesAsync(account, "Test XML");
+        Assert.Single(searchResult);
+        Assert.Equal(expectedXml, searchResult[0].RawXml);
+    }
+
     public void Dispose()
     {
-        _context.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }

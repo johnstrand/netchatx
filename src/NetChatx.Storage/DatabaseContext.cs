@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 
 namespace NetChatx.Storage;
 
-public sealed class DatabaseContext : IDisposable
+public sealed class DatabaseContext
 {
     private readonly string _connectionString;
 
@@ -88,7 +88,8 @@ public sealed class DatabaseContext : IDisposable
                 replace_id TEXT,
                 is_encrypted INTEGER NOT NULL DEFAULT 0,
                 encryption_type TEXT,
-                is_read INTEGER NOT NULL DEFAULT 0
+                is_read INTEGER NOT NULL DEFAULT 0,
+                raw_xml TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(account_jid, remote_jid, timestamp);
@@ -147,9 +148,25 @@ public sealed class DatabaseContext : IDisposable
             );
         """;
         cmd.ExecuteNonQuery();
+
+        using var checkColCmd = connection.CreateCommand();
+        checkColCmd.CommandText = "PRAGMA table_info(messages);";
+        using var reader = checkColCmd.ExecuteReader();
+        bool hasRawXml = false;
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), "raw_xml", StringComparison.OrdinalIgnoreCase))
+            {
+                hasRawXml = true;
+                break;
+            }
+        }
+        if (!hasRawXml)
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE messages ADD COLUMN raw_xml TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
     }
 
-    public void Dispose()
-    {
-    }
 }
