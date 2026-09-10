@@ -240,10 +240,22 @@ public sealed class MessageRepository
         string targetMessageId,
         string senderJid,
         IEnumerable<string> emojis,
+        bool isGroupChat = false,
         CancellationToken cancellationToken = default)
     {
         using var connection = _context.CreateConnection();
         using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Normalize sender JID: for 1:1 chats, use bare JID so multiple resources of the same contact/user don't accumulate duplicates
+        string normalizedSenderJid = senderJid;
+        if (!isGroupChat)
+        {
+            var slashIdx = senderJid.IndexOf('/');
+            if (slashIdx >= 0)
+            {
+                normalizedSenderJid = senderJid[..slashIdx];
+            }
+        }
 
         // Find actual message ID if targetMessageId matches stanza_id or origin_id
         string canonicalMessageId = targetMessageId;
@@ -275,12 +287,13 @@ public sealed class MessageRepository
                 WHERE account_jid = $account_jid
                   AND remote_jid = $remote_jid
                   AND message_id = $message_id
-                  AND sender_jid = $sender_jid;
+                  AND (sender_jid = $sender_jid OR sender_jid LIKE $sender_prefix);
             """;
             deleteCmd.Parameters.AddWithValue("$account_jid", accountJid);
             deleteCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
             deleteCmd.Parameters.AddWithValue("$message_id", canonicalMessageId);
-            deleteCmd.Parameters.AddWithValue("$sender_jid", senderJid);
+            deleteCmd.Parameters.AddWithValue("$sender_jid", normalizedSenderJid);
+            deleteCmd.Parameters.AddWithValue("$sender_prefix", normalizedSenderJid + "/%");
 
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -298,7 +311,7 @@ public sealed class MessageRepository
             insertCmd.Parameters.AddWithValue("$account_jid", accountJid);
             insertCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
             insertCmd.Parameters.AddWithValue("$message_id", canonicalMessageId);
-            insertCmd.Parameters.AddWithValue("$sender_jid", senderJid);
+            insertCmd.Parameters.AddWithValue("$sender_jid", normalizedSenderJid);
             var pEmoji = insertCmd.Parameters.Add("$emoji", SqliteType.Text);
 
             foreach (var emoji in emojiList)

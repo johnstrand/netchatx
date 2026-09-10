@@ -49,6 +49,70 @@ public class XepTests
         Assert.Equal(2, receivedArgs.Emojis.Count);
         Assert.Contains("👍", receivedArgs.Emojis);
         Assert.Contains("🎉", receivedArgs.Emojis);
+        Assert.False(receivedArgs.IsCarbonSent);
+    }
+
+    [Fact]
+    public async Task Xep0444_Reactions_InsideCarbons_Succeeds()
+    {
+        var reactions = new Xep0444Reactions();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+
+        await reactions.AttachAsync(client);
+
+        ReactionEventArgs? receivedArgs = null;
+        reactions.ReactionReceived += args => receivedArgs = args;
+
+        // 1. Sent Carbon: Alice reacted on her phone to Bob's message
+        var sentCarbonStanza = new XmppElement("message")
+            .Attr("from", "alice@mock.example.com/phone")
+            .Attr("to", "alice@mock.example.com/desktop")
+            .Child(new XmppElement("sent", "urn:xmpp:carbons:2")
+                .Child(new XmppElement("forwarded", "urn:xmpp:forward:0")
+                    .Child(new XmppElement("message")
+                        .Attr("from", "alice@mock.example.com/phone")
+                        .Attr("to", "bob@mock.example.com")
+                        .Attr("type", "chat")
+                        .Child(new XmppElement("reactions", "urn:xmpp:reactions:0")
+                            .Attr("id", "msg_sent_carbon_1")
+                            .Child(new XmppElement("reaction") { Value = "❤️" })))));
+
+        await reactions.OnIncomingElementAsync(client, sentCarbonStanza);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal("msg_sent_carbon_1", receivedArgs.TargetMessageId);
+        Assert.Equal("bob@mock.example.com", receivedArgs.RemoteJid.ToString());
+        Assert.True(receivedArgs.IsCarbonSent);
+        Assert.Single(receivedArgs.Emojis);
+        Assert.Equal("❤️", receivedArgs.Emojis[0]);
+
+        // 2. Received Carbon: Bob reacted to Alice, carbon-copied to desktop
+        receivedArgs = null;
+        var receivedCarbonStanza = new XmppElement("message")
+            .Attr("from", "alice@mock.example.com/phone")
+            .Attr("to", "alice@mock.example.com/desktop")
+            .Child(new XmppElement("received", "urn:xmpp:carbons:2")
+                .Child(new XmppElement("forwarded", "urn:xmpp:forward:0")
+                    .Child(new XmppElement("message")
+                        .Attr("from", "bob@mock.example.com/mobile")
+                        .Attr("to", "alice@mock.example.com/phone")
+                        .Attr("type", "chat")
+                        .Child(new XmppElement("reactions", "urn:xmpp:reactions:0")
+                            .Attr("id", "msg_recv_carbon_2")
+                            .Child(new XmppElement("reaction") { Value = "🔥" })))));
+
+        await reactions.OnIncomingElementAsync(client, receivedCarbonStanza);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal("msg_recv_carbon_2", receivedArgs.TargetMessageId);
+        Assert.Equal("bob@mock.example.com", receivedArgs.RemoteJid.ToString());
+        Assert.False(receivedArgs.IsCarbonSent);
+        Assert.Single(receivedArgs.Emojis);
+        Assert.Equal("🔥", receivedArgs.Emojis[0]);
     }
 
     [Fact]

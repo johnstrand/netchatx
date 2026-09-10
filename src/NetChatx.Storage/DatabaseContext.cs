@@ -157,6 +157,13 @@ public sealed class DatabaseContext
                 timestamp TEXT NOT NULL,
                 PRIMARY KEY (account_jid, key_id)
             );
+
+            CREATE TABLE IF NOT EXISTS account_settings (
+                account_jid TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (account_jid, key)
+            );
         """;
         cmd.ExecuteNonQuery();
 
