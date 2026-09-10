@@ -36,6 +36,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0280MessageCarbons? _carbons;
     private Xep0184MessageDeliveryReceipts? _receipts;
     private Xep0333ChatMarkers? _chatMarkers;
+    private Xep0085ChatStates? _chatStates;
 
     [ObservableProperty]
     private string _accountJid;
@@ -96,6 +97,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _carbons = new Xep0280MessageCarbons();
         _receipts = new Xep0184MessageDeliveryReceipts();
         _chatMarkers = new Xep0333ChatMarkers();
+        _chatStates = new Xep0085ChatStates();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
@@ -104,6 +106,16 @@ public sealed partial class MainChatViewModel : ViewModelBase
         await _carbons.AttachAsync(_client);
         await _receipts.AttachAsync(_client);
         await _chatMarkers.AttachAsync(_client);
+        await _chatStates.AttachAsync(_client);
+
+        _chatStates.ChatStateReceived += (fromJid, state) =>
+        {
+            PostToUi(() =>
+            {
+                var conv = Conversations.FirstOrDefault(c => c.RemoteJid.EqualsBare(fromJid));
+                conv?.HandleRemoteChatState(state);
+            });
+        };
 
         _receipts.ReceiptReceived += async (stanzaId, fromJid) =>
         {
@@ -265,7 +277,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _mam,
             _omemo,
             _httpUpload,
-            _chatMarkers);
+            _chatMarkers,
+            _chatStates);
 
         Conversations.Add(newConv);
         return newConv;

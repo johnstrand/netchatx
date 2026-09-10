@@ -25,7 +25,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0384OmemoManager? _omemoManager;
     private readonly Xep0363HttpFileUpload? _httpUploadManager;
     private readonly Xep0333ChatMarkers? _chatMarkers;
+    private readonly Xep0085ChatStates? _chatStates;
     private readonly string _accountJid;
+
+    private System.Threading.CancellationTokenSource? _remoteComposingCts;
+    private System.Threading.CancellationTokenSource? _localPauseCts;
+    private ChatState? _lastSentLocalState;
 
     [ObservableProperty]
     private string _id;
@@ -44,6 +49,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _inputText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isRemoteComposing;
 
     [ObservableProperty]
     private bool _isComposing;
@@ -90,7 +98,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         Xep0313MessageArchiveManagement? mamManager = null,
         Xep0384OmemoManager? omemoManager = null,
         Xep0363HttpFileUpload? httpUploadManager = null,
-        Xep0333ChatMarkers? chatMarkers = null)
+        Xep0333ChatMarkers? chatMarkers = null,
+        Xep0085ChatStates? chatStates = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -103,6 +112,83 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _omemoManager = omemoManager;
         _httpUploadManager = httpUploadManager;
         _chatMarkers = chatMarkers;
+        _chatStates = chatStates;
+    }
+
+    public void HandleRemoteChatState(ChatState state)
+    {
+        _remoteComposingCts?.Cancel();
+        _remoteComposingCts = null;
+
+        if (state == ChatState.Composing)
+        {
+            IsRemoteComposing = true;
+            var cts = new System.Threading.CancellationTokenSource();
+            _remoteComposingCts = cts;
+
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token).ContinueWith(t =>
+            {
+                if (!t.IsCanceled)
+                {
+                    void Apply() => IsRemoteComposing = false;
+                    if (Dispatcher.UIThread.CheckAccess()) Apply();
+                    else Dispatcher.UIThread.Post(Apply);
+                }
+            }, TaskScheduler.Default);
+        }
+        else
+        {
+            IsRemoteComposing = false;
+        }
+    }
+
+    partial void OnInputTextChanged(string value)
+    {
+        _localPauseCts?.Cancel();
+        _localPauseCts = null;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (_lastSentLocalState == ChatState.Composing || _lastSentLocalState == ChatState.Paused)
+            {
+                SendLocalChatState(ChatState.Active);
+            }
+            return;
+        }
+
+        if (_lastSentLocalState != ChatState.Composing)
+        {
+            SendLocalChatState(ChatState.Composing);
+        }
+
+        var cts = new System.Threading.CancellationTokenSource();
+        _localPauseCts = cts;
+
+        Task.Delay(TimeSpan.FromSeconds(5), cts.Token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled && _lastSentLocalState == ChatState.Composing)
+            {
+                SendLocalChatState(ChatState.Paused);
+            }
+        }, TaskScheduler.Default);
+    }
+
+    private void SendLocalChatState(ChatState state)
+    {
+        if (_chatStates is null || _client is null || IsGroupChat) return;
+
+        _lastSentLocalState = state;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _chatStates.SendChatStateAsync(RemoteJid, state);
+            }
+            catch
+            {
+                // Soft failure sending chat state
+            }
+        });
     }
 
     public async Task EnsureHistoryLoadedAsync()
@@ -407,6 +493,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         AddOrUpdateMessage(chatMsg);
         UpdateDateHeaders();
         RequestScrollToBottom();
+
+        _localPauseCts?.Cancel();
+        _localPauseCts = null;
+        SendLocalChatState(ChatState.Active);
     }
 
     public async Task SendImageAsync(byte[] imageBytes, string? fileName = null)

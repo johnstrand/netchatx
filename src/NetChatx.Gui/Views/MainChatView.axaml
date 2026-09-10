@@ -316,8 +316,10 @@
             </StackPanel>
 
             <!-- Typing Indicator -->
-            <Border Grid.Row="2" Padding="16,4" IsVisible="{Binding ActiveConversation.IsComposing}">
-                <TextBlock Text="Contact is typing..." FontStyle="Italic" Classes="muted" FontSize="11" />
+            <Border Grid.Row="2" Padding="16,4" IsVisible="{Binding ActiveConversation.IsRemoteComposing}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding ActiveConversation.Title, StringFormat='{}{0} is typing...'}" FontStyle="Italic" Classes="muted" FontSize="11" />
+                </StackPanel>
             </Border>
 
             <!-- Bottom Message Input Bar -->
