@@ -636,7 +636,6 @@ public class StorageTests : IDisposable
 
     public void Dispose()
     {
-        _context.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }

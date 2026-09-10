@@ -312,4 +312,47 @@ public class XepTests
 
         await client.DisconnectAsync();
     }
+
+    [Fact]
+    public async Task Xep0333_ChatMarkers_AttachesMarkableAndDispatchesMarker()
+    {
+        var chatMarkers = new Xep0333ChatMarkers();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+
+        await chatMarkers.AttachAsync(client);
+
+        // 1. Outgoing message should have <markable/> added automatically
+        var outgoingMsg = new XmppElement("message")
+            .Attr("type", "chat")
+            .Child(new XmppElement("body") { Value = "Hello!" });
+
+        await chatMarkers.OnOutgoingElementAsync(client, outgoingMsg);
+        Assert.NotNull(outgoingMsg.Element("markable", Xep0333ChatMarkers.NsChatMarkers));
+
+        // 2. Incoming <displayed/> element should trigger MarkerReceived event
+        string? receivedId = null;
+        Jid? receivedFrom = null;
+        ChatMarkerType? receivedType = null;
+
+        chatMarkers.MarkerReceived += (id, fromJid, type) =>
+        {
+            receivedId = id;
+            receivedFrom = fromJid;
+            receivedType = type;
+        };
+
+        var incomingDisplayed = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com/mobile")
+            .Child(new XmppElement("displayed", Xep0333ChatMarkers.NsChatMarkers).Attr("id", "msg_12345"));
+
+        await chatMarkers.OnIncomingElementAsync(client, incomingDisplayed);
+
+        Assert.Equal("msg_12345", receivedId);
+        Assert.Equal("bob@mock.example.com/mobile", receivedFrom?.ToString());
+        Assert.Equal(ChatMarkerType.Displayed, receivedType);
+    }
 }

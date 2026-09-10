@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 
 namespace NetChatx.Storage;
 
-public sealed class DatabaseContext : IDisposable
+public sealed class DatabaseContext
 {
     private readonly string _connectionString;
 
@@ -160,7 +160,4 @@ public sealed class DatabaseContext : IDisposable
         cmd.ExecuteNonQuery();
     }
 
-    public void Dispose()
-    {
-    }
 }

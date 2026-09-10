@@ -378,6 +378,59 @@ public class ViewModelTests : IDisposable
         Assert.Equal("away", mainVm.UserPresence);
     }
 
+    [Theory]
+    [InlineData("available")]
+    [InlineData("away")]
+    [InlineData("dnd")]
+    [InlineData("xa")]
+    [InlineData("custom_show")]
+    [InlineData("")]
+    public async Task MainChatViewModel_SetPresenceAsync_HandlesVariousShowValuesAndStatusMessages(string showValue)
+    {
+        string account = "presence_shows@test.com";
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "pw"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask)
+        {
+            StatusMessage = "Testing status message"
+        };
+
+        await mainVm.SetPresenceAsync(showValue);
+
+        Assert.Equal(showValue, mainVm.UserPresence);
+        Assert.Equal("Testing status message", mainVm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_SetPresenceAsync_HandlesTransportExceptionGracefully()
+    {
+        string account = "presence_error@test.com";
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "pw"
+        };
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(options, transport);
+
+        // Fault the output pipe so SendStanzaAsync throws an InvalidOperationException/IOException
+        await transport.Output.CompleteAsync(new InvalidOperationException("Transport pipe error during presence write"));
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+
+        // Act & Assert: SetPresenceAsync must catch the exception and complete gracefully without throwing
+        var exception = await Record.ExceptionAsync(() => mainVm.SetPresenceAsync("dnd"));
+
+        Assert.Null(exception);
+        Assert.Equal("dnd", mainVm.UserPresence);
+    }
+
     [Fact]
     public void MessageBubbleViewModel_FormattedTime_ShowsDateWhenOlderThanToday()
     {
@@ -840,9 +893,110 @@ public class ViewModelTests : IDisposable
         await client.DisconnectAsync();
     }
 
+    [Fact]
+    public async Task MessageRepository_MarkAsRead_UpdatesIsReadColumn()
+    {
+        string account = "user@test.org";
+        string remote = "peer@test.org";
+
+        var msg1 = new ChatMessage
+        {
+            Id = "m1",
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = account,
+            Body = "Outbound message",
+            Direction = MessageDirection.Outbound,
+            StanzaId = "s1",
+            IsRead = false
+        };
+
+        var msg2 = new ChatMessage
+        {
+            Id = "m2",
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Body = "Inbound unread message",
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s2",
+            IsRead = false
+        };
+
+        await _messageRepo.SaveMessagesAsync([msg1, msg2]);
+
+        // Mark single message as read
+        bool updated = await _messageRepo.MarkMessageAsReadAsync(account, "s1");
+        Assert.True(updated);
+
+        var history = await _messageRepo.GetMessagesAsync(account, remote);
+        Assert.True(history.First(m => m.Id == "m1").IsRead);
+        Assert.False(history.First(m => m.Id == "m2").IsRead);
+
+        // Mark all unread inbound messages as read
+        var marked = await _messageRepo.MarkUnreadMessagesAsReadAsync(account, remote);
+        Assert.Single(marked);
+        Assert.Equal("s2", marked[0]);
+
+        var history2 = await _messageRepo.GetMessagesAsync(account, remote);
+        Assert.True(history2.First(m => m.Id == "m2").IsRead);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_ReceiptOrMarkerReceived_UpdatesMessageReadStatusAndIcon()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation(remote.ToString(), "Bob", remote, isGroupChat: false);
+
+        // Send outbound message
+        conv.InputText = "Hello Bob";
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon); // Single checkmark before receipt
+
+        string stanzaId = bubble.StanzaId ?? bubble.Id;
+
+        // Simulate incoming XEP-0333 <displayed/> chat marker from Bob
+        var markerElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", "bob@mock.example.com/res")
+            .Child(new NetChatx.Core.Xml.XmppElement("displayed", "urn:xmpp:chat-markers").Attr("id", stanzaId));
+
+        await server.InjectElementAsync(markerElem);
+        await Task.Delay(100);
+
+        Assert.True(bubble.IsRead);
+        Assert.Equal("✓✓", bubble.ReceiptIcon); // Double checkmark after read marker received
+
+        // Verify database was updated
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMessages);
+        Assert.True(dbMessages[0].IsRead);
+
+        await client.DisconnectAsync();
+    }
+
     public void Dispose()
     {
-        _dbContext.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }
