@@ -355,4 +355,35 @@ public class XepTests
         Assert.Equal("bob@mock.example.com/mobile", receivedFrom?.ToString());
         Assert.Equal(ChatMarkerType.Displayed, receivedType);
     }
+
+    [Fact]
+    public async Task Xep0085_ChatStates_SendAndReceive_WorksCorrectly()
+    {
+        var chatStates = new Xep0085ChatStates();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+
+        await chatStates.AttachAsync(client);
+
+        Jid? receivedFrom = null;
+        ChatState? receivedState = null;
+
+        chatStates.ChatStateReceived += (fromJid, state) =>
+        {
+            receivedFrom = fromJid;
+            receivedState = state;
+        };
+
+        var incomingComposing = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com/mobile")
+            .Child(new XmppElement("composing", Xep0085ChatStates.NsChatStates));
+
+        await chatStates.OnIncomingElementAsync(client, incomingComposing);
+
+        Assert.Equal("bob@mock.example.com/mobile", receivedFrom?.ToString());
+        Assert.Equal(ChatState.Composing, receivedState);
+    }
 }

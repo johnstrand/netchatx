@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -78,6 +80,18 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     public IReadOnlyList<string> QuickEmojis { get; } = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
+    [ObservableProperty]
+    private string? _rawXml;
+
+    [ObservableProperty]
+    private bool _isRawXmlVisible;
+
+    [RelayCommand]
+    public void ToggleRawXml()
+    {
+        IsRawXmlVisible = !IsRawXmlVisible;
+    }
+
     public string FormattedTime
     {
         get
@@ -134,6 +148,37 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         foreach (var item in grouped)
         {
             Reactions.Add(new ReactionCountViewModel(item.Emoji, item.Count, item.IsReactedByMe, emoji => QuickReactAsync(emoji)));
+        }
+    }
+
+    public Action<MessageBubbleViewModel>? ReplyRequested { get; set; }
+
+    [RelayCommand]
+    public void Reply()
+    {
+        ReplyRequested?.Invoke(this);
+    }
+
+    [RelayCommand]
+    public async Task CopyTextAsync()
+    {
+        string textToCopy = !string.IsNullOrEmpty(Body) ? Body : (ImageUrl ?? string.Empty);
+        if (string.IsNullOrEmpty(textToCopy)) return;
+
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var clipboard = desktop.MainWindow?.Clipboard;
+                if (clipboard is not null)
+                {
+                    await clipboard.SetTextAsync(textToCopy);
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure
         }
     }
 
@@ -220,6 +265,40 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         return local.ToString("MMMM d, yyyy");
     }
 
+    public static string GenerateFallbackRawXml(ChatMessage msg)
+    {
+        var elem = new NetChatx.Core.Xml.XmppElement("message");
+        if (!string.IsNullOrEmpty(msg.StanzaId))
+            elem.Attr("id", msg.StanzaId);
+        else if (!string.IsNullOrEmpty(msg.Id))
+            elem.Attr("id", msg.Id);
+
+        if (msg.Direction == MessageDirection.Outbound)
+        {
+            elem.Attr("from", msg.AccountJid);
+            elem.Attr("to", msg.RemoteJid);
+        }
+        else
+        {
+            elem.Attr("from", msg.SenderJid);
+            elem.Attr("to", msg.AccountJid);
+        }
+
+        elem.Attr("type", "chat");
+
+        if (!string.IsNullOrEmpty(msg.Body))
+        {
+            elem.Child("body", text: msg.Body);
+        }
+
+        if (msg.IsEncrypted)
+        {
+            elem.Child(new NetChatx.Core.Xml.XmppElement("encrypted", "urn:xmpp:omemo:2"));
+        }
+
+        return elem.ToXmlString(indent: true);
+    }
+
     public static MessageBubbleViewModel FromChatMessage(ChatMessage msg)
     {
         var vm = new MessageBubbleViewModel
@@ -232,7 +311,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             IsEncrypted = msg.IsEncrypted,
             EncryptionType = msg.EncryptionType,
             IsRead = msg.IsRead,
-            StanzaId = msg.StanzaId
+            StanzaId = msg.StanzaId,
+            RawXml = !string.IsNullOrWhiteSpace(msg.RawXml) ? msg.RawXml : GenerateFallbackRawXml(msg)
         };
 
         vm.ExtractImageUrl(msg.Body);

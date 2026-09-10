@@ -27,7 +27,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0363HttpFileUpload? _httpUploadManager;
     private readonly Xep0444Reactions? _reactionsManager;
     private readonly Xep0333ChatMarkers? _chatMarkers;
+    private readonly Xep0085ChatStates? _chatStates;
     private readonly string _accountJid;
+
+    private System.Threading.CancellationTokenSource? _remoteComposingCts;
+    private System.Threading.CancellationTokenSource? _localPauseCts;
+    private ChatState? _lastSentLocalState;
 
     [ObservableProperty]
     private string _id;
@@ -46,6 +51,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _inputText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isRemoteComposing;
 
     [ObservableProperty]
     private bool _isComposing;
@@ -93,7 +101,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         Xep0384OmemoManager? omemoManager = null,
         Xep0363HttpFileUpload? httpUploadManager = null,
         Xep0444Reactions? reactionsManager = null,
-        Xep0333ChatMarkers? chatMarkers = null)
+        Xep0333ChatMarkers? chatMarkers = null,
+        Xep0085ChatStates? chatStates = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -107,6 +116,83 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _httpUploadManager = httpUploadManager;
         _reactionsManager = reactionsManager;
         _chatMarkers = chatMarkers;
+        _chatStates = chatStates;
+    }
+
+    public void HandleRemoteChatState(ChatState state)
+    {
+        _remoteComposingCts?.Cancel();
+        _remoteComposingCts = null;
+
+        if (state == ChatState.Composing)
+        {
+            IsRemoteComposing = true;
+            var cts = new System.Threading.CancellationTokenSource();
+            _remoteComposingCts = cts;
+
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token).ContinueWith(t =>
+            {
+                if (!t.IsCanceled)
+                {
+                    void Apply() => IsRemoteComposing = false;
+                    if (Dispatcher.UIThread.CheckAccess()) Apply();
+                    else Dispatcher.UIThread.Post(Apply);
+                }
+            }, TaskScheduler.Default);
+        }
+        else
+        {
+            IsRemoteComposing = false;
+        }
+    }
+
+    partial void OnInputTextChanged(string value)
+    {
+        _localPauseCts?.Cancel();
+        _localPauseCts = null;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (_lastSentLocalState == ChatState.Composing || _lastSentLocalState == ChatState.Paused)
+            {
+                SendLocalChatState(ChatState.Active);
+            }
+            return;
+        }
+
+        if (_lastSentLocalState != ChatState.Composing)
+        {
+            SendLocalChatState(ChatState.Composing);
+        }
+
+        var cts = new System.Threading.CancellationTokenSource();
+        _localPauseCts = cts;
+
+        Task.Delay(TimeSpan.FromSeconds(5), cts.Token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled && _lastSentLocalState == ChatState.Composing)
+            {
+                SendLocalChatState(ChatState.Paused);
+            }
+        }, TaskScheduler.Default);
+    }
+
+    private void SendLocalChatState(ChatState state)
+    {
+        if (_chatStates is null || _client is null || IsGroupChat) return;
+
+        _lastSentLocalState = state;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _chatStates.SendChatStateAsync(RemoteJid, state);
+            }
+            catch
+            {
+                // Soft failure sending chat state
+            }
+        });
     }
 
     public async Task EnsureHistoryLoadedAsync()
@@ -242,7 +328,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             Timestamp = item.Timestamp,
             StanzaId = item.ArchiveId,
             IsEncrypted = isEnc,
-            EncryptionType = isEnc ? "OMEMO" : null
+            EncryptionType = isEnc ? "OMEMO" : null,
+            RawXml = m.ToXmlString(indent: true)
         };
     }
 
@@ -488,12 +575,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (IsGroupChat)
         {
             var stanza = MessageStanza.CreateGroupChat(RemoteJid, textToSend);
+            chatMsg.RawXml = stanza.ToXmlString(indent: true);
             await _client.SendStanzaAsync(stanza);
             chatMsg.StanzaId = stanza.Id;
         }
         else
         {
             var stanza = MessageStanza.CreateChat(RemoteJid, textToSend);
+            chatMsg.RawXml = stanza.ToXmlString(indent: true);
             await _client.SendStanzaAsync(stanza);
             chatMsg.StanzaId = stanza.Id;
         }
@@ -502,6 +591,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         AddOrUpdateMessage(chatMsg);
         UpdateDateHeaders();
         RequestScrollToBottom();
+
+        _localPauseCts?.Cancel();
+        _localPauseCts = null;
+        SendLocalChatState(ChatState.Active);
     }
 
     public async Task SendImageAsync(byte[] imageBytes, string? fileName = null)
@@ -607,6 +700,35 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         return Messages.Any(m => IsSameMessage(m, msg));
     }
 
+    [RelayCommand]
+    public void ReplyToMessage(MessageBubbleViewModel message)
+    {
+        if (message is null) return;
+
+        string textToQuote = !string.IsNullOrEmpty(message.Body) ? message.Body : (message.ImageUrl ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(textToQuote)) return;
+
+        var sender = message.SenderName;
+        var lines = textToQuote.Split(['\r', '\n'], StringSplitOptions.None);
+
+        var quoteBuilder = new System.Text.StringBuilder();
+        quoteBuilder.AppendLine($"> {sender}: {lines[0]}");
+        for (int i = 1; i < lines.Length; i++)
+        {
+            quoteBuilder.AppendLine($"> {lines[i]}");
+        }
+        quoteBuilder.AppendLine();
+
+        if (string.IsNullOrWhiteSpace(InputText))
+        {
+            InputText = quoteBuilder.ToString();
+        }
+        else
+        {
+            InputText = quoteBuilder.ToString() + InputText.TrimStart();
+        }
+    }
+
     public void AddOrUpdateMessage(ChatMessage msg)
     {
         var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
@@ -625,7 +747,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         var bubble = MessageBubbleViewModel.FromChatMessage(msg);
         bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
-
+        bubble.ReplyRequested = ReplyToMessage;
         int index = 0;
         while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
         {

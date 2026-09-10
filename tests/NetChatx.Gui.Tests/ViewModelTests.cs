@@ -8,6 +8,7 @@ using NetChatx.Core.Transport;
 using NetChatx.Gui.Helpers;
 using NetChatx.Gui.ViewModels;
 using NetChatx.MockServer;
+using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Storage;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
@@ -894,6 +895,154 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public void ChatConversationViewModel_ReplyToMessage_FormatsSingleAndMultiLineQuoteInInputText()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        // 1. Single line message reply
+        var singleLineBubble = new MessageBubbleViewModel
+        {
+            SenderName = "peer@test.org",
+            Body = "Hello there!"
+        };
+
+        conv.ReplyToMessage(singleLineBubble);
+        Assert.StartsWith("> peer@test.org: Hello there!\n\n", conv.InputText.Replace("\r\n", "\n"));
+
+        // 2. Reply again when InputText already has user text
+        conv.InputText = "My reply text";
+        conv.ReplyToMessage(singleLineBubble);
+        Assert.Equal("> peer@test.org: Hello there!\n\nMy reply text", conv.InputText.Replace("\r\n", "\n"));
+
+        // 3. Multi-line message reply
+        conv.InputText = string.Empty;
+        var multiLineBubble = new MessageBubbleViewModel
+        {
+            SenderName = "Alice",
+            Body = "Line 1\nLine 2\nLine 3"
+        };
+
+        conv.ReplyToMessage(multiLineBubble);
+        string expectedMultiLine = "> Alice: Line 1\n> Line 2\n> Line 3\n\n";
+        Assert.Equal(expectedMultiLine, conv.InputText.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public async Task MessageBubbleViewModel_ReplyAndCopyText_TriggersCallbacksAndExecutesSafely()
+    {
+        bool replyTriggered = false;
+        MessageBubbleViewModel? target = null;
+
+        var bubble = new MessageBubbleViewModel
+        {
+            SenderName = "Bob",
+            Body = "Test copy & reply body"
+        };
+
+        bubble.ReplyRequested = vm =>
+        {
+            replyTriggered = true;
+            target = vm;
+        };
+
+        // Test Reply command
+        bubble.Reply();
+        Assert.True(replyTriggered);
+        Assert.Same(bubble, target);
+
+        // Test CopyText command (runs safely even without UI desktop thread)
+        var ex = await Record.ExceptionAsync(async () => await bubble.CopyTextAsync());
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_RawXml_TogglesAndGeneratesFallback()
+    {
+        // 1. Explicit RawXml provided
+        var msgWithXml = new ChatMessage
+        {
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "Explicit XML Test",
+            RawXml = "<message type='chat'><body>Explicit XML Test</body></message>"
+        };
+
+        var bubbleWithXml = MessageBubbleViewModel.FromChatMessage(msgWithXml);
+        Assert.Equal("<message type='chat'><body>Explicit XML Test</body></message>", bubbleWithXml.RawXml);
+        Assert.False(bubbleWithXml.IsRawXmlVisible);
+
+        bubbleWithXml.ToggleRawXml();
+        Assert.True(bubbleWithXml.IsRawXmlVisible);
+
+        bubbleWithXml.ToggleRawXml();
+        Assert.False(bubbleWithXml.IsRawXmlVisible);
+
+        // 2. Fallback RawXml generation when RawXml is null
+        var msgWithoutXml = new ChatMessage
+        {
+            AccountJid = "alice@test.org",
+            RemoteJid = "bob@test.org",
+            SenderJid = "alice@test.org",
+            Body = "Fallback XML Test",
+            Direction = MessageDirection.Outbound,
+            RawXml = null
+        };
+
+        var bubbleWithoutXml = MessageBubbleViewModel.FromChatMessage(msgWithoutXml);
+        Assert.NotNull(bubbleWithoutXml.RawXml);
+        Assert.Contains("alice@test.org", bubbleWithoutXml.RawXml);
+        Assert.Contains("bob@test.org", bubbleWithoutXml.RawXml);
+        Assert.Contains("Fallback XML Test", bubbleWithoutXml.RawXml);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendMessage_CapturesRawXml()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("dest@test.org");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/desktop"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Dest",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        conv.InputText = "Testing RawXml on send";
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.NotNull(bubble.RawXml);
+        Assert.Contains("dest@test.org", bubble.RawXml);
+        Assert.Contains("Testing RawXml on send", bubble.RawXml);
+
+        var history = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(history);
+        Assert.NotNull(history[0].RawXml);
+        Assert.Contains("Testing RawXml on send", history[0].RawXml);
+    }
+
+    [Fact]
     public async Task MessageRepository_MarkAsRead_UpdatesIsReadColumn()
     {
         string account = "user@test.org";
@@ -993,6 +1142,37 @@ public class ViewModelTests : IDisposable
         Assert.True(dbMessages[0].IsRead);
 
         await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_HandleRemoteChatState_UpdatesIsRemoteComposing()
+    {
+        string account = "alice@example.com";
+        var remote = Jid.Parse("bob@example.com");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        Assert.False(conv.IsRemoteComposing);
+
+        // Receive Composing -> IsRemoteComposing = true
+        conv.HandleRemoteChatState(ChatState.Composing);
+        Assert.True(conv.IsRemoteComposing);
+
+        // Receive Paused -> IsRemoteComposing = false
+        conv.HandleRemoteChatState(ChatState.Paused);
+        Assert.False(conv.IsRemoteComposing);
+
+        // Receive Active -> IsRemoteComposing = false
+        conv.HandleRemoteChatState(ChatState.Composing);
+        Assert.True(conv.IsRemoteComposing);
+        conv.HandleRemoteChatState(ChatState.Active);
+        Assert.False(conv.IsRemoteComposing);
     }
 
     public void Dispose()

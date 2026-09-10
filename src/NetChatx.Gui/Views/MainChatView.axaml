@@ -98,11 +98,22 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:MessageBubbleViewModel}">
                             <StackPanel Spacing="2" Margin="4">
-                                <Grid ColumnDefinitions="*,Auto">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
                                     <TextBlock Grid.Column="0" Text="{Binding SenderName}" FontWeight="SemiBold" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding FormattedDateTime}" Classes="muted" FontSize="10" />
+                                    <Button Grid.Column="1" Classes="image-btn" Command="{Binding ToggleRawXmlCommand}" ToolTip.Tip="Toggle Raw XML" Margin="4,0">
+                                        <TextBlock Text="&lt;/&gt;" FontSize="10" Opacity="0.8" />
+                                    </Button>
+                                    <TextBlock Grid.Column="2" Text="{Binding FormattedDateTime}" Classes="muted" FontSize="10" />
                                 </Grid>
                                 <TextBlock Text="{Binding Body}" FontSize="12" TextWrapping="Wrap" />
+                                <Border IsVisible="{Binding IsRawXmlVisible}"
+                                        Background="{DynamicResource SystemChromeMediumColor}"
+                                        CornerRadius="4" Padding="6" Margin="0,4,0,0">
+                                    <TextBox Text="{Binding RawXml, Mode=OneWay}"
+                                             IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                             FontFamily="Consolas, monospace" FontSize="10" MaxHeight="120"
+                                             Background="Transparent" BorderThickness="0" />
+                                </Border>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -236,11 +247,31 @@
                                                 Padding="12,8"
                                                 MaxWidth="580"
                                                 BoxShadow="0 1 3 0 #15000000">
+                                            <Border.ContextFlyout>
+                                                <MenuFlyout>
+                                                    <MenuItem Header="📋 Copy Text" Command="{Binding CopyTextCommand}" />
+                                                    <MenuItem Header="↩ Reply" Command="{Binding ReplyCommand}" />
+                                                </MenuFlyout>
+                                            </Border.ContextFlyout>
                                             <StackPanel Spacing="4">
-                                                <!-- Sender Name for group chats -->
-                                                <TextBlock Text="{Binding SenderName}" FontWeight="Bold" FontSize="11"
-                                                           Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                           Opacity="0.85" />
+                                                <!-- Sender Name for group chats + Action Buttons -->
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="{Binding SenderName}" FontWeight="Bold" FontSize="11"
+                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                               Opacity="0.85" VerticalAlignment="Center" />
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                                        <Button Content="📋" Command="{Binding CopyTextCommand}"
+                                                                ToolTip.Tip="Copy Text"
+                                                                Classes="image-btn" FontSize="11" Padding="4,1"
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                Opacity="0.7" />
+                                                        <Button Content="↩" Command="{Binding ReplyCommand}"
+                                                                ToolTip.Tip="Reply"
+                                                                Classes="image-btn" FontSize="11" Padding="4,1"
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                Opacity="0.7" />
+                                                    </StackPanel>
+                                                </Grid>
 
                                                 <!-- Message Content -->
                                                 <TextBlock Text="{Binding Body}"
@@ -292,7 +323,7 @@
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
 
-                                                <!-- Message Footer: Time + Quick Reaction Picker + Receipt -->
+                                                <!-- Message Footer: Time + Quick Reaction Picker + Receipt + Raw XML Toggle -->
                                                 <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
                                                     <!-- Quick Emoji Reaction Picker Flyout Button -->
                                                     <DropDownButton Grid.Column="0" Content="😀+" Classes="reaction-picker-btn"
@@ -321,14 +352,43 @@
                                                     </DropDownButton>
 
                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" VerticalAlignment="Center">
+                                                        <Button Classes="image-btn"
+                                                                Command="{Binding ToggleRawXmlCommand}"
+                                                                ToolTip.Tip="Toggle Raw XML"
+                                                                Margin="0,0,4,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="&lt;/&gt;" FontSize="10" Opacity="0.8"
+                                                                       Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                        </Button>
                                                         <TextBlock Text="{Binding FormattedTime}" FontSize="10"
                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                                   Opacity="0.75" />
+                                                                   Opacity="0.75" VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                                   Opacity="0.9" />
+                                                                   Opacity="0.9" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Grid>
+
+                                                <!-- Raw XML View Container -->
+                                                <Border IsVisible="{Binding IsRawXmlVisible}"
+                                                        Background="#20000000"
+                                                        CornerRadius="6"
+                                                        Padding="8,6"
+                                                        Margin="0,4,0,0">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Text="Raw XML" FontSize="10" FontWeight="Bold" Opacity="0.8"
+                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                        <TextBox Text="{Binding RawXml, Mode=OneWay}"
+                                                                 IsReadOnly="True"
+                                                                 TextWrapping="Wrap"
+                                                                 AcceptsReturn="True"
+                                                                 FontFamily="Consolas, monospace"
+                                                                 FontSize="11"
+                                                                 MaxHeight="180"
+                                                                 Background="Transparent"
+                                                                 BorderThickness="0"
+                                                                 Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                    </StackPanel>
+                                                </Border>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -348,8 +408,10 @@
             </StackPanel>
 
             <!-- Typing Indicator -->
-            <Border Grid.Row="2" Padding="16,4" IsVisible="{Binding ActiveConversation.IsComposing}">
-                <TextBlock Text="Contact is typing..." FontStyle="Italic" Classes="muted" FontSize="11" />
+            <Border Grid.Row="2" Padding="16,4" IsVisible="{Binding ActiveConversation.IsRemoteComposing}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding ActiveConversation.Title, StringFormat='{}{0} is typing...'}" FontStyle="Italic" Classes="muted" FontSize="11" />
+                </StackPanel>
             </Border>
 
             <!-- Bottom Message Input Bar -->
