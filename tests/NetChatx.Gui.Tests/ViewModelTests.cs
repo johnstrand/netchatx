@@ -8,6 +8,7 @@ using NetChatx.Core.Transport;
 using NetChatx.Gui.Helpers;
 using NetChatx.Gui.ViewModels;
 using NetChatx.MockServer;
+using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Storage;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
@@ -1096,6 +1097,37 @@ public class ViewModelTests : IDisposable
         Assert.True(dbMessages[0].IsRead);
 
         await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_HandleRemoteChatState_UpdatesIsRemoteComposing()
+    {
+        string account = "alice@example.com";
+        var remote = Jid.Parse("bob@example.com");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        Assert.False(conv.IsRemoteComposing);
+
+        // Receive Composing -> IsRemoteComposing = true
+        conv.HandleRemoteChatState(ChatState.Composing);
+        Assert.True(conv.IsRemoteComposing);
+
+        // Receive Paused -> IsRemoteComposing = false
+        conv.HandleRemoteChatState(ChatState.Paused);
+        Assert.False(conv.IsRemoteComposing);
+
+        // Receive Active -> IsRemoteComposing = false
+        conv.HandleRemoteChatState(ChatState.Composing);
+        Assert.True(conv.IsRemoteComposing);
+        conv.HandleRemoteChatState(ChatState.Active);
+        Assert.False(conv.IsRemoteComposing);
     }
 
     public void Dispose()
