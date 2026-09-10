@@ -435,6 +435,68 @@ public sealed class MessageRepository
         return markedIds;
     }
 
+    public async Task<DateTimeOffset?> GetLatestMessageTimestampAsync(
+        string accountJid,
+        string? remoteJid = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid)) return null;
+
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        if (!string.IsNullOrEmpty(remoteJid))
+        {
+            cmd.CommandText = "SELECT MAX(timestamp) FROM messages WHERE account_jid = $account_jid AND remote_jid = $remote_jid;";
+            cmd.Parameters.AddWithValue("$account_jid", accountJid);
+            cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+        }
+        else
+        {
+            cmd.CommandText = "SELECT MAX(timestamp) FROM messages WHERE account_jid = $account_jid;";
+            cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        }
+
+        var val = await cmd.ExecuteScalarAsync(cancellationToken);
+        if (val is string str && DateTimeOffset.TryParse(str, out var dto))
+        {
+            return dto;
+        }
+
+        return null;
+    }
+
+    public async Task<Dictionary<string, (int unreadCount, string? lastPreview)>> GetContactSummariesAsync(
+        string accountJid,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, (int unreadCount, string? lastPreview)>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(accountJid)) return result;
+
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT remote_jid,
+                   SUM(CASE WHEN direction = 0 AND is_read = 0 THEN 1 ELSE 0 END) AS unread_count,
+                   (SELECT body FROM messages m2 WHERE m2.account_jid = m1.account_jid AND m2.remote_jid = m1.remote_jid ORDER BY timestamp DESC LIMIT 1) AS last_body
+            FROM messages m1
+            WHERE account_jid = $account_jid
+            GROUP BY remote_jid;
+        """;
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            string remote = reader.GetString(0);
+            int unread = reader.IsDBNull(1) ? 0 : Convert.ToInt32(reader.GetValue(1));
+            string? lastBody = reader.IsDBNull(2) ? null : reader.GetString(2);
+            result[remote] = (unread, lastBody);
+        }
+
+        return result;
+    }
+
     private static ChatMessage ReadMessage(SqliteDataReader reader)
     {
         return new ChatMessage

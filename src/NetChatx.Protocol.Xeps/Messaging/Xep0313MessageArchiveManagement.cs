@@ -37,6 +37,7 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
 
     public async Task<MamQueryResult> QueryArchiveAsync(
         Jid? withJid = null,
+        Jid? archiveJid = null,
         int maxResults = 50,
         string? before = null,
         string? after = null,
@@ -53,12 +54,17 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
         try
         {
             var iq = IqStanza.CreateSet();
+            if (archiveJid is not null)
+            {
+                iq.To = archiveJid;
+            }
+
             var queryElem = new XmppElement("query", NsMam).Attr("queryid", queryId);
 
             var form = new XmppElement("x", "jabber:x:data").Attr("type", "submit");
             form.Child(new XmppElement("field").Attr("var", "FORM_TYPE").Child(new XmppElement("value") { Value = NsMam }));
 
-            if (withJid is not null)
+            if (withJid is not null && archiveJid is null)
             {
                 form.Child(new XmppElement("field").Attr("var", "with").Child(new XmppElement("value") { Value = withJid.BareJid.ToString() }));
             }
@@ -95,14 +101,14 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
             iq.RawElement.Child(queryElem);
 
             var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
-            var fin = resultIq.RawElement.Element("fin", NsMam);
+            var fin = resultIq.RawElement.Element("fin", NsMam) ?? resultIq.RawElement.Element("fin");
 
             bool isComplete = fin?.GetAttr("complete") == "true";
             string? first = null;
             string? last = null;
             int? count = null;
 
-            var resSet = fin?.Element("set", NsRsm);
+            var resSet = fin?.Element("set", NsRsm) ?? fin?.Element("set");
             if (resSet is not null)
             {
                 first = resSet.Element("first")?.Value;
@@ -110,6 +116,9 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
                 if (int.TryParse(resSet.Element("count")?.Value, out int c))
                     count = c;
             }
+
+            first ??= items.FirstOrDefault()?.ArchiveId;
+            last ??= items.LastOrDefault()?.ArchiveId;
 
             return new MamQueryResult
             {
@@ -130,21 +139,24 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
     {
         if (element.Name == "message")
         {
-            var resultElem = element.Element("result", NsMam);
+            var resultElem = element.Element("result", NsMam) ?? element.Element("result");
             if (resultElem is not null)
             {
-                string? queryId = resultElem.GetAttr("queryid");
+                string? queryId = resultElem.GetAttr("queryid") ?? element.GetAttr("queryid");
                 string? archiveId = resultElem.GetAttr("id") ?? Guid.NewGuid().ToString("N");
 
-                var forwarded = resultElem.Element("forwarded", NsForward);
+                var forwarded = resultElem.Element("forwarded", NsForward) ?? resultElem.Element("forwarded");
                 var innerMsgElem = forwarded?.Element("message");
 
                 if (innerMsgElem is not null)
                 {
                     var innerMsg = new MessageStanza(innerMsgElem);
                     var delayElem = forwarded?.Element("delay", NsDelay)
+                                 ?? forwarded?.Element("delay")
                                  ?? forwarded?.Element("x", "jabber:x:delay")
+                                 ?? forwarded?.Element("x")
                                  ?? innerMsgElem.Element("delay", NsDelay)
+                                 ?? innerMsgElem.Element("delay")
                                  ?? innerMsgElem.Element("x", "jabber:x:delay");
                     DateTimeOffset timestamp = DateTimeOffset.UtcNow;
 
@@ -168,7 +180,7 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
                             list.Add(item);
                         }
                     }
-                    else if (_activeQueries.Count == 1)
+                    else if (_activeQueries.Count > 0)
                     {
                         var singleList = _activeQueries.Values.FirstOrDefault();
                         if (singleList is not null)

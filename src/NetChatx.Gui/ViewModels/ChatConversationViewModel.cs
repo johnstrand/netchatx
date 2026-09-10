@@ -325,7 +325,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         return (string.Empty, false);
     }
 
-    private ChatMessage? ParseMamMessage(MamMessageItem item)
+    public static ChatMessage? ParseMamMessage(
+        MamMessageItem item,
+        string accountJid,
+        Jid defaultRemoteJid,
+        bool isGroupChat,
+        XmppClient? client = null)
     {
         var m = item.Message;
         var (body, isEnc) = ExtractMessageBody(m);
@@ -339,14 +344,34 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         string? stanzaId = stanzaIdElem?.GetAttr("id") ?? m.Id;
         string? originId = originIdElem?.GetAttr("id");
 
+        var parsedAccountJid = Jid.TryParse(accountJid, out var accJid) ? accJid : null;
+        bool isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
+                       || (m.From?.EqualsBare(client?.BoundJid) == true);
+
+        Jid effectiveRemote;
+        if (isGroupChat)
+        {
+            effectiveRemote = defaultRemoteJid;
+        }
+        else if (isFromSelf)
+        {
+            effectiveRemote = (m.To ?? defaultRemoteJid).BareJid;
+        }
+        else
+        {
+            effectiveRemote = (m.From ?? defaultRemoteJid).BareJid;
+        }
+
+        string senderJidStr = (m.From ?? (isFromSelf ? (parsedAccountJid ?? effectiveRemote) : effectiveRemote)).ToString();
+
         return new ChatMessage
         {
-            Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
-            AccountJid = _accountJid,
-            RemoteJid = RemoteJid.ToString(),
-            SenderJid = (m.From ?? RemoteJid).ToString(),
+            Id = $"mam_{accountJid}_{effectiveRemote}_{item.ArchiveId}",
+            AccountJid = accountJid,
+            RemoteJid = effectiveRemote.ToString(),
+            SenderJid = senderJidStr,
             Body = body,
-            Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
+            Direction = isFromSelf ? MessageDirection.Outbound : MessageDirection.Inbound,
             Timestamp = item.Timestamp,
             StanzaId = !string.IsNullOrEmpty(stanzaId) ? stanzaId : item.ArchiveId,
             OriginId = originId,
@@ -354,6 +379,11 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             EncryptionType = isEnc ? "OMEMO" : null,
             RawXml = m.ToXmlString(indent: true)
         };
+    }
+
+    private ChatMessage? ParseMamMessage(MamMessageItem item)
+    {
+        return ParseMamMessage(item, _accountJid, RemoteJid, IsGroupChat, _client);
     }
 
     private async Task<List<ChatMessage>> ProcessMamMessagesAsync(IEnumerable<MamMessageItem> items)
@@ -386,19 +416,52 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         try
         {
-            // Sync archive backwards from the server (up to 10 pages / 500 messages)
-            // to retrieve latest messages and seamlessly bridge any history gaps
+            Jid? archiveJid = IsGroupChat ? RemoteJid : null;
+            Jid? withJid = IsGroupChat ? null : RemoteJid;
+
+            var latestBubble = Messages.LastOrDefault();
+            DateTimeOffset? startTimestamp = latestBubble?.Timestamp;
+
             string? beforeId = null;
+            string? afterId = null;
             const int maxPages = 10;
             int pagesFetched = 0;
 
             while (pagesFetched < maxPages)
             {
-                var mamResult = await _mamManager.QueryArchiveAsync(withJid: RemoteJid, maxResults: 50, before: beforeId);
+                MamQueryResult mamResult;
+                if (startTimestamp.HasValue)
+                {
+                    mamResult = await _mamManager.QueryArchiveAsync(
+                        withJid: withJid,
+                        archiveJid: archiveJid,
+                        maxResults: 50,
+                        start: startTimestamp.Value,
+                        after: afterId);
+                }
+                else
+                {
+                    mamResult = await _mamManager.QueryArchiveAsync(
+                        withJid: withJid,
+                        archiveJid: archiveJid,
+                        maxResults: 50,
+                        before: beforeId);
+                }
+
                 pagesFetched++;
 
                 if (mamResult.Messages.Count == 0)
+                {
+                    if (startTimestamp.HasValue && pagesFetched == 1)
+                    {
+                        // Fallback to querying the latest page with RSM <before/>
+                        // in case the server ignores 'start', returns error, or clock drift exists
+                        startTimestamp = null;
+                        pagesFetched = 0;
+                        continue;
+                    }
                     break;
+                }
 
                 var chatMsgs = await ProcessMamMessagesAsync(mamResult.Messages);
 
@@ -407,10 +470,29 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     await _messageRepo.SaveMessagesAsync(chatMsgs);
                 }
 
-                if (mamResult.IsComplete || string.IsNullOrEmpty(mamResult.FirstId) || mamResult.FirstId == beforeId)
+                if (mamResult.IsComplete)
                     break;
 
-                beforeId = mamResult.FirstId;
+                if (startTimestamp.HasValue)
+                {
+                    string? nextAfter = !string.IsNullOrEmpty(mamResult.LastId)
+                        ? mamResult.LastId
+                        : mamResult.Messages.LastOrDefault()?.ArchiveId;
+
+                    if (string.IsNullOrEmpty(nextAfter) || nextAfter == afterId)
+                        break;
+                    afterId = nextAfter;
+                }
+                else
+                {
+                    string? nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
+                        ? mamResult.FirstId
+                        : mamResult.Messages.FirstOrDefault()?.ArchiveId;
+
+                    if (string.IsNullOrEmpty(nextBefore) || nextBefore == beforeId)
+                        break;
+                    beforeId = nextBefore;
+                }
             }
 
             await LoadReactionsForCurrentMessagesAsync();
@@ -451,7 +533,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 {
                     // Pass the oldest known archive ID to RSM <before>{id}</before> to fetch preceding messages
                     var mamResult = await _mamManager.QueryArchiveAsync(
-                        withJid: RemoteJid,
+                        withJid: IsGroupChat ? null : RemoteJid,
+                        archiveJid: IsGroupChat ? RemoteJid : null,
                         maxResults: 50,
                         before: oldestStanzaId,
                         end: string.IsNullOrEmpty(oldestStanzaId) ? oldestTimestamp : null);
@@ -695,33 +778,44 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     public void UpdateDateHeaders()
     {
-        DateTime? lastDate = null;
-        foreach (var bubble in Messages)
+        void Apply()
         {
-            var msgDate = bubble.Timestamp.ToLocalTime().Date;
-            if (lastDate != msgDate)
+            DateTime? lastDate = null;
+            foreach (var bubble in Messages)
             {
-                bubble.ShowDateHeader = true;
-                bubble.DateHeader = MessageBubbleViewModel.FormatDateHeader(bubble.Timestamp);
-                lastDate = msgDate;
-            }
-            else
-            {
-                bubble.ShowDateHeader = false;
-                bubble.DateHeader = null;
+                var msgDate = bubble.Timestamp.ToLocalTime().Date;
+                if (lastDate != msgDate)
+                {
+                    bubble.ShowDateHeader = true;
+                    bubble.DateHeader = MessageBubbleViewModel.FormatDateHeader(bubble.Timestamp);
+                    lastDate = msgDate;
+                }
+                else
+                {
+                    bubble.ShowDateHeader = false;
+                    bubble.DateHeader = null;
+                }
             }
         }
+
+        PostToUi(Apply);
     }
 
     public static bool IsSameMessage(MessageBubbleViewModel bubble, ChatMessage msg)
     {
         if (bubble.Id == msg.Id) return true;
-        if (!string.IsNullOrEmpty(bubble.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId) && bubble.StanzaId == msg.StanzaId) return true;
-        if (!string.IsNullOrEmpty(bubble.OriginId) && !string.IsNullOrEmpty(msg.OriginId) && bubble.OriginId == msg.OriginId) return true;
+        if (!string.IsNullOrEmpty(bubble.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId) && bubble.StanzaId == msg.StanzaId)
+        {
+            return true;
+        }
+        if (!string.IsNullOrEmpty(bubble.OriginId) && !string.IsNullOrEmpty(msg.OriginId) && bubble.OriginId == msg.OriginId)
+        {
+            return true;
+        }
         if (!string.IsNullOrEmpty(bubble.StanzaId) && bubble.StanzaId == msg.Id) return true;
         if (!string.IsNullOrEmpty(msg.StanzaId) && msg.StanzaId == bubble.Id) return true;
 
-        // Content similarity within 60 seconds
+        // Content similarity within 60 seconds (when IDs are not available on both sides or differing MAM archive IDs)
         if (bubble.Direction == msg.Direction &&
             bubble.Body == msg.Body &&
             Math.Abs((bubble.Timestamp - msg.Timestamp).TotalSeconds) <= 60)
@@ -768,38 +862,43 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     public void AddOrUpdateMessage(ChatMessage msg)
     {
-        var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
-        if (existing is not null)
+        void Apply()
         {
-            if (string.IsNullOrEmpty(existing.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId))
+            var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
+            if (existing is not null)
             {
-                existing.StanzaId = msg.StanzaId;
+                if (string.IsNullOrEmpty(existing.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId))
+                {
+                    existing.StanzaId = msg.StanzaId;
+                }
+                if (string.IsNullOrEmpty(existing.OriginId) && !string.IsNullOrEmpty(msg.OriginId))
+                {
+                    existing.OriginId = msg.OriginId;
+                }
+                if (msg.IsRead && !existing.IsRead)
+                {
+                    existing.IsRead = true;
+                }
+                return;
             }
-            if (string.IsNullOrEmpty(existing.OriginId) && !string.IsNullOrEmpty(msg.OriginId))
+
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis);
+            bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
+            bubble.ReplyRequested = ReplyToMessage;
+            int index = 0;
+            while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
             {
-                existing.OriginId = msg.OriginId;
+                index++;
             }
-            if (msg.IsRead && !existing.IsRead)
+            Messages.Insert(index, bubble);
+
+            if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
             {
-                existing.IsRead = true;
+                OldestMessageTimestamp = bubble.Timestamp;
             }
-            return;
         }
 
-        var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis);
-        bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
-        bubble.ReplyRequested = ReplyToMessage;
-        int index = 0;
-        while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
-        {
-            index++;
-        }
-        Messages.Insert(index, bubble);
-
-        if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
-        {
-            OldestMessageTimestamp = bubble.Timestamp;
-        }
+        PostToUi(Apply);
     }
 
     private static void PostToUi(Action action)

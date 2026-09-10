@@ -137,6 +137,14 @@ public sealed class MockXmppServer : IAsyncDisposable
             return;
         }
 
+        var carbonsEnable = iq.RawElement.Element("enable", "urn:xmpp:carbons:2") ?? iq.RawElement.Element("disable", "urn:xmpp:carbons:2");
+        if (carbonsEnable is not null && iq.IsSet)
+        {
+            var result = iq.CreateResult();
+            await InjectStanzaAsync(result);
+            return;
+        }
+
         var mam = iq.RawElement.Element("query", "urn:xmpp:mam:2");
         if (mam is not null && iq.IsSet)
         {

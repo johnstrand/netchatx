@@ -37,7 +37,22 @@ public sealed class XmppClient : IAsyncDisposable
     }
 
     public event Action<XmppClientState>? StateChanged;
-    public event Func<MessageStanza, Task>? MessageReceived;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<MessageStanza> _earlyMessageBuffer = new();
+    private Func<MessageStanza, Task>? _messageReceived;
+
+    public event Func<MessageStanza, Task>? MessageReceived
+    {
+        add
+        {
+            _messageReceived += value;
+            while (_earlyMessageBuffer.TryDequeue(out var msg))
+            {
+                _ = value?.Invoke(msg);
+            }
+        }
+        remove => _messageReceived -= value;
+    }
+
     public event Func<PresenceStanza, Task>? PresenceReceived;
     public event Func<IqStanza, Task>? IqReceived;
     public event Func<XmppElement, Task>? ElementReceived;
@@ -329,8 +344,10 @@ public sealed class XmppClient : IAsyncDisposable
                 else if (elem.Name == "message")
                 {
                     var msg = new MessageStanza(elem);
-                    if (MessageReceived is not null)
-                        _ = MessageReceived(msg);
+                    if (_messageReceived is not null)
+                        _ = _messageReceived(msg);
+                    else
+                        _earlyMessageBuffer.Enqueue(msg);
                 }
                 else if (elem.Name == "presence")
                 {

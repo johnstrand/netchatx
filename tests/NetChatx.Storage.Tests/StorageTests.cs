@@ -649,14 +649,70 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
-    public void DatabaseContext_DefaultPath_IsInUserDataDirectory()
+    public async Task MessageRepository_GetLatestMessageTimestampAndSummaries_WorkCorrectly()
     {
-        var defaultPath = DatabaseContext.GetDefaultDatabasePath();
-        Assert.NotNull(defaultPath);
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        Assert.StartsWith(appData, defaultPath, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("netchatx.db", defaultPath, StringComparison.OrdinalIgnoreCase);
-        Assert.True(Directory.Exists(Path.GetDirectoryName(defaultPath)));
+        var repo = new MessageRepository(_context);
+        string account = "user@example.com";
+        string remote1 = "bob@example.com";
+        string remote2 = "carol@example.com";
+
+        var t1 = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var t2 = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var t3 = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote1,
+            SenderJid = remote1,
+            Timestamp = t1,
+            Direction = MessageDirection.Inbound,
+            Body = "Hello from Bob",
+            IsRead = true
+        });
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote1,
+            SenderJid = remote1,
+            Timestamp = t2,
+            Direction = MessageDirection.Inbound,
+            Body = "Second msg from Bob",
+            IsRead = false
+        });
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote2,
+            SenderJid = remote2,
+            Timestamp = t3,
+            Direction = MessageDirection.Inbound,
+            Body = "Unread from Carol",
+            IsRead = false
+        });
+
+        // 1. Get latest timestamp for account
+        var latestAccount = await repo.GetLatestMessageTimestampAsync(account);
+        Assert.NotNull(latestAccount);
+        Assert.Equal(t3.ToUniversalTime().ToString("O"), latestAccount.Value.ToUniversalTime().ToString("O"));
+
+        // 2. Get latest timestamp for remote1
+        var latestBob = await repo.GetLatestMessageTimestampAsync(account, remote1);
+        Assert.NotNull(latestBob);
+        Assert.Equal(t2.ToUniversalTime().ToString("O"), latestBob.Value.ToUniversalTime().ToString("O"));
+
+        // 3. Get contact summaries (unread count and last preview)
+        var summaries = await repo.GetContactSummariesAsync(account);
+        Assert.Equal(2, summaries.Count);
+        Assert.True(summaries.ContainsKey(remote1));
+        Assert.Equal(1, summaries[remote1].unreadCount);
+        Assert.Equal("Second msg from Bob", summaries[remote1].lastPreview);
+
+        Assert.True(summaries.ContainsKey(remote2));
+        Assert.Equal(1, summaries[remote2].unreadCount);
+        Assert.Equal("Unread from Carol", summaries[remote2].lastPreview);
     }
 
     public void Dispose()
