@@ -103,6 +103,17 @@ public sealed class DatabaseContext
                 GROUP BY account_jid, remote_jid, COALESCE(stanza_id, id), timestamp, body
             );
 
+            CREATE TABLE IF NOT EXISTS message_reactions (
+                account_jid TEXT NOT NULL,
+                remote_jid TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                sender_jid TEXT NOT NULL,
+                emoji TEXT NOT NULL,
+                PRIMARY KEY (account_jid, remote_jid, message_id, sender_jid, emoji)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(account_jid, remote_jid, message_id);
+
             CREATE TABLE IF NOT EXISTS roster (
                 account_jid TEXT NOT NULL,
                 contact_jid TEXT NOT NULL,
@@ -145,6 +156,13 @@ public sealed class DatabaseContext
                 signature TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 PRIMARY KEY (account_jid, key_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS account_settings (
+                account_jid TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (account_jid, key)
             );
         """;
         cmd.ExecuteNonQuery();

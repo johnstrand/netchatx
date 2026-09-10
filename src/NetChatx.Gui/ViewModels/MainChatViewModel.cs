@@ -27,6 +27,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly RosterRepository _rosterRepo;
     private readonly AccountRepository _accountRepo;
     private readonly OmemoRepository _omemoRepo;
+    private readonly SettingsRepository _settingsRepo;
     private readonly Func<Task> _onDisconnectRequested;
 
     private Xep0313MessageArchiveManagement? _mam;
@@ -34,6 +35,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0045MultiUserChat? _muc;
     private Xep0363HttpFileUpload? _httpUpload;
     private Xep0280MessageCarbons? _carbons;
+    private Xep0444Reactions? _reactions;
     private Xep0184MessageDeliveryReceipts? _receipts;
     private Xep0333ChatMarkers? _chatMarkers;
     private Xep0085ChatStates? _chatStates;
@@ -82,6 +84,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _rosterRepo = new RosterRepository(_dbContext);
         _accountRepo = new AccountRepository(_dbContext);
         _omemoRepo = new OmemoRepository(_dbContext);
+        _settingsRepo = new SettingsRepository(_dbContext);
 
         _accountJid = client.Options.Jid.BareJid.ToString();
         _userBoundJid = client.BoundJid.ToString();
@@ -95,6 +98,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _muc = new Xep0045MultiUserChat();
         _httpUpload = new Xep0363HttpFileUpload();
         _carbons = new Xep0280MessageCarbons();
+        _reactions = new Xep0444Reactions();
         _receipts = new Xep0184MessageDeliveryReceipts();
         _chatMarkers = new Xep0333ChatMarkers();
         _chatStates = new Xep0085ChatStates();
@@ -104,6 +108,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         await _muc.AttachAsync(_client);
         await _httpUpload.AttachAsync(_client);
         await _carbons.AttachAsync(_client);
+        await _reactions.AttachAsync(_client);
         await _receipts.AttachAsync(_client);
         await _chatMarkers.AttachAsync(_client);
         await _chatStates.AttachAsync(_client);
@@ -152,6 +157,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _omemo.MessageDecrypted += async dec =>
         {
             await HandleDecryptedMessageAsync(dec);
+        };
+
+        // Wire reactions
+        _reactions.ReactionReceived += async args =>
+        {
+            await HandleIncomingReactionAsync(args);
         };
 
         // Load cached contacts from SQLite
@@ -277,8 +288,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _mam,
             _omemo,
             _httpUpload,
+            _reactions,
             _chatMarkers,
-            _chatStates);
+            _chatStates,
+            _settingsRepo);
 
         Conversations.Add(newConv);
         return newConv;
@@ -305,12 +318,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
             }
         });
-    }
-
-    [RelayCommand]
-    public void ToggleDetails()
-    {
-        IsDetailsOpen = !IsDetailsOpen;
     }
 
     [RelayCommand]
@@ -341,6 +348,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    public void ToggleDetails()
+    {
+        IsDetailsOpen = !IsDetailsOpen;
+    }
+
+    [RelayCommand]
     public async Task SetPresenceAsync(string show)
     {
         UserPresence = show;
@@ -367,6 +380,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         await _client.DisconnectAsync();
         await _onDisconnectRequested();
+    }
+
+    private async Task HandleIncomingReactionAsync(ReactionEventArgs args)
+    {
+        PostToUi(async () =>
+        {
+            var conv = GetOrCreateConversation(args.RemoteJid.ToString(), args.RemoteJid.ToString(), args.RemoteJid, isGroupChat: args.IsGroupChat);
+            await conv.HandleIncomingReactionAsync(args);
+        });
     }
 
     private async Task HandleIncomingMessageAsync(MessageStanza msg)

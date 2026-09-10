@@ -234,6 +234,137 @@ public sealed class MessageRepository
         return rows > 0;
     }
 
+    public async Task SaveReactionsAsync(
+        string accountJid,
+        string remoteJid,
+        string targetMessageId,
+        string senderJid,
+        IEnumerable<string> emojis,
+        bool isGroupChat = false,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _context.CreateConnection();
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Normalize sender JID: for 1:1 chats, use bare JID so multiple resources of the same contact/user don't accumulate duplicates
+        string normalizedSenderJid = senderJid;
+        if (!isGroupChat)
+        {
+            var slashIdx = senderJid.IndexOf('/');
+            if (slashIdx >= 0)
+            {
+                normalizedSenderJid = senderJid[..slashIdx];
+            }
+        }
+
+        // Find actual message ID if targetMessageId matches stanza_id or origin_id
+        string canonicalMessageId = targetMessageId;
+        using (var findCmd = connection.CreateCommand())
+        {
+            findCmd.Transaction = (SqliteTransaction)transaction;
+            findCmd.CommandText = """
+                SELECT id FROM messages
+                WHERE account_jid = $account_jid
+                  AND (id = $target_id OR stanza_id = $target_id OR origin_id = $target_id)
+                LIMIT 1;
+            """;
+            findCmd.Parameters.AddWithValue("$account_jid", accountJid);
+            findCmd.Parameters.AddWithValue("$target_id", targetMessageId);
+
+            var found = await findCmd.ExecuteScalarAsync(cancellationToken);
+            if (found is string fid)
+            {
+                canonicalMessageId = fid;
+            }
+        }
+
+        // Per XEP-0444: sending new reactions replaces sender's previous reactions for that message
+        using (var deleteCmd = connection.CreateCommand())
+        {
+            deleteCmd.Transaction = (SqliteTransaction)transaction;
+            deleteCmd.CommandText = """
+                DELETE FROM message_reactions
+                WHERE account_jid = $account_jid
+                  AND remote_jid = $remote_jid
+                  AND message_id = $message_id
+                  AND (sender_jid = $sender_jid OR sender_jid LIKE $sender_prefix);
+            """;
+            deleteCmd.Parameters.AddWithValue("$account_jid", accountJid);
+            deleteCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+            deleteCmd.Parameters.AddWithValue("$message_id", canonicalMessageId);
+            deleteCmd.Parameters.AddWithValue("$sender_jid", normalizedSenderJid);
+            deleteCmd.Parameters.AddWithValue("$sender_prefix", normalizedSenderJid + "/%");
+
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        var emojiList = emojis.Distinct().Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+        if (emojiList.Count > 0)
+        {
+            using var insertCmd = connection.CreateCommand();
+            insertCmd.Transaction = (SqliteTransaction)transaction;
+            insertCmd.CommandText = """
+                INSERT OR REPLACE INTO message_reactions (account_jid, remote_jid, message_id, sender_jid, emoji)
+                VALUES ($account_jid, $remote_jid, $message_id, $sender_jid, $emoji);
+            """;
+
+            insertCmd.Parameters.AddWithValue("$account_jid", accountJid);
+            insertCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+            insertCmd.Parameters.AddWithValue("$message_id", canonicalMessageId);
+            insertCmd.Parameters.AddWithValue("$sender_jid", normalizedSenderJid);
+            var pEmoji = insertCmd.Parameters.Add("$emoji", SqliteType.Text);
+
+            foreach (var emoji in emojiList)
+            {
+                pEmoji.Value = emoji;
+                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<List<MessageReaction>> GetReactionsForMessagesAsync(
+        string accountJid,
+        IEnumerable<string> messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = messageIds.Distinct().ToList();
+        if (idList.Count == 0) return [];
+
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        var inClause = string.Join(",", idList.Select((_, i) => $"$id{i}"));
+        cmd.CommandText = $"""
+            SELECT account_jid, remote_jid, message_id, sender_jid, emoji
+            FROM message_reactions
+            WHERE account_jid = $account_jid AND message_id IN ({inClause});
+        """;
+
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        for (int i = 0; i < idList.Count; i++)
+        {
+            cmd.Parameters.AddWithValue($"$id{i}", idList[i]);
+        }
+
+        var list = new List<MessageReaction>();
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            list.Add(new MessageReaction
+            {
+                AccountJid = reader.GetString(0),
+                RemoteJid = reader.GetString(1),
+                MessageId = reader.GetString(2),
+                SenderJid = reader.GetString(3),
+                Emoji = reader.GetString(4)
+            });
+        }
+
+        return list;
+    }
+
     public async Task<bool> MarkMessageAsReadAsync(
         string accountJid,
         string messageId,

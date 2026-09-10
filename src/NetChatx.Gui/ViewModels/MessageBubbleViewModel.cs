@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia;
@@ -10,6 +13,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NetChatx.Gui.Helpers;
 using NetChatx.Storage.Models;
+using NetChatx.Storage.Repositories;
 
 namespace NetChatx.Gui.ViewModels;
 
@@ -18,6 +22,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     private static readonly Regex ImageUrlRegex = new(
         @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public Func<MessageBubbleViewModel, string, Task>? ToggleReactionHandler { get; set; }
 
     [ObservableProperty]
     private string _id = Guid.NewGuid().ToString("N");
@@ -51,6 +57,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     private string? _stanzaId;
 
     [ObservableProperty]
+    private string? _originId;
+
+    [ObservableProperty]
     private bool _showDateHeader;
 
     [ObservableProperty]
@@ -70,6 +79,13 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isLoadingImage;
+
+    public ObservableCollection<ReactionCountViewModel> Reactions { get; } = [];
+
+    [ObservableProperty]
+    private EmojiPickerViewModel? _emojiPicker;
+
+    public IReadOnlyList<string> QuickEmojis => EmojiPicker?.QuickEmojis.ToList() ?? [.. EmojiData.DefaultQuickEmojis];
 
     [ObservableProperty]
     private string? _rawXml;
@@ -112,6 +128,35 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     public string FormattedDateTime => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
+
+    [RelayCommand]
+    public async Task QuickReactAsync(string emoji)
+    {
+        if (ToggleReactionHandler is not null && !string.IsNullOrWhiteSpace(emoji))
+        {
+            await ToggleReactionHandler(this, emoji);
+        }
+    }
+
+    public void UpdateReactions(IEnumerable<MessageReaction> rawReactions, string currentAccountJid)
+    {
+        var grouped = rawReactions
+            .GroupBy(r => r.Emoji)
+            .Select(g => new
+            {
+                Emoji = g.Key,
+                Count = g.Count(),
+                IsReactedByMe = g.Any(r => r.SenderJid.Equals(currentAccountJid, StringComparison.OrdinalIgnoreCase) ||
+                                           r.SenderJid.StartsWith(currentAccountJid + "/", StringComparison.OrdinalIgnoreCase))
+            })
+            .ToList();
+
+        Reactions.Clear();
+        foreach (var item in grouped)
+        {
+            Reactions.Add(new ReactionCountViewModel(item.Emoji, item.Count, item.IsReactedByMe, emoji => QuickReactAsync(emoji)));
+        }
+    }
 
     public Action<MessageBubbleViewModel>? ReplyRequested { get; set; }
 
@@ -261,7 +306,11 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         return elem.ToXmlString(indent: true);
     }
 
-    public static MessageBubbleViewModel FromChatMessage(ChatMessage msg)
+    public static MessageBubbleViewModel FromChatMessage(
+        ChatMessage msg,
+        string accountJid = "",
+        SettingsRepository? settingsRepo = null,
+        IEnumerable<string>? quickEmojis = null)
     {
         var vm = new MessageBubbleViewModel
         {
@@ -274,8 +323,12 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             EncryptionType = msg.EncryptionType,
             IsRead = msg.IsRead,
             StanzaId = msg.StanzaId,
+            OriginId = msg.OriginId,
             RawXml = !string.IsNullOrWhiteSpace(msg.RawXml) ? msg.RawXml : GenerateFallbackRawXml(msg)
         };
+
+        var emojisToUse = quickEmojis ?? EmojiData.DefaultQuickEmojis;
+        vm.EmojiPicker = new EmojiPickerViewModel(accountJid, emojisToUse, emoji => vm.QuickReactAsync(emoji), settingsRepo);
 
         vm.ExtractImageUrl(msg.Body);
         if (vm.HasImage)

@@ -34,6 +34,160 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatConversationViewModel_ToggleReaction_UpdatesUIAndDatabase()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        var msg = new ChatMessage
+        {
+            Id = "msg_react_vm_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Reaction test bubble",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s_react_1"
+        };
+        await _messageRepo.SaveMessageAsync(msg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        await conv.LoadHistoryAsync();
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.Empty(bubble.Reactions);
+
+        // Toggle 👍 reaction by me
+        await conv.ToggleReactionAsync(bubble, "👍");
+
+        Assert.Single(bubble.Reactions);
+        Assert.Equal("👍", bubble.Reactions[0].Emoji);
+        Assert.Equal(1, bubble.Reactions[0].Count);
+        Assert.True(bubble.Reactions[0].IsReactedByMe);
+
+        // Toggle 👍 again to remove
+        await conv.ToggleReactionAsync(bubble, "👍");
+        Assert.Empty(bubble.Reactions);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_RemoteAndCarbonReactions_SyncsCorrectly()
+    {
+        string account = "me@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        var msg = new ChatMessage
+        {
+            Id = "msg_sync_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Sync test message",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound,
+            StanzaId = "s_sync_1"
+        };
+        await _messageRepo.SaveMessageAsync(msg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        await conv.LoadHistoryAsync();
+        var bubble = conv.Messages[0];
+
+        // 1. Inbound remote reaction from peer@test.org/mobile
+        await conv.HandleIncomingReactionAsync(new ReactionEventArgs
+        {
+            TargetMessageId = "s_sync_1",
+            SenderJid = Jid.Parse("peer@test.org/mobile"),
+            RemoteJid = remote,
+            Emojis = ["🎉"],
+            IsCarbonSent = false
+        });
+
+        Assert.Single(bubble.Reactions);
+        Assert.Equal("🎉", bubble.Reactions[0].Emoji);
+        Assert.Equal(1, bubble.Reactions[0].Count);
+        Assert.False(bubble.Reactions[0].IsReactedByMe);
+
+        // 2. Sent carbon copy from our other device me@test.org/phone
+        await conv.HandleIncomingReactionAsync(new ReactionEventArgs
+        {
+            TargetMessageId = "s_sync_1",
+            SenderJid = Jid.Parse("me@test.org/phone"),
+            RemoteJid = remote,
+            Emojis = ["❤️"],
+            IsCarbonSent = true
+        });
+
+        Assert.Equal(2, bubble.Reactions.Count);
+        var peerReact = bubble.Reactions.First(r => r.Emoji == "🎉");
+        var myReact = bubble.Reactions.First(r => r.Emoji == "❤️");
+
+        Assert.False(peerReact.IsReactedByMe);
+        Assert.True(myReact.IsReactedByMe);
+    }
+
+    [Fact]
+    public async Task EmojiPickerViewModel_QuickEmojisAndCustomization_Works()
+    {
+        string account = "user@test.org";
+        var settingsRepo = new SettingsRepository(_dbContext);
+        string? reactedEmoji = null;
+
+        var picker = new EmojiPickerViewModel(
+            account,
+            ["👍", "❤️"],
+            emoji =>
+            {
+                reactedEmoji = emoji;
+                return Task.CompletedTask;
+            },
+            settingsRepo);
+
+        // 1. Initial quick emojis
+        Assert.Equal(2, picker.QuickEmojis.Count);
+        Assert.Contains("👍", picker.QuickEmojis);
+        Assert.Contains("❤️", picker.QuickEmojis);
+
+        // 2. Select emoji triggers callback
+        await picker.SelectEmojiAsync("👍");
+        Assert.Equal("👍", reactedEmoji);
+
+        // 3. Search emojis
+        picker.SearchQuery = "fire";
+        Assert.Contains("🔥", picker.DisplayedEmojis);
+
+        // 4. Pin new emoji to quick emojis
+        await picker.PinToQuickEmojisAsync("🔥");
+        Assert.Equal(3, picker.QuickEmojis.Count);
+        Assert.Contains("🔥", picker.QuickEmojis);
+
+        // Verify persistence in SQLite
+        var saved = await settingsRepo.GetQuickEmojisAsync(account);
+        Assert.Equal(3, saved.Count);
+        Assert.Contains("🔥", saved);
+
+        // 5. Remove emoji from quick emojis
+        await picker.RemoveFromQuickEmojisAsync("👍");
+        Assert.Equal(2, picker.QuickEmojis.Count);
+        Assert.DoesNotContain("👍", picker.QuickEmojis);
+    }
+
+    [Fact]
     public async Task LoginViewModel_Validation_FailsOnEmptyOrInvalidInputs()
     {
         AccountProfile? capturedProfile = null;

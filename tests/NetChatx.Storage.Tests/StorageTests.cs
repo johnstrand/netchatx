@@ -18,6 +18,73 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task MessageRepository_ReactionsSaveAndRetrieve_WorksCorrectly()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "alice@example.com";
+        string remote = "bob@example.com";
+        string msgId = "msg_reaction_test_1";
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            Id = msgId,
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = remote,
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound,
+            Body = "Test message for reactions",
+            StanzaId = "stanza_react_1"
+        });
+
+        // 1. Bob reacts with 👍 and ❤️
+        await repo.SaveReactionsAsync(account, remote, "stanza_react_1", "bob@example.com", ["👍", "❤️"]);
+
+        var reactions1 = await repo.GetReactionsForMessagesAsync(account, [msgId]);
+        Assert.Equal(2, reactions1.Count);
+        Assert.Contains(reactions1, r => r.SenderJid == "bob@example.com" && r.Emoji == "👍");
+        Assert.Contains(reactions1, r => r.SenderJid == "bob@example.com" && r.Emoji == "❤️");
+
+        // 2. Alice reacts with 👍
+        await repo.SaveReactionsAsync(account, remote, msgId, "alice@example.com", ["👍"]);
+
+        var reactions2 = await repo.GetReactionsForMessagesAsync(account, [msgId]);
+        Assert.Equal(3, reactions2.Count);
+
+        // 4. Bob reacts from a different resource 'bob@example.com/mobile' with 🎉
+        // In 1:1 chat, sender JID is normalized so this replaces Bob's previous 👍 reaction rather than duplicating
+        await repo.SaveReactionsAsync(account, remote, "stanza_react_1", "bob@example.com/mobile", ["🎉"]);
+
+        var reactions4 = await repo.GetReactionsForMessagesAsync(account, [msgId]);
+        Assert.Equal(2, reactions4.Count);
+        Assert.Contains(reactions4, r => r.SenderJid == "bob@example.com" && r.Emoji == "🎉");
+        Assert.Contains(reactions4, r => r.SenderJid == "alice@example.com" && r.Emoji == "👍");
+    }
+
+    [Fact]
+    public async Task SettingsRepository_QuickEmojis_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        string account = "user@example.org";
+
+        // 1. Defaults when nothing is configured
+        var defaults = await repo.GetQuickEmojisAsync(account);
+        Assert.Equal(SettingsRepository.DefaultQuickEmojis, defaults);
+
+        // 2. Save custom quick emojis
+        string[] custom = ["🚀", "🔥", "💯", "👏"];
+        await repo.SetQuickEmojisAsync(account, custom);
+
+        var retrieved = await repo.GetQuickEmojisAsync(account);
+        Assert.Equal(custom, retrieved);
+
+        // 3. Independent per account
+        string otherAccount = "other@example.org";
+        var otherDefaults = await repo.GetQuickEmojisAsync(otherAccount);
+        Assert.Equal(SettingsRepository.DefaultQuickEmojis, otherDefaults);
+    }
+
+    [Fact]
     public async Task AccountRepository_Crud_Succeeds()
     {
         var repo = new AccountRepository(_context);
