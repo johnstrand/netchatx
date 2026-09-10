@@ -27,6 +27,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly RosterRepository _rosterRepo;
     private readonly AccountRepository _accountRepo;
     private readonly OmemoRepository _omemoRepo;
+    private readonly SettingsRepository _settingsRepo;
     private readonly Func<Task> _onDisconnectRequested;
 
     private Xep0313MessageArchiveManagement? _mam;
@@ -83,6 +84,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _rosterRepo = new RosterRepository(_dbContext);
         _accountRepo = new AccountRepository(_dbContext);
         _omemoRepo = new OmemoRepository(_dbContext);
+        _settingsRepo = new SettingsRepository(_dbContext);
 
         _accountJid = client.Options.Jid.BareJid.ToString();
         _userBoundJid = client.BoundJid.ToString();
@@ -288,7 +290,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _httpUpload,
             _reactions,
             _chatMarkers,
-            _chatStates);
+            _chatStates,
+            _settingsRepo);
 
         Conversations.Add(newConv);
         return newConv;
@@ -318,12 +321,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void ToggleDetails()
-    {
-        IsDetailsOpen = !IsDetailsOpen;
-    }
-
-    [RelayCommand]
     public async Task ExecuteSearchAsync()
     {
         if (string.IsNullOrWhiteSpace(SearchQuery))
@@ -348,6 +345,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
         SearchQuery = string.Empty;
         SearchResults.Clear();
         IsSearching = false;
+    }
+
+    [RelayCommand]
+    public void ToggleDetails()
+    {
+        IsDetailsOpen = !IsDetailsOpen;
     }
 
     [RelayCommand]
@@ -381,8 +384,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     private async Task HandleIncomingReactionAsync(ReactionEventArgs args)
     {
-        var conv = GetOrCreateConversation(args.RemoteJid.ToString(), args.RemoteJid.ToString(), args.RemoteJid, isGroupChat: false);
-        await conv.HandleIncomingReactionAsync(args);
+        PostToUi(async () =>
+        {
+            var conv = GetOrCreateConversation(args.RemoteJid.ToString(), args.RemoteJid.ToString(), args.RemoteJid, isGroupChat: args.IsGroupChat);
+            await conv.HandleIncomingReactionAsync(args);
+        });
     }
 
     private async Task HandleIncomingMessageAsync(MessageStanza msg)

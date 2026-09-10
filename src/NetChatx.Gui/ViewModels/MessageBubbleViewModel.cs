@@ -13,6 +13,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NetChatx.Gui.Helpers;
 using NetChatx.Storage.Models;
+using NetChatx.Storage.Repositories;
 
 namespace NetChatx.Gui.ViewModels;
 
@@ -56,6 +57,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     private string? _stanzaId;
 
     [ObservableProperty]
+    private string? _originId;
+
+    [ObservableProperty]
     private bool _showDateHeader;
 
     [ObservableProperty]
@@ -78,7 +82,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     public ObservableCollection<ReactionCountViewModel> Reactions { get; } = [];
 
-    public IReadOnlyList<string> QuickEmojis { get; } = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
+    [ObservableProperty]
+    private EmojiPickerViewModel? _emojiPicker;
+
+    public IReadOnlyList<string> QuickEmojis => EmojiPicker?.QuickEmojis.ToList() ?? [.. EmojiData.DefaultQuickEmojis];
 
     [ObservableProperty]
     private string? _rawXml;
@@ -299,7 +306,11 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         return elem.ToXmlString(indent: true);
     }
 
-    public static MessageBubbleViewModel FromChatMessage(ChatMessage msg)
+    public static MessageBubbleViewModel FromChatMessage(
+        ChatMessage msg,
+        string accountJid = "",
+        SettingsRepository? settingsRepo = null,
+        IEnumerable<string>? quickEmojis = null)
     {
         var vm = new MessageBubbleViewModel
         {
@@ -312,8 +323,12 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             EncryptionType = msg.EncryptionType,
             IsRead = msg.IsRead,
             StanzaId = msg.StanzaId,
+            OriginId = msg.OriginId,
             RawXml = !string.IsNullOrWhiteSpace(msg.RawXml) ? msg.RawXml : GenerateFallbackRawXml(msg)
         };
+
+        var emojisToUse = quickEmojis ?? EmojiData.DefaultQuickEmojis;
+        vm.EmojiPicker = new EmojiPickerViewModel(accountJid, emojisToUse, emoji => vm.QuickReactAsync(emoji), settingsRepo);
 
         vm.ExtractImageUrl(msg.Body);
         if (vm.HasImage)

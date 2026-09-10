@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Stanzas;
+using NetChatx.Gui.Helpers;
 using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Protocol.Xeps.Omemo;
 using NetChatx.Protocol.Xeps.Sharing;
@@ -28,8 +29,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0444Reactions? _reactionsManager;
     private readonly Xep0333ChatMarkers? _chatMarkers;
     private readonly Xep0085ChatStates? _chatStates;
+    private readonly SettingsRepository? _settingsRepo;
     private readonly string _accountJid;
 
+    private List<string> _quickEmojis = [.. EmojiData.DefaultQuickEmojis];
     private System.Threading.CancellationTokenSource? _remoteComposingCts;
     private System.Threading.CancellationTokenSource? _localPauseCts;
     private ChatState? _lastSentLocalState;
@@ -102,7 +105,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         Xep0363HttpFileUpload? httpUploadManager = null,
         Xep0444Reactions? reactionsManager = null,
         Xep0333ChatMarkers? chatMarkers = null,
-        Xep0085ChatStates? chatStates = null)
+        Xep0085ChatStates? chatStates = null,
+        SettingsRepository? settingsRepo = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -117,6 +121,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _reactionsManager = reactionsManager;
         _chatMarkers = chatMarkers;
         _chatStates = chatStates;
+        _settingsRepo = settingsRepo;
     }
 
     public void HandleRemoteChatState(ChatState state)
@@ -271,6 +276,18 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     [RelayCommand]
     public async Task LoadHistoryAsync()
     {
+        if (_settingsRepo is not null)
+        {
+            try
+            {
+                _quickEmojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
+            }
+            catch
+            {
+                // Fallback to default
+            }
+        }
+
         // 1. Immediately load whatever is cached in SQLite for responsive UI
         var dbMessages = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50);
         Messages.Clear();
@@ -317,6 +334,11 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             return null;
         }
 
+        var originIdElem = m.RawElement.Element("origin-id", "urn:xmpp:sid:0");
+        var stanzaIdElem = m.RawElement.Element("stanza-id", "urn:xmpp:sid:0");
+        string? stanzaId = stanzaIdElem?.GetAttr("id") ?? m.Id;
+        string? originId = originIdElem?.GetAttr("id");
+
         return new ChatMessage
         {
             Id = $"mam_{_accountJid}_{RemoteJid}_{item.ArchiveId}",
@@ -326,18 +348,26 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             Body = body,
             Direction = (m.From?.EqualsBare(_client?.BoundJid) == true) ? MessageDirection.Outbound : MessageDirection.Inbound,
             Timestamp = item.Timestamp,
-            StanzaId = item.ArchiveId,
+            StanzaId = !string.IsNullOrEmpty(stanzaId) ? stanzaId : item.ArchiveId,
+            OriginId = originId,
             IsEncrypted = isEnc,
             EncryptionType = isEnc ? "OMEMO" : null,
             RawXml = m.ToXmlString(indent: true)
         };
     }
 
-    private List<ChatMessage> ProcessMamMessages(IEnumerable<MamMessageItem> items)
+    private async Task<List<ChatMessage>> ProcessMamMessagesAsync(IEnumerable<MamMessageItem> items)
     {
         var chatMsgs = new List<ChatMessage>();
         foreach (var item in items)
         {
+            var m = item.Message;
+            if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: false, out var reactArgs))
+            {
+                await HandleIncomingReactionAsync(reactArgs);
+                continue;
+            }
+
             var chatMsg = ParseMamMessage(item);
             if (chatMsg is not null)
             {
@@ -370,7 +400,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 if (mamResult.Messages.Count == 0)
                     break;
 
-                var chatMsgs = ProcessMamMessages(mamResult.Messages);
+                var chatMsgs = await ProcessMamMessagesAsync(mamResult.Messages);
 
                 if (chatMsgs.Count > 0)
                 {
@@ -426,7 +456,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                         before: oldestStanzaId,
                         end: string.IsNullOrEmpty(oldestStanzaId) ? oldestTimestamp : null);
 
-                    var chatMsgs = ProcessMamMessages(mamResult.Messages);
+                    var chatMsgs = await ProcessMamMessagesAsync(mamResult.Messages);
 
                     if (chatMsgs.Count > 0)
                     {
@@ -493,7 +523,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         var myCurrentEmojis = existingForMsg
             .Where(r => r.SenderJid.Equals(mySenderJid, StringComparison.OrdinalIgnoreCase) ||
-                        r.SenderJid.StartsWith(_accountJid + "/", StringComparison.OrdinalIgnoreCase))
+                        r.SenderJid.StartsWith(_accountJid + "/", StringComparison.OrdinalIgnoreCase) ||
+                        r.SenderJid.Equals(_accountJid, StringComparison.OrdinalIgnoreCase))
             .Select(r => r.Emoji)
             .Distinct()
             .ToList();
@@ -508,7 +539,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         // Save new reaction set in DB
-        await _messageRepo.SaveReactionsAsync(_accountJid, RemoteJid.ToString(), bubble.Id, mySenderJid, myCurrentEmojis);
+        await _messageRepo.SaveReactionsAsync(_accountJid, RemoteJid.ToString(), bubble.Id, mySenderJid, myCurrentEmojis, isGroupChat: IsGroupChat);
 
         // Update UI
         var updatedReactions = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, [bubble.Id]);
@@ -517,7 +548,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         // Send XEP-0444 Reaction stanza over wire
         if (_reactionsManager is not null && _client is not null)
         {
-            var targetId = !string.IsNullOrEmpty(bubble.StanzaId) ? bubble.StanzaId : bubble.Id;
+            var targetId = !string.IsNullOrEmpty(bubble.StanzaId)
+                ? bubble.StanzaId
+                : (!string.IsNullOrEmpty(bubble.OriginId) ? bubble.OriginId : bubble.Id);
             var stanzaType = IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat;
             try
             {
@@ -534,16 +567,19 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         var bubble = Messages.FirstOrDefault(m =>
             m.Id == args.TargetMessageId ||
-            (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == args.TargetMessageId));
+            (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == args.TargetMessageId) ||
+            (!string.IsNullOrEmpty(m.OriginId) && m.OriginId == args.TargetMessageId));
 
         string targetId = bubble?.Id ?? args.TargetMessageId;
+        string effectiveSenderJid = args.IsCarbonSent ? _accountJid : args.SenderJid.ToString();
 
         await _messageRepo.SaveReactionsAsync(
             _accountJid,
             RemoteJid.ToString(),
             targetId,
-            args.SenderJid.ToString(),
-            args.Emojis);
+            effectiveSenderJid,
+            args.Emojis,
+            isGroupChat: IsGroupChat);
 
         if (bubble is not null)
         {
@@ -681,6 +717,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (bubble.Id == msg.Id) return true;
         if (!string.IsNullOrEmpty(bubble.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId) && bubble.StanzaId == msg.StanzaId) return true;
+        if (!string.IsNullOrEmpty(bubble.OriginId) && !string.IsNullOrEmpty(msg.OriginId) && bubble.OriginId == msg.OriginId) return true;
         if (!string.IsNullOrEmpty(bubble.StanzaId) && bubble.StanzaId == msg.Id) return true;
         if (!string.IsNullOrEmpty(msg.StanzaId) && msg.StanzaId == bubble.Id) return true;
 
@@ -738,6 +775,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             {
                 existing.StanzaId = msg.StanzaId;
             }
+            if (string.IsNullOrEmpty(existing.OriginId) && !string.IsNullOrEmpty(msg.OriginId))
+            {
+                existing.OriginId = msg.OriginId;
+            }
             if (msg.IsRead && !existing.IsRead)
             {
                 existing.IsRead = true;
@@ -745,7 +786,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             return;
         }
 
-        var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis);
         bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
         bubble.ReplyRequested = ReplyToMessage;
         int index = 0;

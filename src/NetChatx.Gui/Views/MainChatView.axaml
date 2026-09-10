@@ -45,6 +45,28 @@
             <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
         </Style>
+        <Style Selector="Border.bubble-container StackPanel.bubble-actions">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.bubble-container:pointerover StackPanel.bubble-actions">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Button.quick-emoji-item">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+        <Style Selector="Button.quick-emoji-item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeMediumColor}" />
+        </Style>
     </UserControl.Styles>
 
     <Grid ColumnDefinitions="300,2,*,Auto">
@@ -241,7 +263,8 @@
                                         </Border>
 
                                         <!-- Message Bubble Container -->
-                                        <Border HorizontalAlignment="{Binding Direction, Converter={StaticResource DirectionToAlignment}}"
+                                        <Border Classes="bubble-container"
+                                                HorizontalAlignment="{Binding Direction, Converter={StaticResource DirectionToAlignment}}"
                                                 Background="{Binding Direction, Converter={StaticResource DirectionToBackground}}"
                                                 CornerRadius="14"
                                                 Padding="12,8"
@@ -259,17 +282,131 @@
                                                     <TextBlock Grid.Column="0" Text="{Binding SenderName}" FontWeight="Bold" FontSize="11"
                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
                                                                Opacity="0.85" VerticalAlignment="Center" />
-                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                                        <Button Content="📋" Command="{Binding CopyTextCommand}"
-                                                                ToolTip.Tip="Copy Text"
-                                                                Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                                Opacity="0.7" />
+                                                    <StackPanel Grid.Column="1" Classes="bubble-actions" Orientation="Horizontal" Spacing="4">
+                                                        <!-- Emoji Reaction Button with Flyout -->
+                                                        <Button Content="😀+" ToolTip.Tip="Add reaction"
+                                                                Classes="image-btn reaction-picker-btn"
+                                                                FontSize="12" Padding="4,1"
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}">
+                                                            <Button.Flyout>
+                                                                <Flyout Placement="Top">
+                                                                    <StackPanel Spacing="6" Width="300" DataContext="{Binding EmojiPicker}">
+                                                                        <!-- Quick Emojis Bar + '+' + Customize -->
+                                                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                                                            <ItemsControl Grid.Column="0" ItemsSource="{Binding QuickEmojis}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <WrapPanel Orientation="Horizontal" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate DataType="{x:Type x:String}">
+                                                                                        <Button Content="{Binding}"
+                                                                                                Command="{Binding ((vm:EmojiPickerViewModel)DataContext).SelectEmojiCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                                CommandParameter="{Binding}"
+                                                                                                Classes="quick-emoji-item"
+                                                                                                FontSize="17" Padding="3,1"
+                                                                                                ToolTip.Tip="{Binding}"
+                                                                                                Background="Transparent" BorderThickness="0" Cursor="Hand" />
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+
+                                                                            <Button Grid.Column="1" Content="➕"
+                                                                                    Command="{Binding ToggleFullPickerCommand}"
+                                                                                    ToolTip.Tip="All Emojis"
+                                                                                    Classes="image-btn" FontSize="12" Padding="4,2"
+                                                                                    VerticalAlignment="Center" Margin="2,0" />
+
+                                                                            <Button Grid.Column="2" Content="⚙"
+                                                                                    Command="{Binding ToggleCustomizeCommand}"
+                                                                                    ToolTip.Tip="Customize Quick Emojis"
+                                                                                    Classes="image-btn" FontSize="12" Padding="4,2"
+                                                                                    VerticalAlignment="Center" Margin="2,0" />
+                                                                        </Grid>
+
+                                                                        <!-- Customize Banner -->
+                                                                        <Border Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="6" Padding="6,4"
+                                                                                IsVisible="{Binding IsCustomizing}">
+                                                                            <Grid ColumnDefinitions="*,Auto">
+                                                                                <TextBlock Grid.Column="0" Text="Click any emoji below or right-click to pin/unpin"
+                                                                                           FontSize="10" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                                                <Button Grid.Column="1" Content="Done" Command="{Binding ToggleCustomizeCommand}"
+                                                                                        FontSize="10" Padding="6,2" Margin="4,0,0,0" />
+                                                                            </Grid>
+                                                                        </Border>
+
+                                                                        <!-- Expandable Full Picker -->
+                                                                        <StackPanel Spacing="6" IsVisible="{Binding IsFullPickerOpen}">
+                                                                            <Separator Margin="0,2" />
+
+                                                                            <!-- Search Box -->
+                                                                            <TextBox Text="{Binding SearchQuery, Mode=TwoWay}"
+                                                                                     Watermark="Search emojis..."
+                                                                                     FontSize="12" Padding="6,4" />
+
+                                                                            <!-- Category Tabs -->
+                                                                            <ItemsControl ItemsSource="{Binding Categories}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Button Content="{Binding Icon}"
+                                                                                                Command="{Binding ((vm:EmojiPickerViewModel)DataContext).SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                                CommandParameter="{Binding Name}"
+                                                                                                ToolTip.Tip="{Binding Name}"
+                                                                                                FontSize="14" Padding="6,2"
+                                                                                                Background="Transparent" BorderThickness="0" />
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+
+                                                                            <!-- Emojis Grid -->
+                                                                            <ScrollViewer MaxHeight="180" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                                                                <ItemsControl ItemsSource="{Binding DisplayedEmojis}">
+                                                                                    <ItemsControl.ItemsPanel>
+                                                                                        <ItemsPanelTemplate>
+                                                                                            <WrapPanel Orientation="Horizontal" />
+                                                                                        </ItemsPanelTemplate>
+                                                                                    </ItemsControl.ItemsPanel>
+                                                                                    <ItemsControl.ItemTemplate>
+                                                                                        <DataTemplate DataType="{x:Type x:String}">
+                                                                                            <Button Content="{Binding}"
+                                                                                                    Command="{Binding ((vm:EmojiPickerViewModel)DataContext).SelectEmojiCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                                    CommandParameter="{Binding}"
+                                                                                                    FontSize="16" Padding="3,2" Margin="1"
+                                                                                                    Background="Transparent" BorderThickness="0" Cursor="Hand">
+                                                                                                <Button.ContextFlyout>
+                                                                                                    <MenuFlyout>
+                                                                                                        <MenuItem Header="📌 Pin to Quick Emojis"
+                                                                                                                  Command="{Binding ((vm:EmojiPickerViewModel)DataContext).PinToQuickEmojisCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                                                  CommandParameter="{Binding}" />
+                                                                                                        <MenuItem Header="🗑 Remove from Quick Emojis"
+                                                                                                                  Command="{Binding ((vm:EmojiPickerViewModel)DataContext).RemoveFromQuickEmojisCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                                                  CommandParameter="{Binding}" />
+                                                                                                    </MenuFlyout>
+                                                                                                </Button.ContextFlyout>
+                                                                                            </Button>
+                                                                                        </DataTemplate>
+                                                                                    </ItemsControl.ItemTemplate>
+                                                                                </ItemsControl>
+                                                                            </ScrollViewer>
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                </Flyout>
+                                                            </Button.Flyout>
+                                                        </Button>
                                                         <Button Content="↩" Command="{Binding ReplyCommand}"
                                                                 ToolTip.Tip="Reply"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                                Opacity="0.7" />
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                        <Button Content="📋" Command="{Binding CopyTextCommand}"
+                                                                ToolTip.Tip="Copy Text"
+                                                                Classes="image-btn" FontSize="11" Padding="4,1"
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
                                                     </StackPanel>
                                                 </Grid>
 
@@ -323,34 +460,8 @@
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
 
-                                                <!-- Message Footer: Time + Quick Reaction Picker + Receipt + Raw XML Toggle -->
+                                                <!-- Message Footer: Time + Receipt + Raw XML Toggle -->
                                                 <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
-                                                    <!-- Quick Emoji Reaction Picker Flyout Button -->
-                                                    <DropDownButton Grid.Column="0" Content="😀+" Classes="reaction-picker-btn"
-                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                                    HorizontalAlignment="Left">
-                                                        <DropDownButton.Flyout>
-                                                            <Flyout Placement="Top">
-                                                                <ItemsControl ItemsSource="{Binding QuickEmojis}">
-                                                                    <ItemsControl.ItemsPanel>
-                                                                        <ItemsPanelTemplate>
-                                                                            <StackPanel Orientation="Horizontal" Spacing="4" />
-                                                                        </ItemsPanelTemplate>
-                                                                    </ItemsControl.ItemsPanel>
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate DataType="{x:Type x:String}">
-                                                                            <Button Content="{Binding}"
-                                                                                    Command="{Binding ((vm:MessageBubbleViewModel)DataContext).QuickReactCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                                    CommandParameter="{Binding}"
-                                                                                    FontSize="16" Padding="6,4"
-                                                                                    Background="Transparent" BorderThickness="0" />
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </Flyout>
-                                                        </DropDownButton.Flyout>
-                                                    </DropDownButton>
-
                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" VerticalAlignment="Center">
                                                         <Button Classes="image-btn"
                                                                 Command="{Binding ToggleRawXmlCommand}"
