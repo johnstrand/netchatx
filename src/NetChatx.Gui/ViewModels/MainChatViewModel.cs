@@ -390,6 +390,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
             StanzaId = msg.Id,
+            RawXml = msg.ToXmlString(indent: true),
             IsRead = (direction == MessageDirection.Outbound) || (isActiveConv && direction == MessageDirection.Inbound)
         };
 
@@ -456,6 +457,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Direction = direction,
             Timestamp = DateTimeOffset.UtcNow,
             StanzaId = msg.Id,
+            RawXml = msg.ToXmlString(indent: true),
             IsRead = (direction == MessageDirection.Outbound) || (isActiveConv && direction == MessageDirection.Inbound)
         };
 
@@ -505,6 +507,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Timestamp = DateTimeOffset.UtcNow,
             IsEncrypted = true,
             EncryptionType = "OMEMO",
+            RawXml = dec.OriginalStanza.ToXmlString(indent: true),
             IsRead = isActiveConv
         };
 

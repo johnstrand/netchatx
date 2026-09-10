@@ -237,7 +237,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             Timestamp = item.Timestamp,
             StanzaId = item.ArchiveId,
             IsEncrypted = isEnc,
-            EncryptionType = isEnc ? "OMEMO" : null
+            EncryptionType = isEnc ? "OMEMO" : null,
+            RawXml = m.ToXmlString(indent: true)
         };
     }
 
@@ -390,12 +391,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (IsGroupChat)
         {
             var stanza = MessageStanza.CreateGroupChat(RemoteJid, textToSend);
+            chatMsg.RawXml = stanza.ToXmlString(indent: true);
             await _client.SendStanzaAsync(stanza);
             chatMsg.StanzaId = stanza.Id;
         }
         else
         {
             var stanza = MessageStanza.CreateChat(RemoteJid, textToSend);
+            chatMsg.RawXml = stanza.ToXmlString(indent: true);
             await _client.SendStanzaAsync(stanza);
             chatMsg.StanzaId = stanza.Id;
         }

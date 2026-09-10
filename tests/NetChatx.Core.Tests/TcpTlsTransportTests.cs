@@ -18,6 +18,8 @@ public class TcpTlsTransportTests
         using var rsa = RSA.Create(2048);
         var req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var pfx = cert.Export(X509ContentType.Pfx);
+        using var serverCert = X509CertificateLoader.LoadPkcs12(pfx, null);
 
         // Start a TCP listener on local loopback with dynamic port
         var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -30,7 +32,7 @@ public class TcpTlsTransportTests
             {
                 using var clientSocket = await listener.AcceptTcpClientAsync();
                 using var sslStream = new SslStream(clientSocket.GetStream(), false);
-                await sslStream.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+                await sslStream.AuthenticateAsServerAsync(serverCert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
             }
             catch
             {
