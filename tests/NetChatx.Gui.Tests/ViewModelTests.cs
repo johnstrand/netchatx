@@ -850,6 +850,76 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public void ChatConversationViewModel_ReplyToMessage_FormatsSingleAndMultiLineQuoteInInputText()
+    {
+        string account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        // 1. Single line message reply
+        var singleLineBubble = new MessageBubbleViewModel
+        {
+            SenderName = "peer@test.org",
+            Body = "Hello there!"
+        };
+
+        conv.ReplyToMessage(singleLineBubble);
+        Assert.StartsWith("> peer@test.org: Hello there!\n\n", conv.InputText.Replace("\r\n", "\n"));
+
+        // 2. Reply again when InputText already has user text
+        conv.InputText = "My reply text";
+        conv.ReplyToMessage(singleLineBubble);
+        Assert.Equal("> peer@test.org: Hello there!\n\nMy reply text", conv.InputText.Replace("\r\n", "\n"));
+
+        // 3. Multi-line message reply
+        conv.InputText = string.Empty;
+        var multiLineBubble = new MessageBubbleViewModel
+        {
+            SenderName = "Alice",
+            Body = "Line 1\nLine 2\nLine 3"
+        };
+
+        conv.ReplyToMessage(multiLineBubble);
+        string expectedMultiLine = "> Alice: Line 1\n> Line 2\n> Line 3\n\n";
+        Assert.Equal(expectedMultiLine, conv.InputText.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public async Task MessageBubbleViewModel_ReplyAndCopyText_TriggersCallbacksAndExecutesSafely()
+    {
+        bool replyTriggered = false;
+        MessageBubbleViewModel? target = null;
+
+        var bubble = new MessageBubbleViewModel
+        {
+            SenderName = "Bob",
+            Body = "Test copy & reply body"
+        };
+
+        bubble.ReplyRequested = vm =>
+        {
+            replyTriggered = true;
+            target = vm;
+        };
+
+        // Test Reply command
+        bubble.Reply();
+        Assert.True(replyTriggered);
+        Assert.Same(bubble, target);
+
+        // Test CopyText command (runs safely even without UI desktop thread)
+        var ex = await Record.ExceptionAsync(async () => await bubble.CopyTextAsync());
+        Assert.Null(ex);
+    }
+
+    [Fact]
     public void MessageBubbleViewModel_RawXml_TogglesAndGeneratesFallback()
     {
         // 1. Explicit RawXml provided

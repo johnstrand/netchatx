@@ -2,6 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -110,6 +112,37 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     public string FormattedDateTime => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
+
+    public Action<MessageBubbleViewModel>? ReplyRequested { get; set; }
+
+    [RelayCommand]
+    public void Reply()
+    {
+        ReplyRequested?.Invoke(this);
+    }
+
+    [RelayCommand]
+    public async Task CopyTextAsync()
+    {
+        string textToCopy = !string.IsNullOrEmpty(Body) ? Body : (ImageUrl ?? string.Empty);
+        if (string.IsNullOrEmpty(textToCopy)) return;
+
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var clipboard = desktop.MainWindow?.Clipboard;
+                if (clipboard is not null)
+                {
+                    await clipboard.SetTextAsync(textToCopy);
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure
+        }
+    }
 
     public void ExtractImageUrl(string body)
     {
