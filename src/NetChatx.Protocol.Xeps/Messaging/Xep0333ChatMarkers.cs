@@ -15,7 +15,8 @@ public enum ChatMarkerType
 
 public sealed class Xep0333ChatMarkers : XepFeatureBase
 {
-    public const string NsChatMarkers = "urn:xmpp:chat-markers";
+    public const string NsChatMarkers = "urn:xmpp:chat-markers:0";
+    public const string NsChatMarkersLegacy = "urn:xmpp:chat-markers";
 
     public override string Name => "XEP-0333: Chat Markers";
     public override string FeatureUri => NsChatMarkers;
@@ -53,7 +54,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
             string? fromStr = element.GetAttr("from");
             Jid.TryParse(fromStr, out var fromJid);
 
-            var displayed = element.Element("displayed", NsChatMarkers);
+            var displayed = element.Element("displayed", NsChatMarkers) ?? element.Element("displayed", NsChatMarkersLegacy);
             if (displayed is not null)
             {
                 string? id = displayed.GetAttr("id");
@@ -63,7 +64,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
                 }
             }
 
-            var received = element.Element("received", NsChatMarkers);
+            var received = element.Element("received", NsChatMarkers) ?? element.Element("received", NsChatMarkersLegacy);
             if (received is not null)
             {
                 string? id = received.GetAttr("id");
@@ -73,7 +74,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
                 }
             }
 
-            var acknowledged = element.Element("acknowledged", NsChatMarkers);
+            var acknowledged = element.Element("acknowledged", NsChatMarkers) ?? element.Element("acknowledged", NsChatMarkersLegacy);
             if (acknowledged is not null)
             {
                 string? id = acknowledged.GetAttr("id");
@@ -93,6 +94,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
         {
             // Attach <markable/> if message has body or encrypted content and no marker yet
             if (element.Element("markable", NsChatMarkers) is null &&
+                element.Element("markable", NsChatMarkersLegacy) is null &&
                 (element.Element("body") is not null || element.Element("encrypted") is not null))
             {
                 element.Child(new XmppElement("markable", NsChatMarkers));

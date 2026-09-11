@@ -35,6 +35,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     {
         ExtractImageUrl(value);
         ExtractLinks(value);
+        if (HasImage)
+        {
+            _ = LoadThumbnailAsync();
+        }
     }
 
     [ObservableProperty]
@@ -45,7 +49,16 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ReceiptIcon))]
+    [NotifyPropertyChangedFor(nameof(IsOutbound))]
     private MessageDirection _direction = MessageDirection.Outbound;
+
+    public bool IsOutbound => Direction == MessageDirection.Outbound;
+
+    [ObservableProperty]
+    private bool _isEdited;
+
+    [ObservableProperty]
+    private string? _replaceId;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FormattedTime))]
@@ -171,11 +184,25 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     }
 
     public Action<MessageBubbleViewModel>? ReplyRequested { get; set; }
+    public Action<MessageBubbleViewModel>? EditRequested { get; set; }
+    public Action<MessageBubbleViewModel>? DeleteRequested { get; set; }
 
     [RelayCommand]
     public void Reply()
     {
         ReplyRequested?.Invoke(this);
+    }
+
+    [RelayCommand]
+    public void Edit()
+    {
+        EditRequested?.Invoke(this);
+    }
+
+    [RelayCommand]
+    public void Delete()
+    {
+        DeleteRequested?.Invoke(this);
     }
 
     [RelayCommand]
@@ -249,6 +276,31 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         catch
         {
             Dispatcher.UIThread.Post(() => IsLoadingImage = false);
+        }
+    }
+
+    public void ExtractOobImageUrl(string? rawXml)
+    {
+        if (HasImage || string.IsNullOrWhiteSpace(rawXml)) return;
+
+        try
+        {
+            var elem = NetChatx.Core.Xml.XmppElement.Parse(rawXml);
+            string? oobUrl = NetChatx.Protocol.Xeps.Sharing.Xep0066OutOfBandData.ExtractOobUrl(elem);
+            if (!string.IsNullOrWhiteSpace(oobUrl))
+            {
+                var match = ImageUrlRegex.Match(oobUrl);
+                if (match.Success)
+                {
+                    ImageUrl = match.Value;
+                    HasImage = true;
+                    IsOnlyImage = string.IsNullOrWhiteSpace(Body) || Body.Trim().Equals(match.Value, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure parsing raw XML for OOB
         }
     }
 
@@ -333,7 +385,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             elem.Attr("to", msg.AccountJid);
         }
 
+        elem.Attr("xml:lang", "en");
         elem.Attr("type", "chat");
+        elem.Attr("xmlns", "jabber:client");
 
         if (!string.IsNullOrEmpty(msg.Body))
         {
@@ -366,6 +420,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             IsRead = msg.IsRead,
             StanzaId = msg.StanzaId,
             OriginId = msg.OriginId,
+            ReplaceId = msg.ReplaceId,
+            IsEdited = !string.IsNullOrEmpty(msg.ReplaceId),
             RawXml = !string.IsNullOrWhiteSpace(msg.RawXml) ? msg.RawXml : GenerateFallbackRawXml(msg)
         };
 
@@ -373,6 +429,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         vm.EmojiPicker = new EmojiPickerViewModel(accountJid, emojisToUse, emoji => vm.QuickReactAsync(emoji), settingsRepo);
 
         vm.ExtractImageUrl(msg.Body);
+        if (!vm.HasImage)
+        {
+            vm.ExtractOobImageUrl(msg.RawXml);
+        }
         vm.ExtractLinks(msg.Body);
         if (vm.HasImage)
         {

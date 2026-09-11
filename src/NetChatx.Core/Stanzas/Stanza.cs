@@ -35,17 +35,28 @@ public abstract class Stanza
         Type = type;
         To = to;
         From = from;
-        Id = id ?? Guid.NewGuid().ToString("N");
+        Id = id ?? Guid.NewGuid().ToString();
 
         SyncAttributes();
     }
 
     public virtual void SyncAttributes()
     {
+        if (From is not null)
+            RawElement.Attr("from", From.ToString());
+        else
+            RawElement.Attr("from", null);
+
         RawElement.Attr("id", Id);
-        RawElement.Attr("type", Type);
         RawElement.Attr("to", To?.ToString());
-        RawElement.Attr("from", From?.ToString());
+
+        if (RawElement.Name == "message" && !RawElement.HasAttr("xml:lang"))
+        {
+            RawElement.Attr("xml:lang", "en");
+        }
+
+        RawElement.Attr("type", Type);
+        RawElement.Attr("xmlns", "jabber:client");
     }
 
     public string ToXmlString(bool indent = false)

@@ -4,12 +4,14 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Stanzas;
+using NetChatx.Core.Xml;
 using NetChatx.Gui.Helpers;
 using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Protocol.Xeps.Omemo;
@@ -56,6 +58,21 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private string _inputText = string.Empty;
 
     [ObservableProperty]
+    private byte[]? _pendingImageBytes;
+
+    [ObservableProperty]
+    private Bitmap? _pendingImagePreview;
+
+    [ObservableProperty]
+    private string? _pendingImageFileName;
+
+    [ObservableProperty]
+    private string? _pendingImageSizeText;
+
+    [ObservableProperty]
+    private bool _hasPendingImage;
+
+    [ObservableProperty]
     private bool _isRemoteComposing;
 
     [ObservableProperty]
@@ -80,6 +97,24 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public string LoadOlderButtonText => IsLoadingOlderHistory ? "Loading older messages..." : "▲ Load Older Messages";
 
     public ObservableCollection<MessageBubbleViewModel> Messages { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SendButtonIcon))]
+    [NotifyPropertyChangedFor(nameof(SendButtonToolTip))]
+    private bool _isEditingMessage;
+
+    [ObservableProperty]
+    private string? _editingMessageId;
+
+    [ObservableProperty]
+    private string? _editingMessagePreviewText;
+
+    private string? _savedDraftText;
+
+    public string SendButtonIcon => IsEditingMessage ? "✓" : "➤";
+    public string SendButtonToolTip => IsEditingMessage ? "Save changes (Enter)" : "Send Message (Enter)";
+
+    public event Action? EditStarted;
 
     public event Action? ScrollToBottomRequested;
     public event Action<ChatMessage>? MessageProcessed;
@@ -679,60 +714,53 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    public async Task SendMessageAsync()
+    public void StageImageAttachment(byte[] imageBytes, string? fileName = null)
     {
-        if (string.IsNullOrWhiteSpace(InputText) || _client is null) return;
+        if (imageBytes is null || imageBytes.Length == 0) return;
 
-        string textToSend = InputText.Trim();
-        InputText = string.Empty;
+        fileName ??= $"image_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.png";
+        double kb = imageBytes.Length / 1024.0;
+        string sizeText = kb >= 1024 ? $"{kb / 1024.0:F1} MB" : $"{kb:F0} KB";
 
-        var chatMsg = new ChatMessage
+        Bitmap? previewBitmap = null;
+        try
         {
-            AccountJid = _accountJid,
-            RemoteJid = RemoteJid.ToString(),
-            SenderJid = _client.BoundJid.ToString(),
-            Body = textToSend,
-            Direction = MessageDirection.Outbound,
-            Timestamp = DateTimeOffset.UtcNow,
-            IsEncrypted = IsEncrypted,
-            EncryptionType = IsEncrypted ? "OMEMO" : null
-        };
-
-        if (IsGroupChat)
-        {
-            var stanza = MessageStanza.CreateGroupChat(RemoteJid, textToSend);
-            chatMsg.RawXml = stanza.ToXmlString(indent: true);
-            await _client.SendStanzaAsync(stanza);
-            chatMsg.StanzaId = stanza.Id;
+            using var ms = new MemoryStream(imageBytes);
+            previewBitmap = new Bitmap(ms);
         }
-        else
+        catch
         {
-            var stanza = MessageStanza.CreateChat(RemoteJid, textToSend);
-            chatMsg.RawXml = stanza.ToXmlString(indent: true);
-            await _client.SendStanzaAsync(stanza);
-            chatMsg.StanzaId = stanza.Id;
+            // Soft failure generating UI preview bitmap (e.g. headless unit tests or unsupported preview format)
         }
 
-        await _messageRepo.SaveMessageAsync(chatMsg);
-        AddOrUpdateMessage(chatMsg);
-        UpdateDateHeaders();
-        RequestScrollToBottom();
-
-        _localPauseCts?.Cancel();
-        _localPauseCts = null;
-        SendLocalChatState(ChatState.Active);
+        PendingImagePreview?.Dispose();
+        PendingImageBytes = imageBytes;
+        PendingImageFileName = fileName;
+        PendingImageSizeText = sizeText;
+        PendingImagePreview = previewBitmap;
+        HasPendingImage = true;
     }
 
-    public async Task SendImageAsync(byte[] imageBytes, string? fileName = null)
+    [RelayCommand]
+    public void ClearPendingImage()
     {
-        if (imageBytes is null || imageBytes.Length == 0 || _client is null) return;
+        PendingImagePreview?.Dispose();
+        PendingImagePreview = null;
+        PendingImageBytes = null;
+        PendingImageFileName = null;
+        PendingImageSizeText = null;
+        HasPendingImage = false;
+    }
+
+    public async Task<string?> UploadOrCacheImageAsync(byte[] imageBytes, string? fileName = null)
+    {
+        if (imageBytes is null || imageBytes.Length == 0) return null;
 
         fileName ??= $"image_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.png";
         string? imageUrl = null;
 
         // 1. Try XEP-0363 HTTP File Upload if available
-        if (_httpUploadManager is not null)
+        if (_httpUploadManager is not null && _client is not null)
         {
             try
             {
@@ -752,16 +780,203 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         // 2. Fallback: Save to local media cache directory and send file URI
         if (string.IsNullOrEmpty(imageUrl))
         {
-            var mediaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NetChatx", "media");
-            Directory.CreateDirectory(mediaDir);
-            var id = Guid.NewGuid().ToString("N")[..8];
-            var localPath = Path.Combine(mediaDir, $"{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}_{id}.png");
-            await File.WriteAllBytesAsync(localPath, imageBytes);
-            imageUrl = new Uri(localPath).AbsoluteUri;
+            try
+            {
+                var mediaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NetChatx", "media");
+                Directory.CreateDirectory(mediaDir);
+                var id = Guid.NewGuid().ToString("N")[..8];
+                var safeName = Path.GetFileName(fileName);
+                var localPath = Path.Combine(mediaDir, $"{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}_{id}_{safeName}");
+                await File.WriteAllBytesAsync(localPath, imageBytes);
+                imageUrl = new Uri(localPath).AbsoluteUri;
+            }
+            catch
+            {
+                // Soft failure saving media
+            }
         }
 
-        // Send message with imageUrl as body
-        InputText = imageUrl;
+        return imageUrl;
+    }
+
+    [RelayCommand]
+    public async Task SendMessageAsync()
+    {
+        if (_client is null) return;
+
+        // Check if we are currently editing an existing message
+        if (IsEditingMessage && !string.IsNullOrEmpty(EditingMessageId))
+        {
+            string newText = InputText.Trim();
+            string targetId = EditingMessageId;
+            CancelEditingMessage();
+
+            if (string.IsNullOrWhiteSpace(newText)) return;
+
+            var targetBubble = Messages.FirstOrDefault(m =>
+                m.Id == targetId || m.StanzaId == targetId || m.OriginId == targetId);
+
+            var replaceStanza = new MessageStanza(
+                to: RemoteJid,
+                type: IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat,
+                from: _client.BoundJid);
+
+            replaceStanza.RawElement.Attr("xml:lang", "en");
+            replaceStanza.RawElement.Attr("xmlns", "jabber:client");
+
+            if (!IsGroupChat)
+            {
+                replaceStanza.RawElement.Child(new XmppElement("request", "urn:xmpp:receipts"));
+                replaceStanza.RawElement.Child(new XmppElement("markable", "urn:xmpp:chat-markers:0"));
+            }
+
+            replaceStanza.Body = newText;
+            replaceStanza.RawElement.Child(new XmppElement("replace", "urn:xmpp:message-correct:0").Attr("id", targetId));
+            replaceStanza.RawElement.Child(new XmppElement("active", "http://jabber.org/protocol/chatstates"));
+
+            if (_client.BoundJid is not null)
+            {
+                string byJid = _client.BoundJid.BareJid.ToString();
+                if (!string.IsNullOrEmpty(byJid))
+                {
+                    replaceStanza.RawElement.Child(new XmppElement("stanza-id", "urn:xmpp:sid:0")
+                        .Attr("by", byJid)
+                        .Attr("id", replaceStanza.Id));
+                }
+            }
+            replaceStanza.RawElement.Child(new XmppElement("origin-id", "urn:xmpp:sid:0").Attr("id", replaceStanza.Id));
+
+            try
+            {
+                await _client.SendStanzaAsync(replaceStanza);
+
+                if (targetBubble is not null)
+                {
+                    targetBubble.Body = newText;
+                    targetBubble.IsEdited = true;
+                    targetBubble.ReplaceId = replaceStanza.Id;
+                    targetBubble.RawXml = replaceStanza.ToXmlString(indent: true);
+                }
+
+                await _messageRepo.UpdateMessageByReplaceIdAsync(_accountJid, targetId, newText, replaceStanza.Id);
+            }
+            catch
+            {
+                // Soft failure sending correction
+            }
+
+            _localPauseCts?.Cancel();
+            _localPauseCts = null;
+            SendLocalChatState(ChatState.Active);
+            return;
+        }
+
+        bool hasText = !string.IsNullOrWhiteSpace(InputText);
+        bool hasPendingImage = HasPendingImage && PendingImageBytes is not null && PendingImageBytes.Length > 0;
+
+        if (!hasText && !hasPendingImage) return;
+
+        byte[]? imageToSend = PendingImageBytes;
+        string? imageFileName = PendingImageFileName;
+        string textToSend = hasText ? InputText.Trim() : string.Empty;
+
+        InputText = string.Empty;
+        ClearPendingImage();
+
+        string? imageUrl = null;
+        if (imageToSend is not null && imageToSend.Length > 0)
+        {
+            imageUrl = await UploadOrCacheImageAsync(imageToSend, imageFileName);
+        }
+
+        string body;
+        if (!string.IsNullOrEmpty(imageUrl))
+        {
+            body = !string.IsNullOrEmpty(textToSend)
+                ? $"{imageUrl}\n{textToSend}"
+                : imageUrl;
+        }
+        else
+        {
+            body = textToSend;
+        }
+
+        if (string.IsNullOrWhiteSpace(body)) return;
+
+        var stanza = new MessageStanza(
+            to: RemoteJid,
+            type: IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat,
+            from: _client.BoundJid);
+
+        stanza.RawElement.Attr("xml:lang", "en");
+        stanza.RawElement.Attr("xmlns", "jabber:client");
+
+        if (!IsGroupChat)
+        {
+            stanza.RawElement.Child(new XmppElement("request", "urn:xmpp:receipts"));
+            stanza.RawElement.Child(new XmppElement("markable", "urn:xmpp:chat-markers:0"));
+        }
+
+        if (!string.IsNullOrEmpty(imageUrl))
+        {
+            Xep0066OutOfBandData.AttachOobUrl(stanza.RawElement, imageUrl);
+        }
+
+        stanza.Body = body;
+
+        stanza.RawElement.Child(new XmppElement("active", "http://jabber.org/protocol/chatstates"));
+
+        if (_client.BoundJid is not null)
+        {
+            string byJid = _client.BoundJid.BareJid.ToString();
+            if (!string.IsNullOrEmpty(byJid))
+            {
+                stanza.RawElement.Child(new XmppElement("stanza-id", "urn:xmpp:sid:0")
+                    .Attr("by", byJid)
+                    .Attr("id", stanza.Id));
+            }
+        }
+        stanza.RawElement.Child(new XmppElement("origin-id", "urn:xmpp:sid:0").Attr("id", stanza.Id));
+
+        var chatMsg = new ChatMessage
+        {
+            AccountJid = _accountJid,
+            RemoteJid = RemoteJid.ToString(),
+            SenderJid = _client.BoundJid?.ToString() ?? _accountJid,
+            Body = body,
+            Direction = MessageDirection.Outbound,
+            Timestamp = DateTimeOffset.UtcNow,
+            IsEncrypted = IsEncrypted,
+            EncryptionType = IsEncrypted ? "OMEMO" : null,
+            StanzaId = stanza.Id,
+            OriginId = stanza.Id
+        };
+
+        try
+        {
+            await _client.SendStanzaAsync(stanza);
+            chatMsg.StanzaId = stanza.Id;
+            chatMsg.RawXml = stanza.ToXmlString(indent: true);
+
+            await _messageRepo.SaveMessageAsync(chatMsg);
+            AddOrUpdateMessage(chatMsg);
+            UpdateDateHeaders();
+            RequestScrollToBottom();
+        }
+        catch
+        {
+            // Soft failure sending message stanza
+        }
+
+        _localPauseCts?.Cancel();
+        _localPauseCts = null;
+        SendLocalChatState(ChatState.Active);
+    }
+
+    public async Task SendImageAsync(byte[] imageBytes, string? fileName = null)
+    {
+        if (imageBytes is null || imageBytes.Length == 0 || _client is null) return;
+        StageImageAttachment(imageBytes, fileName);
         await SendMessageAsync();
     }
 
@@ -868,6 +1083,122 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    public void StartEditingMessage(MessageBubbleViewModel message)
+    {
+        if (message is null || !message.IsOutbound) return;
+
+        _savedDraftText = InputText;
+        IsEditingMessage = true;
+        EditingMessageId = message.StanzaId ?? message.OriginId ?? message.Id;
+        EditingMessagePreviewText = !string.IsNullOrWhiteSpace(message.Body) ? message.Body : (message.ImageUrl ?? "Message");
+        InputText = message.Body;
+
+        EditStarted?.Invoke();
+    }
+
+    [RelayCommand]
+    public void CancelEditingMessage()
+    {
+        IsEditingMessage = false;
+        EditingMessageId = null;
+        EditingMessagePreviewText = null;
+        InputText = _savedDraftText ?? string.Empty;
+        _savedDraftText = null;
+    }
+
+    public void StartEditingLastSentMessage()
+    {
+        var lastOutbound = Messages.LastOrDefault(m => m.IsOutbound);
+        if (lastOutbound is not null)
+        {
+            StartEditingMessage(lastOutbound);
+        }
+    }
+
+    [RelayCommand]
+    public async Task DeleteMessageAsync(MessageBubbleViewModel message)
+    {
+        if (message is null) return;
+
+        if (IsEditingMessage && (EditingMessageId == message.Id || EditingMessageId == message.StanzaId || EditingMessageId == message.OriginId))
+        {
+            CancelEditingMessage();
+        }
+
+        string targetId = message.StanzaId ?? message.OriginId ?? message.Id;
+
+        // If outbound and client connected, send XEP-0424 retraction stanza
+        if (message.IsOutbound && _client is not null)
+        {
+            try
+            {
+                var retractStanza = Xep0424MessageRetraction.CreateRetractionStanza(
+                    RemoteJid,
+                    targetId,
+                    IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat);
+
+                await _client.SendStanzaAsync(retractStanza);
+            }
+            catch
+            {
+                // Soft failure sending retraction stanza
+            }
+        }
+
+        // Delete from database
+        await _messageRepo.DeleteMessageAsync(_accountJid, targetId);
+        if (!string.IsNullOrEmpty(message.Id) && message.Id != targetId)
+        {
+            await _messageRepo.DeleteMessageAsync(_accountJid, message.Id);
+        }
+
+        void RemoveFromList()
+        {
+            Messages.Remove(message);
+            UpdateDateHeaders();
+        }
+
+        PostToUi(RemoveFromList);
+    }
+
+    public void HandleIncomingCorrection(string originalId, string newBody, string? newRawXml = null)
+    {
+        void Apply()
+        {
+            var targetBubble = Messages.FirstOrDefault(m =>
+                m.Id == originalId || m.StanzaId == originalId || m.OriginId == originalId);
+            if (targetBubble is not null)
+            {
+                targetBubble.Body = newBody;
+                targetBubble.IsEdited = true;
+                targetBubble.ReplaceId = originalId;
+                if (!string.IsNullOrEmpty(newRawXml))
+                {
+                    targetBubble.RawXml = newRawXml;
+                }
+            }
+        }
+
+        PostToUi(Apply);
+    }
+
+    public void HandleIncomingRetraction(string targetId)
+    {
+        void Apply()
+        {
+            var targetBubble = Messages.FirstOrDefault(m =>
+                m.Id == targetId || m.StanzaId == targetId || m.OriginId == targetId);
+            if (targetBubble is not null)
+            {
+                Messages.Remove(targetBubble);
+                UpdateDateHeaders();
+            }
+        }
+
+        PostToUi(Apply);
+    }
+
     public void AddOrUpdateMessage(ChatMessage msg)
     {
         void Apply()
@@ -887,12 +1218,20 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 {
                     existing.IsRead = true;
                 }
+                if (!string.IsNullOrEmpty(msg.ReplaceId) && existing.ReplaceId != msg.ReplaceId)
+                {
+                    existing.ReplaceId = msg.ReplaceId;
+                    existing.IsEdited = true;
+                    existing.Body = msg.Body;
+                }
                 return;
             }
 
             var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis);
             bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
             bubble.ReplyRequested = ReplyToMessage;
+            bubble.EditRequested = StartEditingMessage;
+            bubble.DeleteRequested = b => _ = DeleteMessageAsync(b);
             int index = 0;
             while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
             {

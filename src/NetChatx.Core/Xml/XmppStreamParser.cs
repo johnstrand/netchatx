@@ -19,6 +19,7 @@ public sealed class XmppStreamParser
     private readonly StringBuilder _buffer = new(4096);
     private readonly Queue<XmppElement> _readyElements = new();
     private int _depth;
+    private bool _inTag;
     private bool _inQuotes;
     private char _quoteChar;
     private bool _inCData;
@@ -30,6 +31,7 @@ public sealed class XmppStreamParser
         _buffer.Clear();
         _readyElements.Clear();
         _depth = 0;
+        _inTag = false;
         _inQuotes = false;
         _inCData = false;
         _inComment = false;
@@ -151,6 +153,8 @@ public sealed class XmppStreamParser
                         _buffer.Clear();
                         _state = ParserState.InsideStream;
                         _depth = 0;
+                        _inTag = false;
+                        _inQuotes = false;
 
                         return XmppElement.Parse(parsedTag);
                     }
@@ -178,6 +182,7 @@ public sealed class XmppStreamParser
             if (len >= 3 && _buffer.ToString(len - 3, 3) == "]]>")
             {
                 _inCData = false;
+                _inTag = false;
             }
             return null;
         }
@@ -193,24 +198,28 @@ public sealed class XmppStreamParser
             if (len >= 3 && _buffer.ToString(len - 3, 3) == "-->")
             {
                 _inComment = false;
+                _inTag = false;
             }
             return null;
         }
 
-        // Check for Quotes
-        if (_inQuotes)
+        // Check for Quotes ONLY within an XML tag
+        if (_inTag)
         {
-            if (c == _quoteChar)
+            if (_inQuotes)
             {
-                _inQuotes = false;
+                if (c == _quoteChar)
+                {
+                    _inQuotes = false;
+                }
+                return null;
             }
-            return null;
-        }
-        if (c is '"' or '\'')
-        {
-            _inQuotes = true;
-            _quoteChar = c;
-            return null;
+            if (c is '"' or '\'')
+            {
+                _inQuotes = true;
+                _quoteChar = c;
+                return null;
+            }
         }
 
         // Detect closing of stream: </stream:stream>
@@ -219,6 +228,8 @@ public sealed class XmppStreamParser
             bufStr.Equals("</stream>", StringComparison.OrdinalIgnoreCase))
         {
             _buffer.Clear();
+            _inTag = false;
+            _inQuotes = false;
             var closeStream = new XmppElement("stream:stream")
                 .Attr("closed", "true");
             return closeStream;
@@ -227,6 +238,7 @@ public sealed class XmppStreamParser
         // Tag tracking
         if (c == '<')
         {
+            _inTag = true;
             if (_depth == 0)
             {
                 _buffer.Clear();
@@ -235,6 +247,7 @@ public sealed class XmppStreamParser
         }
         else if (c == '>')
         {
+            _inTag = false;
             string s = _buffer.ToString();
             int openAngle = s.LastIndexOf('<');
             if (openAngle >= 0)

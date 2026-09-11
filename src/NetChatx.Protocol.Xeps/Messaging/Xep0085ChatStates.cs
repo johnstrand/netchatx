@@ -76,4 +76,20 @@ public sealed class Xep0085ChatStates : XepFeatureBase
 
         return ValueTask.FromResult(true);
     }
+
+    public override ValueTask<bool> OnOutgoingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)
+    {
+        if (element.Name == "message" &&
+            (element.GetAttr("type") is "chat" or "groupchat" || string.IsNullOrEmpty(element.GetAttr("type"))) &&
+            element.Element("body") is not null)
+        {
+            bool hasState = element.Children.Any(c => c.Namespace == NsChatStates);
+            if (!hasState)
+            {
+                element.Child(new XmppElement("active", NsChatStates));
+            }
+        }
+
+        return ValueTask.FromResult(true);
+    }
 }

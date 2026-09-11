@@ -177,6 +177,7 @@ public partial class MainChatView : UserControl
         {
             _currentConversation.Messages.CollectionChanged -= OnMessagesCollectionChanged;
             _currentConversation.ScrollToBottomRequested -= ScrollToLatestMessage;
+            _currentConversation.EditStarted -= OnConversationEditStarted;
         }
 
         _currentConversation = newConversation;
@@ -185,9 +186,22 @@ public partial class MainChatView : UserControl
         {
             _currentConversation.Messages.CollectionChanged += OnMessagesCollectionChanged;
             _currentConversation.ScrollToBottomRequested += ScrollToLatestMessage;
+            _currentConversation.EditStarted += OnConversationEditStarted;
             ScrollToLatestMessage();
             _messageInputBox?.Focus();
         }
+    }
+
+    private void OnConversationEditStarted()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_messageInputBox is not null)
+            {
+                _messageInputBox.Focus();
+                _messageInputBox.CaretIndex = _messageInputBox.Text?.Length ?? 0;
+            }
+        });
     }
 
     private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -211,59 +225,123 @@ public partial class MainChatView : UserControl
 
     private async void OnMessageInputKeyDown(object? sender, KeyEventArgs e)
     {
-        // Check for Image Paste (Ctrl+V or Cmd+V)
-        if (e.Key == Key.V && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)))
+        try
         {
-            if (await TryPasteImageAsync())
+            if (DataContext is not MainChatViewModel mainVm ||
+                mainVm.ActiveConversation is not { } conv)
             {
+                return;
+            }
+
+            var textBox = sender as TextBox;
+
+            // Escape key: Cancel message editing if active, or discard pending image preview
+            if (e.Key == Key.Escape)
+            {
+                if (conv.IsEditingMessage)
+                {
+                    conv.CancelEditingMessage();
+                    if (textBox is not null)
+                    {
+                        textBox.Text = conv.InputText;
+                        textBox.CaretIndex = textBox.Text?.Length ?? 0;
+                    }
+                    e.Handled = true;
+                    return;
+                }
+
+                if (conv.HasPendingImage)
+                {
+                    conv.ClearPendingImage();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Up arrow key: When input is empty and not already editing, edit the last sent outbound message
+            if (e.Key == Key.Up && (string.IsNullOrEmpty(textBox?.Text) || string.IsNullOrEmpty(conv.InputText)) && !conv.IsEditingMessage)
+            {
+                conv.StartEditingLastSentMessage();
+                if (conv.IsEditingMessage && textBox is not null)
+                {
+                    textBox.Text = conv.InputText;
+                    textBox.CaretIndex = textBox.Text?.Length ?? 0;
+                }
                 e.Handled = true;
                 return;
             }
+
+            // Check for Image Paste (Ctrl+V or Cmd+V)
+            if (e.Key == Key.V && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)))
+            {
+                if (await TryPasteImageAsync())
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            if (e.Key is Key.Enter or Key.Return)
+            {
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                {
+                    // Shift+Enter allows newline insertion
+                    return;
+                }
+
+                // Enter without Shift: Send message (either text, pending image, or both)
+                textBox = sender as TextBox;
+                string currentText = textBox?.Text ?? conv.InputText;
+                bool hasText = !string.IsNullOrWhiteSpace(currentText);
+                bool hasPendingImage = conv.HasPendingImage;
+
+                if (hasText || hasPendingImage)
+                {
+                    e.Handled = true;
+
+                    if (textBox is not null && conv.InputText != textBox.Text)
+                    {
+                        conv.InputText = textBox.Text ?? string.Empty;
+                    }
+
+                    if (conv.SendMessageCommand.CanExecute(null))
+                    {
+                        await conv.SendMessageAsync();
+                        if (textBox is not null)
+                        {
+                            textBox.Text = string.Empty;
+                        }
+                    }
+                }
+            }
         }
-
-        if (e.Key is Key.Enter or Key.Return)
+        catch
         {
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
-            {
-                // Shift+Enter allows newline insertion
-                return;
-            }
-
-            // Enter without Shift: Send message
-            e.Handled = true;
-
-            if (sender is TextBox textBox &&
-                DataContext is MainChatViewModel mainVm &&
-                mainVm.ActiveConversation is { } conv)
-            {
-                if (!string.IsNullOrEmpty(textBox.Text) && conv.InputText != textBox.Text)
-                {
-                    conv.InputText = textBox.Text;
-                }
-
-                if (conv.SendMessageCommand.CanExecute(null))
-                {
-                    conv.SendMessageCommand.Execute(null);
-                    textBox.Text = string.Empty;
-                }
-            }
+            // Soft failure / prevent unhandled exception in async void event handler
         }
     }
 
     private async Task<bool> TryPasteImageAsync()
     {
-        if (DataContext is not MainChatViewModel mainVm ||
-            mainVm.ActiveConversation is not { } conv)
+        try
         {
-            return false;
-        }
+            if (DataContext is not MainChatViewModel mainVm ||
+                mainVm.ActiveConversation is not { } conv)
+            {
+                return false;
+            }
 
-        var topLevel = TopLevel.GetTopLevel(this);
-        var imageBytes = await ClipboardImageHelper.GetClipboardImageBytesAsync(topLevel);
-        if (imageBytes is not null && imageBytes.Length > 0)
+            var topLevel = TopLevel.GetTopLevel(this);
+            var imageBytes = await ClipboardImageHelper.GetClipboardImageBytesAsync(topLevel);
+            if (imageBytes is not null && imageBytes.Length > 0)
+            {
+                conv.StageImageAttachment(imageBytes);
+                return true;
+            }
+        }
+        catch
         {
-            await conv.SendImageAsync(imageBytes);
-            return true;
+            // Soft failure on image clipboard reading
         }
 
         return false;
@@ -271,35 +349,42 @@ public partial class MainChatView : UserControl
 
     private async void OnAttachFileButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainChatViewModel mainVm ||
-            mainVm.ActiveConversation is not { } conv)
+        try
         {
-            return;
+            if (DataContext is not MainChatViewModel mainVm ||
+                mainVm.ActiveConversation is not { } conv)
+            {
+                return;
+            }
+
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.StorageProvider is null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Select Image to Send",
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("Images (*.png, *.jpg, *.jpeg, *.gif, *.webp, *.bmp)")
+                    {
+                        Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"]
+                    }
+                ]
+            });
+
+            if (files.Count > 0)
+            {
+                var file = files[0];
+                await using var stream = await file.OpenReadAsync();
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                conv.StageImageAttachment(ms.ToArray(), file.Name);
+            }
         }
-
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider is null) return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        catch
         {
-            Title = "Select Image to Send",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Images (*.png, *.jpg, *.jpeg, *.gif, *.webp, *.bmp)")
-                {
-                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"]
-                }
-            ]
-        });
-
-        if (files.Count > 0)
-        {
-            var file = files[0];
-            await using var stream = await file.OpenReadAsync();
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            await conv.SendImageAsync(ms.ToArray(), file.Name);
+            // Soft failure / prevent unhandled exception in async void event handler
         }
     }
 

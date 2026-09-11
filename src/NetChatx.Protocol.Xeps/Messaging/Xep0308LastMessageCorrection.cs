@@ -37,6 +37,7 @@ public sealed class Xep0308LastMessageCorrection : XepFeatureBase
                 {
                     var msg = new MessageStanza(element);
                     MessageCorrected?.Invoke(msg, originalId);
+                    return ValueTask.FromResult(false);
                 }
             }
         }

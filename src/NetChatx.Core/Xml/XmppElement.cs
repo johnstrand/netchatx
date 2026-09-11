@@ -125,7 +125,7 @@ public sealed class XmppElement
     {
         string? prefix = Prefix;
         string name = Name;
-        string? ns = Namespace;
+        string? ns = Namespace ?? GetAttr("xmlns");
 
         if (!string.IsNullOrEmpty(prefix) && !string.IsNullOrEmpty(ns))
         {
@@ -142,7 +142,7 @@ public sealed class XmppElement
 
         foreach (var kv in _attributes)
         {
-            if (kv.Key == "xmlns" && !string.IsNullOrEmpty(ns) && kv.Value == ns)
+            if (kv.Key == "xmlns")
             {
                 continue;
             }

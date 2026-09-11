@@ -39,6 +39,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0184MessageDeliveryReceipts? _receipts;
     private Xep0333ChatMarkers? _chatMarkers;
     private Xep0085ChatStates? _chatStates;
+    private Xep0359StanzaIds? _stanzaIds;
+    private Xep0066OutOfBandData? _oob;
+    private Xep0308LastMessageCorrection? _correction;
+    private Xep0424MessageRetraction? _retraction;
 
     [ObservableProperty]
     private string _accountJid;
@@ -129,6 +133,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _receipts = new Xep0184MessageDeliveryReceipts();
         _chatMarkers = new Xep0333ChatMarkers();
         _chatStates = new Xep0085ChatStates();
+        _stanzaIds = new Xep0359StanzaIds();
+        _oob = new Xep0066OutOfBandData();
+        _correction = new Xep0308LastMessageCorrection();
+        _retraction = new Xep0424MessageRetraction();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
@@ -139,6 +147,20 @@ public sealed partial class MainChatViewModel : ViewModelBase
         await _receipts.AttachAsync(_client);
         await _chatMarkers.AttachAsync(_client);
         await _chatStates.AttachAsync(_client);
+        await _stanzaIds.AttachAsync(_client);
+        await _oob.AttachAsync(_client);
+        await _correction.AttachAsync(_client);
+        await _retraction.AttachAsync(_client);
+
+        _correction.MessageCorrected += async (msg, originalId) =>
+        {
+            await HandleMessageCorrectionAsync(msg, originalId);
+        };
+
+        _retraction.MessageRetracted += async (targetId, fromJid) =>
+        {
+            await HandleMessageRetractionAsync(targetId, fromJid);
+        };
 
         _chatStates.ChatStateReceived += (fromJid, state) =>
         {
@@ -673,6 +695,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     private async Task HandleIncomingMessageAsync(MessageStanza msg)
     {
+        var replaceElem = msg.RawElement.Element("replace", "urn:xmpp:message-correct:0");
+        if (replaceElem is not null)
+        {
+            string? originalId = replaceElem.GetAttr("id");
+            if (!string.IsNullOrEmpty(originalId))
+            {
+                await HandleMessageCorrectionAsync(msg, originalId);
+                return;
+            }
+        }
+
+        var retractElem = msg.RawElement.Element("retract", "urn:xmpp:message-retract:0")
+                       ?? msg.RawElement.Element("retract", "urn:xmpp:message-retract:1");
+        if (retractElem is not null)
+        {
+            string? targetId = retractElem.GetAttr("id");
+            if (!string.IsNullOrEmpty(targetId))
+            {
+                await HandleMessageRetractionAsync(targetId, msg.From);
+                return;
+            }
+        }
+
         if (string.IsNullOrEmpty(msg.Body)) return;
 
         var accountJid = Jid.Parse(AccountJid);
@@ -742,6 +787,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     private async Task HandleCarbonMessageAsync(MessageStanza msg, bool isSentByUs)
     {
+        var replaceElem = msg.RawElement.Element("replace", "urn:xmpp:message-correct:0");
+        if (replaceElem is not null)
+        {
+            string? originalId = replaceElem.GetAttr("id");
+            if (!string.IsNullOrEmpty(originalId))
+            {
+                await HandleMessageCorrectionAsync(msg, originalId);
+                return;
+            }
+        }
+
+        var retractElem = msg.RawElement.Element("retract", "urn:xmpp:message-retract:0")
+                       ?? msg.RawElement.Element("retract", "urn:xmpp:message-retract:1");
+        if (retractElem is not null)
+        {
+            string? targetId = retractElem.GetAttr("id");
+            if (!string.IsNullOrEmpty(targetId))
+            {
+                await HandleMessageRetractionAsync(targetId, msg.From);
+                return;
+            }
+        }
+
         if (string.IsNullOrEmpty(msg.Body)) return;
 
         var accountJid = Jid.Parse(AccountJid);
@@ -841,6 +909,50 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 if (ActiveConversation?.Id != remoteJid.ToString())
                 {
                     contact.UnreadCount++;
+                }
+            }
+        });
+    }
+
+    private async Task HandleMessageCorrectionAsync(MessageStanza msg, string originalId)
+    {
+        var accountJid = Jid.Parse(AccountJid);
+        var sender = msg.From ?? accountJid;
+        bool isFromSelf = sender.EqualsBare(accountJid);
+        Jid remote = isFromSelf ? (msg.To ?? accountJid).BareJid : sender.BareJid;
+        string newBody = msg.Body ?? string.Empty;
+
+        await _messageRepo.UpdateMessageByReplaceIdAsync(AccountJid, originalId, newBody, msg.Id);
+
+        PostToUi(() =>
+        {
+            var conv = Conversations.FirstOrDefault(c => c.RemoteJid.EqualsBare(remote));
+            conv?.HandleIncomingCorrection(originalId, newBody, msg.ToXmlString(indent: true));
+
+            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
+            if (contact is not null)
+            {
+                contact.LastMessagePreview = newBody;
+            }
+        });
+    }
+
+    private async Task HandleMessageRetractionAsync(string targetId, Jid? fromJid)
+    {
+        await _messageRepo.DeleteMessageAsync(AccountJid, targetId);
+
+        PostToUi(() =>
+        {
+            if (fromJid is not null)
+            {
+                var conv = Conversations.FirstOrDefault(c => c.RemoteJid.EqualsBare(fromJid));
+                conv?.HandleIncomingRetraction(targetId);
+            }
+            else
+            {
+                foreach (var conv in Conversations)
+                {
+                    conv.HandleIncomingRetraction(targetId);
                 }
             }
         });

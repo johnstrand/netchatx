@@ -30,7 +30,9 @@ public static class ClipboardImageHelper
             {
                 if (fmt.Equals("PNG", StringComparison.OrdinalIgnoreCase) ||
                     fmt.Equals("image/png", StringComparison.OrdinalIgnoreCase) ||
-                    fmt.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase))
+                    fmt.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase) ||
+                    fmt.Equals("Bitmap", StringComparison.OrdinalIgnoreCase) ||
+                    fmt.Equals("DeviceIndependentBitmap", StringComparison.OrdinalIgnoreCase))
                 {
                     var data = await clipboard.GetDataAsync(fmt);
                     if (data is byte[] bytes && bytes.Length > 0) return bytes;
@@ -38,6 +40,12 @@ public static class ClipboardImageHelper
                     {
                         using var ms = new MemoryStream();
                         await stream.CopyToAsync(ms);
+                        return ms.ToArray();
+                    }
+                    if (data is Avalonia.Media.Imaging.Bitmap avaloniaBmp)
+                    {
+                        using var ms = new MemoryStream();
+                        avaloniaBmp.Save(ms);
                         return ms.ToArray();
                     }
                 }
@@ -63,6 +71,14 @@ public static class ClipboardImageHelper
                             }
                         }
                     }
+                    else if (data is IStorageItem singleItem)
+                    {
+                        var localPath = singleItem.Path.LocalPath;
+                        if (IsImageFile(localPath) && File.Exists(localPath))
+                        {
+                            return await File.ReadAllBytesAsync(localPath);
+                        }
+                    }
                     else if (data is IEnumerable<string> filePaths)
                     {
                         foreach (var path in filePaths)
@@ -71,6 +87,13 @@ public static class ClipboardImageHelper
                             {
                                 return await File.ReadAllBytesAsync(path);
                             }
+                        }
+                    }
+                    else if (data is string singlePath)
+                    {
+                        if (IsImageFile(singlePath) && File.Exists(singlePath))
+                        {
+                            return await File.ReadAllBytesAsync(singlePath);
                         }
                     }
                 }

@@ -15,6 +15,7 @@ public sealed class XmppClient : IAsyncDisposable
     private readonly ConcurrentDictionary<string, TaskCompletionSource<IqStanza>> _pendingIqs = new();
     private readonly List<IIncomingStanzaFilter> _incomingFilters = [];
     private readonly List<IOutgoingStanzaFilter> _outgoingFilters = [];
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
 
     private CancellationTokenSource? _sessionCts;
     private Task? _readLoopTask;
@@ -249,8 +250,16 @@ public sealed class XmppClient : IAsyncDisposable
     {
         string header = $"<?xml version='1.0'?><stream:stream to='{_options.Jid.Domain}' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>";
         byte[] bytes = Encoding.UTF8.GetBytes(header);
-        await _transport.Output.WriteAsync(bytes, cancellationToken);
-        await _transport.Output.FlushAsync(cancellationToken);
+        await _sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            await _transport.Output.WriteAsync(bytes, cancellationToken);
+            await _transport.Output.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 
     public async Task SendElementAsync(XmppElement element, CancellationToken cancellationToken = default)
@@ -297,8 +306,16 @@ public sealed class XmppClient : IAsyncDisposable
     {
         string xml = element.ToXmlString();
         byte[] bytes = Encoding.UTF8.GetBytes(xml);
-        await _transport.Output.WriteAsync(bytes, cancellationToken);
-        await _transport.Output.FlushAsync(cancellationToken);
+        await _sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            await _transport.Output.WriteAsync(bytes, cancellationToken);
+            await _transport.Output.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 
     private async Task RunReadLoopAsync(CancellationToken cancellationToken)
@@ -383,10 +400,18 @@ public sealed class XmppClient : IAsyncDisposable
 
         try
         {
-            // Send </stream:stream>
-            byte[] closeTag = "</stream:stream>"u8.ToArray();
-            await _transport.Output.WriteAsync(closeTag);
-            await _transport.Output.FlushAsync();
+            await _sendLock.WaitAsync();
+            try
+            {
+                // Send </stream:stream>
+                byte[] closeTag = "</stream:stream>"u8.ToArray();
+                await _transport.Output.WriteAsync(closeTag);
+                await _transport.Output.FlushAsync();
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
         catch (Exception ex)
         {
@@ -408,6 +433,7 @@ public sealed class XmppClient : IAsyncDisposable
     {
         await DisconnectAsync();
         _sessionCts?.Dispose();
+        _sendLock.Dispose();
         await _transport.DisposeAsync();
     }
 }

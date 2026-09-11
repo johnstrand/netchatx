@@ -321,6 +321,8 @@
                                                     <MenuItem Header="🌐 Open Link" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding Links[0]}" IsVisible="{Binding HasLinks}" />
                                                     <MenuItem Header="📋 Copy Link" Command="{Binding CopyLinkCommand}" CommandParameter="{Binding Links[0]}" IsVisible="{Binding HasLinks}" />
                                                     <MenuItem Header="↩ Reply" Command="{Binding ReplyCommand}" />
+                                                    <MenuItem Header="✏️ Edit Message" Command="{Binding EditCommand}" IsVisible="{Binding IsOutbound}" />
+                                                    <MenuItem Header="🗑 Delete Message" Command="{Binding DeleteCommand}" />
                                                 </MenuFlyout>
                                             </Border.ContextFlyout>
                                             <StackPanel Spacing="4">
@@ -450,6 +452,15 @@
                                                                 ToolTip.Tip="Reply"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
                                                                 Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                        <Button Content="✏️" Command="{Binding EditCommand}"
+                                                                ToolTip.Tip="Edit Message"
+                                                                IsVisible="{Binding IsOutbound}"
+                                                                Classes="image-btn" FontSize="11" Padding="4,1"
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                        <Button Content="🗑" Command="{Binding DeleteCommand}"
+                                                                ToolTip.Tip="Delete Message"
+                                                                Classes="image-btn" FontSize="11" Padding="4,1"
+                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
                                                         <Button Content="📋" Command="{Binding CopyTextCommand}"
                                                                 ToolTip.Tip="Copy Text"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
@@ -518,6 +529,10 @@
                                                             <TextBlock Text="&lt;/&gt;" FontSize="10" Opacity="0.8"
                                                                        Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
                                                         </Button>
+                                                        <TextBlock Text="(edited)" FontSize="10" FontStyle="Italic"
+                                                                   IsVisible="{Binding IsEdited}"
+                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Opacity="0.75" VerticalAlignment="Center" Margin="0,0,2,0" />
                                                         <TextBlock Text="{Binding FormattedTime}" FontSize="10"
                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
                                                                    Opacity="0.75" VerticalAlignment="Center" />
@@ -578,36 +593,103 @@
                 </StackPanel>
             </Border>
 
-            <!-- Bottom Message Input Bar -->
+            <!-- Bottom Message Input Bar with Pending Attachment Preview -->
             <Border Grid.Row="3" Padding="14,10" Background="{DynamicResource SystemChromeMediumLowColor}"
                     BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,1,0,0"
                     IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Grid ColumnDefinitions="*,Auto,Auto">
-                    <TextBox x:Name="MessageInputBox"
-                             Grid.Column="0"
-                             Text="{Binding ActiveConversation.InputText, Mode=TwoWay}"
-                             Watermark="Type a message... (Enter to send, Shift+Enter for newline, or paste image)"
-                             AcceptsReturn="True"
-                             MaxHeight="100"
-                             VerticalContentAlignment="Center" />
-                    <Button x:Name="AttachFileButton"
-                            Grid.Column="1"
-                            Content="📎"
-                            ToolTip.Tip="Attach Image"
-                            Height="36" Width="36"
-                            Padding="0"
-                            Margin="8,0,0,0"
-                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
-                    <Button Grid.Column="2"
-                            Content="➤"
-                            ToolTip.Tip="Send Message"
-                            Classes="accent"
-                            Command="{Binding ActiveConversation.SendMessageCommand}"
-                            Height="36" Width="36"
-                            Padding="0"
-                            Margin="8,0,0,0"
-                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
-                </Grid>
+                <StackPanel Spacing="8">
+                    <!-- Pending Image Preview Bar -->
+                    <Border Background="{DynamicResource SystemChromeMediumColor}"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8"
+                            IsVisible="{Binding ActiveConversation.HasPendingImage}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Image Thumbnail Preview -->
+                            <Border Grid.Column="0" CornerRadius="6" ClipToBounds="True" Width="56" Height="56" Background="{DynamicResource SystemChromeLowColor}">
+                                <Image Source="{Binding ActiveConversation.PendingImagePreview}"
+                                       Stretch="UniformToFill" />
+                            </Border>
+
+                            <!-- Image Info -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0" Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="📷 Image ready to send" FontWeight="SemiBold" FontSize="12" />
+                                    <TextBlock Text="{Binding ActiveConversation.PendingImageSizeText, StringFormat='({0})'}"
+                                               Classes="muted" FontSize="11" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding ActiveConversation.PendingImageFileName}"
+                                           Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <!-- Discard / Remove Button -->
+                            <Button Grid.Column="2"
+                                    Content="✕"
+                                    ToolTip.Tip="Remove Image (Esc)"
+                                    Command="{Binding ActiveConversation.ClearPendingImageCommand}"
+                                    Background="Transparent" BorderThickness="0"
+                                    Width="28" Height="28"
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Editing Message Banner -->
+                    <Border Background="{DynamicResource SystemChromeMediumColor}"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8"
+                            IsVisible="{Binding ActiveConversation.IsEditingMessage}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="✏️" FontSize="15" VerticalAlignment="Center" Margin="4,0,8,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Editing message" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource SystemAccentColor}" />
+                                <TextBlock Text="{Binding ActiveConversation.EditingMessagePreviewText}"
+                                           Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Content="✕"
+                                    ToolTip.Tip="Cancel Editing (Esc)"
+                                    Command="{Binding ActiveConversation.CancelEditingMessageCommand}"
+                                    Background="Transparent" BorderThickness="0"
+                                    Width="28" Height="28"
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Message Input & Send Controls -->
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <TextBox x:Name="MessageInputBox"
+                                 Grid.Column="0"
+                                 Text="{Binding ActiveConversation.InputText, Mode=TwoWay}"
+                                 Watermark="Type a message... (Enter to send, Shift+Enter for newline, or paste image)"
+                                 AcceptsReturn="True"
+                                 MaxHeight="100"
+                                 VerticalContentAlignment="Center" />
+                        <Button x:Name="AttachFileButton"
+                                Grid.Column="1"
+                                Content="📎"
+                                ToolTip.Tip="Attach Image"
+                                Height="36" Width="36"
+                                Padding="0"
+                                Margin="8,0,0,0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                        <Button Grid.Column="2"
+                                Content="{Binding ActiveConversation.SendButtonIcon}"
+                                ToolTip.Tip="{Binding ActiveConversation.SendButtonToolTip}"
+                                Classes="accent"
+                                Command="{Binding ActiveConversation.SendMessageCommand}"
+                                Height="36" Width="36"
+                                Padding="0"
+                                Margin="8,0,0,0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                    </Grid>
+                </StackPanel>
             </Border>
         </Grid>
 
