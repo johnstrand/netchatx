@@ -31,6 +31,18 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     [ObservableProperty]
     private string _body = string.Empty;
 
+    partial void OnBodyChanged(string value)
+    {
+        ExtractImageUrl(value);
+        ExtractLinks(value);
+    }
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _links = [];
+
+    [ObservableProperty]
+    private bool _hasLinks;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ReceiptIcon))]
     private MessageDirection _direction = MessageDirection.Outbound;
@@ -240,21 +252,51 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         }
     }
 
+    public void ExtractLinks(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            Links = [];
+            HasLinks = false;
+            return;
+        }
+
+        var segments = LinkParser.Parse(body);
+        var foundLinks = segments
+            .Where(s => s.IsLink && !string.IsNullOrEmpty(s.NavigateUri))
+            .Select(s => s.NavigateUri!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Links = foundLinks;
+        HasLinks = foundLinks.Count > 0;
+    }
+
+    [RelayCommand]
+    public void OpenUrl(string? url)
+    {
+        string? target = url ?? Links.FirstOrDefault();
+        if (!string.IsNullOrEmpty(target))
+        {
+            UrlLauncher.OpenUrl(target);
+        }
+    }
+
+    [RelayCommand]
+    public async Task CopyLinkAsync(string? url)
+    {
+        string? toCopy = url ?? Links.FirstOrDefault();
+        if (!string.IsNullOrEmpty(toCopy))
+        {
+            await UrlLauncher.CopyToClipboardAsync(toCopy);
+        }
+    }
+
     [RelayCommand]
     public void OpenImage()
     {
         if (string.IsNullOrEmpty(ImageUrl)) return;
-        if (!Uri.TryCreate(ImageUrl, UriKind.Absolute, out var uri)) return;
-        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return;
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(ImageUrl) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Soft failure
-        }
+        UrlLauncher.OpenUrl(ImageUrl);
     }
 
     public static string FormatDateHeader(DateTimeOffset dto)
@@ -331,6 +373,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         vm.EmojiPicker = new EmojiPickerViewModel(accountJid, emojisToUse, emoji => vm.QuickReactAsync(emoji), settingsRepo);
 
         vm.ExtractImageUrl(msg.Body);
+        vm.ExtractLinks(msg.Body);
         if (vm.HasImage)
         {
             _ = vm.LoadThumbnailAsync();

@@ -378,6 +378,51 @@ public class XepTests
     }
 
     [Fact]
+    public async Task Xep0313_MUC_QueryArchive_UsesRoomJidAsTo()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com/desktop"),
+            Password = "password123"
+        }, transport);
+
+        var mam = new Xep0313MessageArchiveManagement();
+        await mam.AttachAsync(client);
+        await client.ConnectAsync();
+
+        IqStanza? capturedQueryIq = null;
+        server.OnIqReceived += iq =>
+        {
+            if (iq.RawElement.Element("query", "urn:xmpp:mam:2") is not null)
+            {
+                capturedQueryIq = iq;
+            }
+        };
+
+        var roomJid = Jid.Parse("developers@conference.mock.example.com");
+        var queryTask = mam.QueryArchiveAsync(archiveJid: roomJid, maxResults: 25);
+
+        var result = await queryTask;
+
+        Assert.NotNull(capturedQueryIq);
+        Assert.Equal(roomJid, capturedQueryIq.To);
+        var queryElem = capturedQueryIq.RawElement.Element("query", "urn:xmpp:mam:2");
+        Assert.NotNull(queryElem);
+
+        // In MUC MAM, 'with' should not be present
+        var form = queryElem.Element("x", "jabber:x:data");
+        Assert.NotNull(form);
+        var withField = form.Elements("field").FirstOrDefault(f => f.GetAttr("var") == "with");
+        Assert.Null(withField);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
     public async Task Xep0333_ChatMarkers_AttachesMarkableAndDispatchesMarker()
     {
         var chatMarkers = new Xep0333ChatMarkers();

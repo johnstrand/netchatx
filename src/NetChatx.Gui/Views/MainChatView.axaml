@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NetChatx.Gui.ViewModels"
              xmlns:conv="using:NetChatx.Gui.Converters"
+             xmlns:controls="using:NetChatx.Gui.Controls"
              x:Class="NetChatx.Gui.Views.MainChatView"
              x:DataType="vm:MainChatViewModel">
 
@@ -12,6 +13,10 @@
         <conv:PresenceToBrushConverter x:Key="PresenceToBrush" />
         <conv:BoolToLockIconConverter x:Key="BoolToLockIcon" />
     </UserControl.Resources>
+
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
+    </UserControl.KeyBindings>
 
     <UserControl.Styles>
         <Style Selector="Button.image-btn">
@@ -69,14 +74,23 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="300,2,*,Auto">
+    <Grid x:Name="RootChatGrid">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" MinWidth="240" />
+            <ColumnDefinition Width="2" />
+            <ColumnDefinition Width="*" MinWidth="300" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
         <!-- ================= LEFT COLUMN: SIDEBAR ================= -->
-        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*,Auto" Background="{DynamicResource SystemChromeLowColor}">
+        <Grid x:Name="SidebarGrid" Grid.Column="0" RowDefinitions="Auto,Auto,*,Auto"
+              Background="{DynamicResource SystemChromeLowColor}"
+              IsVisible="{Binding IsSidebarOpen}">
 
             <!-- Row 0: Current User Presence Bar -->
             <Border Grid.Row="0" Padding="14,12" Background="{DynamicResource SystemChromeMediumLowColor}"
                     BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="Auto,*,Auto">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                     <!-- User Status Dot & Avatar -->
                     <Ellipse Grid.Column="0" Width="32" Height="32" Fill="{DynamicResource AccentButtonBackground}" VerticalAlignment="Center" Margin="0,0,10,0" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -95,6 +109,13 @@
                             </MenuFlyout>
                         </DropDownButton.Flyout>
                     </DropDownButton>
+                    <!-- Collapse Sidebar Button -->
+                    <Button Grid.Column="3" Content="◀"
+                            ToolTip.Tip="Collapse Sidebar (Ctrl+B)"
+                            Command="{Binding CollapseSidebarCommand}"
+                            Background="Transparent" BorderThickness="0"
+                            Padding="6,4" Margin="4,0,0,0"
+                            FontSize="12" VerticalAlignment="Center" />
                 </Grid>
             </Border>
 
@@ -127,7 +148,10 @@
                                     </Button>
                                     <TextBlock Grid.Column="2" Text="{Binding FormattedDateTime}" Classes="muted" FontSize="10" />
                                 </Grid>
-                                <TextBlock Text="{Binding Body}" FontSize="12" TextWrapping="Wrap" />
+                                <controls:HyperlinkTextBlock Text="{Binding Body}"
+                                                             MessageDirection="{Binding Direction}"
+                                                             FontSize="12"
+                                                             TextWrapping="Wrap" />
                                 <Border IsVisible="{Binding IsRawXmlVisible}"
                                         Background="{DynamicResource SystemChromeMediumColor}"
                                         CornerRadius="4" Padding="6" Margin="0,4,0,0">
@@ -202,33 +226,54 @@
         </Grid>
 
         <!-- Column 1: Grid Splitter -->
-        <GridSplitter Grid.Column="1" Width="2" Background="{DynamicResource SystemChromeMediumColor}" ResizeDirection="Columns" />
+        <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="2"
+                      Background="{DynamicResource SystemChromeMediumColor}"
+                      ResizeDirection="Columns"
+                      IsVisible="{Binding IsSidebarOpen}" />
 
         <!-- ================= CENTER COLUMN: CONVERSATION PANE ================= -->
         <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Background="{DynamicResource SystemChromeAltHighColor}">
 
-            <!-- Top Chat Header -->
+            <!-- Top Chat Header (Active Conversation) -->
             <Border Grid.Row="0" Padding="16,10" Background="{DynamicResource SystemChromeMediumLowColor}"
                     BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,0,0,1"
                     IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                    <StackPanel Grid.Column="0" Spacing="2">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                    <!-- Toggle/Restore Sidebar Button -->
+                    <Button Grid.Column="0"
+                            Content="{Binding SidebarToggleIcon}"
+                            ToolTip.Tip="{Binding SidebarToggleTooltip}"
+                            Command="{Binding ToggleSidebarCommand}"
+                            Background="Transparent" BorderThickness="0"
+                            Padding="6,4" Margin="0,0,8,0"
+                            FontSize="13" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="{Binding ActiveConversation.Title}" FontSize="15" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding ActiveConversation.RemoteJid}" Classes="muted" FontSize="11" />
                     </StackPanel>
                     <!-- Encryption Badge -->
-                    <Border Grid.Column="1" Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="12" Padding="8,4" Margin="0,0,10,0"
-                            IsVisible="{Binding ActiveConversation.IsEncrypted}">
+                    <Border Grid.Column="2" Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="12" Padding="8,4" Margin="0,0,10,0"
+                            IsVisible="{Binding ActiveConversation.IsEncrypted}" VerticalAlignment="Center">
                         <TextBlock Text="🔒 OMEMO Active" FontSize="11" FontWeight="SemiBold" />
                     </Border>
                     <!-- Sync Button -->
-                    <Button Grid.Column="2" Content="Sync 🔄"
+                    <Button Grid.Column="3" Content="{Binding ActiveConversation.SyncButtonText}"
                             Command="{Binding ActiveConversation.SyncArchiveCommand}"
                             IsEnabled="{Binding !ActiveConversation.IsSyncing}"
-                            FontSize="12" Margin="0,0,8,0" />
+                            FontSize="12" Margin="0,0,8,0" VerticalAlignment="Center" />
                     <!-- Toggle Details Button -->
-                    <Button Grid.Column="3" Content="Details ℹ" Command="{Binding ToggleDetailsCommand}" FontSize="12" />
+                    <Button Grid.Column="4" Content="Details ℹ" Command="{Binding ToggleDetailsCommand}" FontSize="12" VerticalAlignment="Center" />
                 </Grid>
+            </Border>
+
+            <!-- Top Header Bar when no active conversation and sidebar is collapsed -->
+            <Border Grid.Row="0" Padding="14,10" Background="{DynamicResource SystemChromeMediumLowColor}"
+                    BorderBrush="{DynamicResource SystemChromeMediumColor}" BorderThickness="0,0,0,1"
+                    IsVisible="{Binding ShowEmptyStateHeader}">
+                <Button Content="▶ Restore Sidebar"
+                        ToolTip.Tip="Restore Sidebar (Ctrl+B)"
+                        Command="{Binding RestoreSidebarCommand}"
+                        Padding="8,4" FontSize="12" />
             </Border>
 
             <!-- Center: Messages Scroll Area -->
@@ -273,6 +318,8 @@
                                             <Border.ContextFlyout>
                                                 <MenuFlyout>
                                                     <MenuItem Header="📋 Copy Text" Command="{Binding CopyTextCommand}" />
+                                                    <MenuItem Header="🌐 Open Link" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding Links[0]}" IsVisible="{Binding HasLinks}" />
+                                                    <MenuItem Header="📋 Copy Link" Command="{Binding CopyLinkCommand}" CommandParameter="{Binding Links[0]}" IsVisible="{Binding HasLinks}" />
                                                     <MenuItem Header="↩ Reply" Command="{Binding ReplyCommand}" />
                                                 </MenuFlyout>
                                             </Border.ContextFlyout>
@@ -410,12 +457,13 @@
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <!-- Message Content -->
-                                                <TextBlock Text="{Binding Body}"
-                                                           Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                           FontSize="13"
-                                                           TextWrapping="Wrap"
-                                                           IsVisible="{Binding !IsOnlyImage}" />
+                                                <!-- Message Content with Clickable Hyperlinks -->
+                                                <controls:HyperlinkTextBlock Text="{Binding Body}"
+                                                                             MessageDirection="{Binding Direction}"
+                                                                             Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                             FontSize="13"
+                                                                             TextWrapping="Wrap"
+                                                                             IsVisible="{Binding !IsOnlyImage}" />
 
                                                 <!-- Image Thumbnail Preview if present -->
                                                 <Button Classes="image-btn"
@@ -516,6 +564,11 @@
                 <TextBlock Text="💬" FontSize="48" HorizontalAlignment="Center" />
                 <TextBlock Text="Welcome to NetChatx" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
                 <TextBlock Text="Select a contact or conversation from the sidebar to begin." Classes="muted" HorizontalAlignment="Center" />
+                <Button Content="▶ Restore Sidebar"
+                        Command="{Binding RestoreSidebarCommand}"
+                        HorizontalAlignment="Center"
+                        Margin="0,8,0,0"
+                        IsVisible="{Binding !IsSidebarOpen}" />
             </StackPanel>
 
             <!-- Typing Indicator -->

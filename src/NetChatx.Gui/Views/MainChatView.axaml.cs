@@ -19,6 +19,9 @@ public partial class MainChatView : UserControl
     private ScrollViewer? _messagesScrollViewer;
     private TextBox? _messageInputBox;
     private Button? _attachFileButton;
+    private GridSplitter? _sidebarSplitter;
+    private Control? _sidebarGrid;
+    private double _savedSidebarWidth = 300;
 
     public MainChatView()
     {
@@ -32,6 +35,8 @@ public partial class MainChatView : UserControl
         _messagesScrollViewer = this.FindControl<ScrollViewer>("MessagesScrollViewer");
         _messageInputBox = this.FindControl<TextBox>("MessageInputBox");
         _attachFileButton = this.FindControl<Button>("AttachFileButton");
+        _sidebarSplitter = this.FindControl<GridSplitter>("SidebarSplitter");
+        _sidebarGrid = this.FindControl<Control>("SidebarGrid");
 
         if (_messageInputBox is not null)
         {
@@ -52,6 +57,7 @@ public partial class MainChatView : UserControl
         {
             vm.PropertyChanged += OnMainViewModelPropertyChanged;
             UpdateActiveConversation(vm.ActiveConversation);
+            ApplySidebarState(vm.IsSidebarOpen);
         }
     }
 
@@ -91,6 +97,7 @@ public partial class MainChatView : UserControl
             vm.PropertyChanged -= OnMainViewModelPropertyChanged;
             vm.PropertyChanged += OnMainViewModelPropertyChanged;
             UpdateActiveConversation(vm.ActiveConversation);
+            ApplySidebarState(vm.IsSidebarOpen);
         }
         else
         {
@@ -100,11 +107,64 @@ public partial class MainChatView : UserControl
 
     private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (sender is not MainChatViewModel vm) return;
+
         if (e.PropertyName == nameof(MainChatViewModel.ActiveConversation))
         {
-            if (sender is MainChatViewModel vm)
+            UpdateActiveConversation(vm.ActiveConversation);
+        }
+        else if (e.PropertyName == nameof(MainChatViewModel.IsSidebarOpen))
+        {
+            ApplySidebarState(vm.IsSidebarOpen);
+        }
+    }
+
+    private void ApplySidebarState(bool isOpen)
+    {
+        var rootGrid = this.FindControl<Grid>("RootChatGrid");
+        if (rootGrid is null || rootGrid.ColumnDefinitions.Count < 2) return;
+
+        var sidebarCol = rootGrid.ColumnDefinitions[0];
+        var splitterCol = rootGrid.ColumnDefinitions[1];
+
+        if (isOpen)
+        {
+            sidebarCol.MinWidth = 240;
+            var targetWidth = _savedSidebarWidth >= 240 ? _savedSidebarWidth : 300;
+            sidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
+            splitterCol.Width = new GridLength(2, GridUnitType.Pixel);
+
+            if (_sidebarSplitter is not null)
             {
-                UpdateActiveConversation(vm.ActiveConversation);
+                _sidebarSplitter.IsVisible = true;
+            }
+            if (_sidebarGrid is not null)
+            {
+                _sidebarGrid.IsVisible = true;
+            }
+        }
+        else
+        {
+            if (sidebarCol.ActualWidth > 0)
+            {
+                _savedSidebarWidth = sidebarCol.ActualWidth;
+            }
+            else if (sidebarCol.Width.IsAbsolute && sidebarCol.Width.Value >= 240)
+            {
+                _savedSidebarWidth = sidebarCol.Width.Value;
+            }
+
+            sidebarCol.MinWidth = 0;
+            sidebarCol.Width = new GridLength(0, GridUnitType.Pixel);
+            splitterCol.Width = new GridLength(0, GridUnitType.Pixel);
+
+            if (_sidebarSplitter is not null)
+            {
+                _sidebarSplitter.IsVisible = false;
+            }
+            if (_sidebarGrid is not null)
+            {
+                _sidebarGrid.IsVisible = false;
             }
         }
     }

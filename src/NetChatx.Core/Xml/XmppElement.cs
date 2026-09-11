@@ -154,7 +154,30 @@ public sealed class XmppElement
             }
             else
             {
-                writer.WriteAttributeString(kv.Key, kv.Value);
+                int colonIdx = kv.Key.IndexOf(':');
+                if (colonIdx > 0)
+                {
+                    string pref = kv.Key.Substring(0, colonIdx);
+                    string local = kv.Key.Substring(colonIdx + 1);
+                    string? attrNs = pref switch
+                    {
+                        "xml" => "http://www.w3.org/XML/1998/namespace",
+                        "stream" => "http://etherx.jabber.org/streams",
+                        _ => _attributes.TryGetValue($"xmlns:{pref}", out var dNs) ? dNs : null
+                    };
+                    try
+                    {
+                        writer.WriteAttributeString(pref, local, attrNs, kv.Value);
+                    }
+                    catch
+                    {
+                        writer.WriteAttributeString(local, kv.Value);
+                    }
+                }
+                else
+                {
+                    writer.WriteAttributeString(kv.Key, kv.Value);
+                }
             }
         }
 

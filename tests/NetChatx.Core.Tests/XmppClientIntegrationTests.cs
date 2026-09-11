@@ -118,4 +118,47 @@ public class XmppClientIntegrationTests
         Assert.Equal(XmppClientState.Disconnected, client.State);
         Assert.Contains(XmppClientState.Disconnected, stateChanges);
     }
+
+    [Fact]
+    public async Task XmppClient_BuffersEarlyMessages_DispatchedWhenHandlerAttached()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        };
+
+        await using var client = new XmppClient(options, transport);
+        await client.ConnectAsync();
+
+        // Server injects a message BEFORE client attaches MessageReceived handler
+        var earlyMsg = new MessageStanza(to: Jid.Parse("alice@mock.example.com"), type: MessageStanza.TypeChat)
+        {
+            From = Jid.Parse("bob@mock.example.com"),
+            Body = "Buffered offline message"
+        };
+        await server.InjectStanzaAsync(earlyMsg);
+
+        // Give loopback reader a moment to pump and buffer the message
+        await Task.Delay(50);
+
+        // Now client attaches MessageReceived
+        MessageStanza? dispatchedMsg = null;
+        var tcs = new TaskCompletionSource<MessageStanza>();
+        client.MessageReceived += msg =>
+        {
+            dispatchedMsg = msg;
+            tcs.TrySetResult(msg);
+            return Task.CompletedTask;
+        };
+
+        var result = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.NotNull(result);
+        Assert.Equal("Buffered offline message", result.Body);
+        Assert.Equal("bob@mock.example.com", result.From?.ToString());
+    }
 }
