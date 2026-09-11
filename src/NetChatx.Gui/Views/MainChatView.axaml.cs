@@ -19,6 +19,7 @@ public partial class MainChatView : UserControl
     private ScrollViewer? _messagesScrollViewer;
     private TextBox? _messageInputBox;
     private Button? _attachFileButton;
+    private Button? _insertCodeBlockButton;
     private GridSplitter? _sidebarSplitter;
     private Control? _sidebarGrid;
     private double _savedSidebarWidth = 300;
@@ -35,12 +36,19 @@ public partial class MainChatView : UserControl
         _messagesScrollViewer = this.FindControl<ScrollViewer>("MessagesScrollViewer");
         _messageInputBox = this.FindControl<TextBox>("MessageInputBox");
         _attachFileButton = this.FindControl<Button>("AttachFileButton");
+        _insertCodeBlockButton = this.FindControl<Button>("InsertCodeBlockButton");
         _sidebarSplitter = this.FindControl<GridSplitter>("SidebarSplitter");
         _sidebarGrid = this.FindControl<Control>("SidebarGrid");
 
         if (_messageInputBox is not null)
         {
             _messageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown, RoutingStrategies.Tunnel);
+            _messageInputBox.AddHandler(InputElement.TextInputEvent, OnMessageInputTextInput, RoutingStrategies.Tunnel);
+        }
+
+        if (_insertCodeBlockButton is not null)
+        {
+            _insertCodeBlockButton.Click += OnInsertCodeBlockButtonClick;
         }
 
         if (_attachFileButton is not null)
@@ -56,6 +64,7 @@ public partial class MainChatView : UserControl
         if (DataContext is MainChatViewModel vm)
         {
             vm.PropertyChanged += OnMainViewModelPropertyChanged;
+            vm.CodeBlockInjected += OnCodeBlockInjected;
             UpdateActiveConversation(vm.ActiveConversation);
             ApplySidebarState(vm.IsSidebarOpen);
         }
@@ -68,6 +77,12 @@ public partial class MainChatView : UserControl
         if (_messageInputBox is not null)
         {
             _messageInputBox.RemoveHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown);
+            _messageInputBox.RemoveHandler(InputElement.TextInputEvent, OnMessageInputTextInput);
+        }
+
+        if (_insertCodeBlockButton is not null)
+        {
+            _insertCodeBlockButton.Click -= OnInsertCodeBlockButtonClick;
         }
 
         if (_attachFileButton is not null)
@@ -83,6 +98,7 @@ public partial class MainChatView : UserControl
         if (DataContext is MainChatViewModel vm)
         {
             vm.PropertyChanged -= OnMainViewModelPropertyChanged;
+            vm.CodeBlockInjected -= OnCodeBlockInjected;
         }
 
         UpdateActiveConversation(null);
@@ -235,9 +251,16 @@ public partial class MainChatView : UserControl
 
             var textBox = sender as TextBox;
 
-            // Escape key: Cancel message editing if active, or discard pending image preview
+            // Escape key: Cancel code block editor if open, cancel message editing if active, or discard pending image preview
             if (e.Key == Key.Escape)
             {
+                if (mainVm.CodeBlockEditor.IsOpen)
+                {
+                    mainVm.CodeBlockEditor.CancelCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+
                 if (conv.IsEditingMessage)
                 {
                     conv.CancelEditingMessage();
@@ -289,9 +312,27 @@ public partial class MainChatView : UserControl
                     return;
                 }
 
-                // Enter without Shift: Send message (either text, pending image, or both)
+                // Enter without Shift: Check for code block trigger or send message
                 textBox = sender as TextBox;
                 string currentText = textBox?.Text ?? conv.InputText;
+
+                // If user typed ``` or ```<lang> and pressed Enter, open the Code Block Editor
+                string trimmed = currentText.Trim();
+                if (trimmed.StartsWith("```") && !trimmed.Contains('\n') && !trimmed.Contains('\r'))
+                {
+                    e.Handled = true;
+                    string langHint = trimmed.Length > 3 ? trimmed[3..].Trim() : string.Empty;
+
+                    if (textBox is not null)
+                    {
+                        textBox.Text = string.Empty;
+                    }
+                    conv.InputText = string.Empty;
+
+                    mainVm.OpenCodeBlockEditor(initialCode: string.Empty, languageHint: langHint, insertionIndex: 0);
+                    return;
+                }
+
                 bool hasText = !string.IsNullOrWhiteSpace(currentText);
                 bool hasPendingImage = conv.HasPendingImage;
 
@@ -321,6 +362,88 @@ public partial class MainChatView : UserControl
         }
     }
 
+    private void OnMessageInputTextInput(object? sender, TextInputEventArgs e)
+    {
+        try
+        {
+            if (DataContext is not MainChatViewModel mainVm || mainVm.ActiveConversation is null) return;
+            if (_messageInputBox is null) return;
+
+            string? inputText = e.Text;
+            if (string.IsNullOrEmpty(inputText)) return;
+
+            // Check if typing a single backtick that completes 3 consecutive backticks
+            if (inputText == "`")
+            {
+                int caret = _messageInputBox.CaretIndex;
+                string current = _messageInputBox.Text ?? string.Empty;
+
+                // Check if the preceding 2 characters before caret are "``"
+                if (caret >= 2 && current.Length >= 2 &&
+                    current[caret - 1] == '`' && current[caret - 2] == '`')
+                {
+                    // Check if 4th backtick (already part of a larger sequence)
+                    if (caret >= 3 && current[caret - 3] == '`')
+                    {
+                        return;
+                    }
+
+                    e.Handled = true;
+
+                    // Remove the two preceding backticks from the input box
+                    string updated = current.Remove(caret - 2, 2);
+                    _messageInputBox.Text = updated;
+                    _messageInputBox.CaretIndex = caret - 2;
+                    mainVm.ActiveConversation.InputText = updated;
+
+                    // Open Code Block Editor!
+                    mainVm.OpenCodeBlockEditor(initialCode: string.Empty, insertionIndex: caret - 2);
+                    return;
+                }
+            }
+            else if (inputText == "```")
+            {
+                e.Handled = true;
+                int caret = _messageInputBox.CaretIndex;
+                mainVm.OpenCodeBlockEditor(initialCode: string.Empty, insertionIndex: caret);
+                return;
+            }
+        }
+        catch
+        {
+            // Soft failure
+        }
+    }
+
+    private void OnInsertCodeBlockButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainChatViewModel mainVm || mainVm.ActiveConversation is null) return;
+
+        string selectedText = _messageInputBox?.SelectedText ?? string.Empty;
+        int caretIndex = _messageInputBox?.CaretIndex ?? -1;
+
+        mainVm.OpenCodeBlockEditor(initialCode: selectedText, insertionIndex: caretIndex);
+    }
+
+    private void OnCodeBlockEditorBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel mainVm)
+        {
+            mainVm.CodeBlockEditor.CancelCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void OnCodeBlockInjected()
+    {
+        if (_messageInputBox is not null && DataContext is MainChatViewModel vm && vm.ActiveConversation is not null)
+        {
+            _messageInputBox.Text = vm.ActiveConversation.InputText;
+            _messageInputBox.CaretIndex = _messageInputBox.Text?.Length ?? 0;
+            _messageInputBox.Focus();
+        }
+    }
+
     private async Task<bool> TryPasteImageAsync()
     {
         try
@@ -332,10 +455,10 @@ public partial class MainChatView : UserControl
             }
 
             var topLevel = TopLevel.GetTopLevel(this);
-            var imageBytes = await ClipboardImageHelper.GetClipboardImageBytesAsync(topLevel);
-            if (imageBytes is not null && imageBytes.Length > 0)
+            var result = await ClipboardImageHelper.GetClipboardImageAsync(topLevel);
+            if (result is not null && result.Bytes.Length > 0)
             {
-                conv.StageImageAttachment(imageBytes);
+                conv.StageImageAttachment(result.Bytes, result.FileName);
                 return true;
             }
         }

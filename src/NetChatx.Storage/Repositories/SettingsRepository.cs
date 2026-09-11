@@ -9,6 +9,10 @@ public sealed class SettingsRepository
 
     public static readonly string[] DefaultQuickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
     public const string KeyQuickEmojis = "quick_emojis";
+    public const string KeyMergeMessagesEnabled = "merge_messages_enabled";
+    public const string KeyMergeMessagesThresholdSeconds = "merge_messages_threshold_seconds";
+    public const bool DefaultMergeMessagesEnabled = true;
+    public const int DefaultMergeMessagesThresholdSeconds = 10;
 
     public SettingsRepository(DatabaseContext context)
     {
@@ -76,5 +80,27 @@ public sealed class SettingsRepository
         var cleanList = emojis.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct().ToList();
         var json = JsonSerializer.Serialize(cleanList);
         await SetSettingAsync(accountJid, KeyQuickEmojis, json, cancellationToken);
+    }
+
+    public async Task<bool> GetMergeMessagesEnabledAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyMergeMessagesEnabled, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultMergeMessagesEnabled;
+    }
+
+    public async Task SetMergeMessagesEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyMergeMessagesEnabled, enabled.ToString(), cancellationToken);
+    }
+
+    public async Task<int> GetMergeMessagesThresholdSecondsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, cancellationToken);
+        return int.TryParse(val, out var result) ? result : DefaultMergeMessagesThresholdSeconds;
+    }
+
+    public async Task SetMergeMessagesThresholdSecondsAsync(string accountJid, int seconds, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, seconds.ToString(), cancellationToken);
     }
 }

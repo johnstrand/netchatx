@@ -5,9 +5,11 @@
         x:Class="NetChatx.Gui.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="NetChatx - XMPP Client (.NET 10)"
+        Icon="/Assets/netchatx-logo.ico"
         Width="1050" Height="700"
         MinWidth="800" MinHeight="500"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Background="#080C14">
 
     <Window.DataTemplates>
         <DataTemplate DataType="{x:Type vm:LoginViewModel}">
@@ -23,12 +25,15 @@
         <ContentControl Grid.Row="0" Content="{Binding CurrentView}" />
 
         <!-- Global Status Bar -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemChromeMediumColor}"
-                BorderBrush="{DynamicResource SystemChromeHighColor}" BorderThickness="0,1,0,0"
-                Padding="12,4">
+        <Border Grid.Row="1" Background="#0A0E17"
+                BorderBrush="#1E293B" BorderThickness="0,1,0,0"
+                Padding="14,5">
             <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center" FontSize="11" Opacity="0.8" />
-                <TextBlock Grid.Column="1" Text="NetChatx v1.0" VerticalAlignment="Center" FontSize="11" Opacity="0.6" />
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center" FontSize="11" Foreground="#94A3B8" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Image Source="/Assets/netchatx-logo.png" Width="14" Height="14" VerticalAlignment="Center" />
+                    <TextBlock Text="NetChatx v1.0 • .NET 10" VerticalAlignment="Center" FontSize="11" Foreground="#64748B" />
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

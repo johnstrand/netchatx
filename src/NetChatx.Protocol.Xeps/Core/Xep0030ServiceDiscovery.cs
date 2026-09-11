@@ -18,7 +18,8 @@ public sealed class Xep0030ServiceDiscovery : XepFeatureBase
     {
         NsInfo,
         NsItems,
-        "urn:xmpp:ping"
+        "urn:xmpp:ping",
+        "urn:xmpp:styling:0"
     };
 
     public IReadOnlySet<string> SupportedFeatures => _supportedFeatures;

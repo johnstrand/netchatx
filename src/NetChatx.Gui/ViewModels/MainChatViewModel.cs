@@ -43,6 +43,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0066OutOfBandData? _oob;
     private Xep0308LastMessageCorrection? _correction;
     private Xep0424MessageRetraction? _retraction;
+    private Xep0393MessageStyling? _styling;
 
     [ObservableProperty]
     private string _accountJid;
@@ -74,6 +75,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     partial void OnActiveConversationChanged(ChatConversationViewModel? oldValue, ChatConversationViewModel? newValue)
     {
+        CodeBlockEditor.Cancel();
+
         if (newValue is not null)
         {
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(newValue.RemoteJid.ToString(), StringComparison.OrdinalIgnoreCase));
@@ -87,6 +90,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
     }
 
     [ObservableProperty]
+    private CodeBlockEditorViewModel _codeBlockEditor = new();
+
+    [ObservableProperty]
     private string _searchQuery = string.Empty;
 
     [ObservableProperty]
@@ -94,6 +100,44 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isDetailsOpen;
+
+    private bool _isInitializingSettings;
+
+    [ObservableProperty]
+    private bool _enableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
+
+    [ObservableProperty]
+    private int _messageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
+
+    partial void OnEnableMessageMergingChanged(bool value)
+    {
+        if (!_isInitializingSettings)
+        {
+            _ = _settingsRepo.SetMergeMessagesEnabledAsync(AccountJid, value);
+        }
+        foreach (var conv in Conversations)
+        {
+            conv.EnableMessageMerging = value;
+        }
+    }
+
+    partial void OnMessageMergeThresholdSecondsChanged(int value)
+    {
+        if (!_isInitializingSettings)
+        {
+            _ = _settingsRepo.SetMergeMessagesThresholdSecondsAsync(AccountJid, value);
+        }
+        foreach (var conv in Conversations)
+        {
+            conv.MessageMergeThresholdSeconds = value;
+        }
+    }
+
+    [RelayCommand]
+    public void OpenChatSettings()
+    {
+        IsDetailsOpen = true;
+    }
 
     [ObservableProperty]
     private OmemoDetailsViewModel _omemoDetails = new();
@@ -137,6 +181,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _oob = new Xep0066OutOfBandData();
         _correction = new Xep0308LastMessageCorrection();
         _retraction = new Xep0424MessageRetraction();
+        _styling = new Xep0393MessageStyling();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
@@ -151,6 +196,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         await _oob.AttachAsync(_client);
         await _correction.AttachAsync(_client);
         await _retraction.AttachAsync(_client);
+        await _styling.AttachAsync(_client);
 
         _correction.MessageCorrected += async (msg, originalId) =>
         {
@@ -229,6 +275,22 @@ public sealed partial class MainChatViewModel : ViewModelBase
         catch
         {
             // Soft failure on initial presence
+        }
+
+        // Load account settings
+        try
+        {
+            _isInitializingSettings = true;
+            EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(AccountJid);
+            MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(AccountJid);
+        }
+        catch
+        {
+            // Soft failure loading settings
+        }
+        finally
+        {
+            _isInitializingSettings = false;
         }
 
         // Load cached contacts from SQLite
@@ -551,7 +613,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _reactions,
             _chatMarkers,
             _chatStates,
-            _settingsRepo);
+            _settingsRepo)
+        {
+            EnableMessageMerging = EnableMessageMerging,
+            MessageMergeThresholdSeconds = MessageMergeThresholdSeconds
+        };
 
         newConv.MessageProcessed += msg =>
         {
@@ -955,6 +1021,28 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     conv.HandleIncomingRetraction(targetId);
                 }
             }
+        });
+    }
+
+    public event Action? CodeBlockInjected;
+
+    [RelayCommand]
+    public void OpenCodeBlockEditor()
+    {
+        OpenCodeBlockEditor(initialCode: string.Empty);
+    }
+
+    public void OpenCodeBlockEditor(string initialCode = "", string? languageHint = null, int? insertionIndex = null)
+    {
+        if (ActiveConversation is null) return;
+
+        CodeBlockEditor.Open(initialCode, languageHint, markdown =>
+        {
+            ActiveConversation.InjectCodeBlock(markdown, insertionIndex ?? -1);
+            PostToUi(() =>
+            {
+                CodeBlockInjected?.Invoke();
+            });
         });
     }
 

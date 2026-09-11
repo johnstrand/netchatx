@@ -107,6 +107,96 @@ internal static class Win32ClipboardHelper
         return null;
     }
 
+    public static byte[]? GetGifBytesFromClipboard()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        if (!OpenClipboard(IntPtr.Zero)) return null;
+
+        try
+        {
+            uint gifFormat = RegisterClipboardFormat("GIF");
+            if (gifFormat != 0 && IsClipboardFormatAvailable(gifFormat))
+            {
+                var bytes = ReadClipboardBytes(gifFormat);
+                if (bytes is not null && bytes.Length > 0 && GifDecoder.IsGif(bytes)) return bytes;
+            }
+
+            uint imageGifFormat = RegisterClipboardFormat("image/gif");
+            if (imageGifFormat != 0 && IsClipboardFormatAvailable(imageGifFormat))
+            {
+                var bytes = ReadClipboardBytes(imageGifFormat);
+                if (bytes is not null && bytes.Length > 0 && GifDecoder.IsGif(bytes)) return bytes;
+            }
+        }
+        catch
+        {
+            // Soft failure
+        }
+        finally
+        {
+            CloseClipboard();
+        }
+
+        return null;
+    }
+
+    public static string? GetHtmlFromClipboard()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        if (!OpenClipboard(IntPtr.Zero)) return null;
+
+        try
+        {
+            uint htmlFormat = RegisterClipboardFormat("HTML Format");
+            if (htmlFormat != 0 && IsClipboardFormatAvailable(htmlFormat))
+            {
+                var bytes = ReadClipboardBytes(htmlFormat);
+                if (bytes is not null && bytes.Length > 0)
+                {
+                    int nullIndex = Array.IndexOf(bytes, (byte)0);
+                    int length = nullIndex >= 0 ? nullIndex : bytes.Length;
+                    return System.Text.Encoding.UTF8.GetString(bytes, 0, length);
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure
+        }
+        finally
+        {
+            CloseClipboard();
+        }
+
+        return null;
+    }
+
+    private static byte[]? ReadClipboardBytes(uint format)
+    {
+        var hData = GetClipboardData(format);
+        if (hData == IntPtr.Zero) return null;
+
+        var ptr = GlobalLock(hData);
+        if (ptr == IntPtr.Zero) return null;
+
+        try
+        {
+            int size = (int)GlobalSize(hData);
+            if (size > 0)
+            {
+                byte[] bytes = new byte[size];
+                Marshal.Copy(ptr, bytes, 0, size);
+                return bytes;
+            }
+        }
+        finally
+        {
+            GlobalUnlock(hData);
+        }
+
+        return null;
+    }
+
     public static byte[]? ConvertDibToPngBytes(byte[] dibData)
     {
         try
