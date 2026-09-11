@@ -1255,6 +1255,214 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task MainChatViewModel_DeliveryReceipt_DoesNotMarkMessageAsRead()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation(remote.ToString(), "Bob", remote, isGroupChat: false);
+
+        conv.InputText = "Hello Bob";
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon);
+
+        string stanzaId = bubble.StanzaId ?? bubble.Id;
+
+        // Simulate incoming XEP-0184 delivery receipt from Bob
+        var receiptElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", "bob@mock.example.com/res")
+            .Child(new NetChatx.Core.Xml.XmppElement("received", "urn:xmpp:receipts").Attr("id", stanzaId));
+
+        await server.InjectElementAsync(receiptElem);
+        await Task.Delay(100);
+
+        // Delivery receipt indicates delivery to client, NOT read: icon must remain single checkmark
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon);
+
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMessages);
+        Assert.False(dbMessages[0].IsRead);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_ChatMarkerReceived_DoesNotMarkMessageAsRead()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation(remote.ToString(), "Bob", remote, isGroupChat: false);
+
+        conv.InputText = "Hello Bob";
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon);
+
+        string stanzaId = bubble.StanzaId ?? bubble.Id;
+
+        // Simulate incoming XEP-0333 <received/> chat marker from Bob
+        var markerElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", "bob@mock.example.com/res")
+            .Child(new NetChatx.Core.Xml.XmppElement("received", "urn:xmpp:chat-markers").Attr("id", stanzaId));
+
+        await server.InjectElementAsync(markerElem);
+        await Task.Delay(100);
+
+        // Received marker is delivery only: icon must remain single checkmark
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon);
+
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMessages);
+        Assert.False(dbMessages[0].IsRead);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_ChatMarkerAcknowledged_MarksMessageAsReadAndDoubleCheckmark()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation(remote.ToString(), "Bob", remote, isGroupChat: false);
+
+        conv.InputText = "Hello Bob";
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon);
+
+        string stanzaId = bubble.StanzaId ?? bubble.Id;
+
+        // Simulate incoming XEP-0333 <acknowledged/> chat marker from Bob
+        var markerElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", "bob@mock.example.com/res")
+            .Child(new NetChatx.Core.Xml.XmppElement("acknowledged", "urn:xmpp:chat-markers").Attr("id", stanzaId));
+
+        await server.InjectElementAsync(markerElem);
+        await Task.Delay(100);
+
+        // Acknowledged marker indicates read/acknowledged: icon must become double checkmark
+        Assert.True(bubble.IsRead);
+        Assert.Equal("✓✓", bubble.ReceiptIcon);
+
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMessages);
+        Assert.True(dbMessages[0].IsRead);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_CarbonSentMessage_IsNotPrematurelyMarkedAsRead()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation(remote.ToString(), "Bob", remote, isGroupChat: false);
+
+        // Simulate receiving a carbon copy of an outbound message sent by Alice on mobile
+        var carbonOutboundElem = new NetChatx.Core.Xml.XmppElement("message")
+            .Attr("from", account)
+            .Attr("to", $"{account}/desktop")
+            .Child(new NetChatx.Core.Xml.XmppElement("sent", "urn:xmpp:carbons:2")
+                .Child(new NetChatx.Core.Xml.XmppElement("forwarded", "urn:xmpp:forward:0")
+                    .Child(new NetChatx.Core.Xml.XmppElement("message")
+                        .Attr("from", $"{account}/mobile")
+                        .Attr("to", "bob@mock.example.com")
+                        .Attr("id", "carbon_outbound_123")
+                        .Child(new NetChatx.Core.Xml.XmppElement("body") { Value = "Outbound Carbon message from phone" }))));
+
+        await server.InjectElementAsync(carbonOutboundElem);
+        await Task.Delay(100);
+
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.Equal(MessageDirection.Outbound, bubble.Direction);
+        Assert.False(bubble.IsRead);
+        Assert.Equal("✓", bubble.ReceiptIcon);
+
+        var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMessages);
+        Assert.Equal(MessageDirection.Outbound, dbMessages[0].Direction);
+        Assert.False(dbMessages[0].IsRead);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
     public void ChatConversationViewModel_HandleRemoteChatState_UpdatesIsRemoteComposing()
     {
         string account = "alice@example.com";
@@ -1617,6 +1825,54 @@ public class ViewModelTests : IDisposable
         Assert.Equal("Hello with xml:lang!", dbMsgs[0].Body);
 
         await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public void MainChatViewModel_SidebarCollapseAndRestore_ManagesStateAndIcons()
+    {
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, transport);
+
+        var vm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+
+        // Initial state
+        Assert.True(vm.IsSidebarOpen);
+        Assert.Equal("◀", vm.SidebarToggleIcon);
+        Assert.Equal("Collapse sidebar (Ctrl+B)", vm.SidebarToggleTooltip);
+        Assert.False(vm.ShowEmptyStateHeader); // ActiveConversation is null, but sidebar is open
+
+        // Collapse sidebar
+        vm.CollapseSidebar();
+        Assert.False(vm.IsSidebarOpen);
+        Assert.Equal("▶", vm.SidebarToggleIcon);
+        Assert.Equal("Restore sidebar (Ctrl+B)", vm.SidebarToggleTooltip);
+        Assert.True(vm.ShowEmptyStateHeader); // Sidebar is collapsed and ActiveConversation is null
+
+        // Restore sidebar
+        vm.RestoreSidebar();
+        Assert.True(vm.IsSidebarOpen);
+        Assert.Equal("◀", vm.SidebarToggleIcon);
+        Assert.False(vm.ShowEmptyStateHeader);
+
+        // Toggle sidebar
+        vm.ToggleSidebar();
+        Assert.False(vm.IsSidebarOpen);
+        Assert.True(vm.ShowEmptyStateHeader);
+
+        vm.ToggleSidebar();
+        Assert.True(vm.IsSidebarOpen);
+        Assert.False(vm.ShowEmptyStateHeader);
+
+        // When conversation becomes active, ShowEmptyStateHeader is false even if collapsed
+        var conv = vm.GetOrCreateConversation("bob@mock.example.com", "Bob", Jid.Parse("bob@mock.example.com"), false);
+        vm.ActiveConversation = conv;
+        vm.CollapseSidebar();
+        Assert.False(vm.IsSidebarOpen);
+        Assert.False(vm.ShowEmptyStateHeader); // ActiveConversation is not null
     }
 
     public void Dispose()

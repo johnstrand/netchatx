@@ -53,7 +53,20 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private string _statusMessage = "Online with NetChatx";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyStateHeader))]
     private ChatConversationViewModel? _activeConversation;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyStateHeader))]
+    [NotifyPropertyChangedFor(nameof(SidebarToggleTooltip))]
+    [NotifyPropertyChangedFor(nameof(SidebarToggleIcon))]
+    private bool _isSidebarOpen = true;
+
+    public bool ShowEmptyStateHeader => !IsSidebarOpen && ActiveConversation == null;
+
+    public string SidebarToggleTooltip => IsSidebarOpen ? "Collapse sidebar (Ctrl+B)" : "Restore sidebar (Ctrl+B)";
+
+    public string SidebarToggleIcon => IsSidebarOpen ? "◀" : "▶";
 
     partial void OnActiveConversationChanged(ChatConversationViewModel? oldValue, ChatConversationViewModel? newValue)
     {
@@ -136,14 +149,21 @@ public sealed partial class MainChatViewModel : ViewModelBase
             });
         };
 
-        _receipts.ReceiptReceived += async (stanzaId, fromJid) =>
+        _receipts.ReceiptReceived += (stanzaId, fromJid) =>
         {
-            await HandleReceiptOrMarkerReceivedAsync(stanzaId, fromJid);
+            // XEP-0184 Delivery Receipts confirm delivery to the recipient's client,
+            // but do not indicate that the message was read or displayed.
+            // Do not mark message as read on delivery receipt.
         };
 
         _chatMarkers.MarkerReceived += async (stanzaId, fromJid, markerType) =>
         {
-            await HandleReceiptOrMarkerReceivedAsync(stanzaId, fromJid);
+            // XEP-0333 Chat Markers: Only Displayed and Acknowledged indicate the message has been read.
+            // Received indicates delivery only.
+            if (markerType is ChatMarkerType.Displayed or ChatMarkerType.Acknowledged)
+            {
+                await HandleReadMarkerReceivedAsync(stanzaId, fromJid);
+            }
         };
 
         try
@@ -527,7 +547,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         return newConv;
     }
 
-    private async Task HandleReceiptOrMarkerReceivedAsync(string stanzaId, Jid? fromJid)
+    private async Task HandleReadMarkerReceivedAsync(string stanzaId, Jid? fromJid)
     {
         if (string.IsNullOrEmpty(stanzaId)) return;
 
@@ -581,6 +601,24 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public void ToggleDetails()
     {
         IsDetailsOpen = !IsDetailsOpen;
+    }
+
+    [RelayCommand]
+    public void ToggleSidebar()
+    {
+        IsSidebarOpen = !IsSidebarOpen;
+    }
+
+    [RelayCommand]
+    public void CollapseSidebar()
+    {
+        IsSidebarOpen = false;
+    }
+
+    [RelayCommand]
+    public void RestoreSidebar()
+    {
+        IsSidebarOpen = true;
     }
 
     [RelayCommand]
@@ -668,7 +706,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Timestamp = ExtractDelayTimestamp(msg),
             StanzaId = msg.Id,
             RawXml = msg.ToXmlString(indent: true),
-            IsRead = (direction == MessageDirection.Outbound) || (isActiveConv && direction == MessageDirection.Inbound)
+            IsRead = direction == MessageDirection.Inbound && isActiveConv
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
@@ -735,7 +773,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Timestamp = ExtractDelayTimestamp(msg),
             StanzaId = msg.Id,
             RawXml = msg.ToXmlString(indent: true),
-            IsRead = (direction == MessageDirection.Outbound) || (isActiveConv && direction == MessageDirection.Inbound)
+            IsRead = direction == MessageDirection.Inbound && isActiveConv
         };
 
         await _messageRepo.SaveMessageAsync(chatMsg);
