@@ -222,7 +222,7 @@
                         <TextBlock Text="🔒 OMEMO Active" FontSize="11" FontWeight="SemiBold" />
                     </Border>
                     <!-- Sync Button -->
-                    <Button Grid.Column="2" Content="Sync 🔄"
+                    <Button Grid.Column="2" Content="{Binding ActiveConversation.SyncButtonText}"
                             Command="{Binding ActiveConversation.SyncArchiveCommand}"
                             IsEnabled="{Binding !ActiveConversation.IsSyncing}"
                             FontSize="12" Margin="0,0,8,0" />

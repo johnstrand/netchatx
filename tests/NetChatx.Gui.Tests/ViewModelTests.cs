@@ -1533,6 +1533,92 @@ public class ViewModelTests : IDisposable
         await client.DisconnectAsync();
     }
 
+    [Fact]
+    public async Task ChatConversationViewModel_SyncArchiveAsync_WithXmlLangMessages_SuccessfullyParsesAndUpdatesUI()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        var mam = new Xep0313MessageArchiveManagement();
+        await mam.AttachAsync(client);
+        await client.ConnectAsync();
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client,
+            mamManager: mam);
+
+        ChatMessage? processedMsg = null;
+        conv.MessageProcessed += m => processedMsg = m;
+
+        Assert.Equal("Sync 🔄", conv.SyncButtonText);
+
+        // Prepare MAM result with xml:lang on inner message to test proper attribute handling
+        server.OnIqReceived += async iq =>
+        {
+            var queryElem = iq.RawElement.Element("query", "urn:xmpp:mam:2");
+            if (queryElem is not null)
+            {
+                string? qid = queryElem.GetAttr("queryid");
+                var resultElem = new XmppElement("result", "urn:xmpp:mam:2")
+                    .Attr("id", "arch_msg_lang_01");
+                if (!string.IsNullOrEmpty(qid))
+                {
+                    resultElem.Attr("queryid", qid);
+                }
+
+                var innerMsg = new XmppElement("message")
+                    .Attr("type", "chat")
+                    .Attr("to", account)
+                    .Attr("from", "bob@mock.example.com/mobile")
+                    .Attr("xml:lang", "en-US")
+                    .Child(new XmppElement("body") { Value = "Hello with xml:lang!" })
+                    .Child(new XmppElement("origin-id", "urn:xmpp:sid:0").Attr("id", "orig_lang_1"));
+
+                var mamMsg = new XmppElement("message")
+                    .Child(resultElem
+                        .Child(new XmppElement("forwarded", "urn:xmpp:forward:0")
+                            .Child(new XmppElement("delay", "urn:xmpp:delay")
+                                .Attr("stamp", "2026-09-11T05:00:00Z"))
+                            .Child(innerMsg)));
+
+                await server.InjectElementAsync(mamMsg);
+            }
+        };
+
+        await conv.SyncArchiveAsync();
+
+        Assert.Equal("Sync 🔄", conv.SyncButtonText);
+        Assert.Single(conv.Messages);
+        Assert.Equal("Hello with xml:lang!", conv.Messages[0].Body);
+        Assert.Equal("bob@mock.example.com/mobile", conv.Messages[0].SenderName);
+        Assert.Contains("xml:lang=\"en-US\"", conv.Messages[0].RawXml);
+
+        Assert.NotNull(processedMsg);
+        Assert.Equal("Hello with xml:lang!", processedMsg.Body);
+
+        var dbMsgs = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMsgs);
+        Assert.Equal("Hello with xml:lang!", dbMsgs[0].Body);
+
+        await client.DisconnectAsync();
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))

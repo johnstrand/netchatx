@@ -69,7 +69,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private bool _isLoadingOlderHistory;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SyncButtonText))]
     private bool _isSyncing;
+
+    public string SyncButtonText => IsSyncing ? "Syncing... ⏳" : "Sync 🔄";
 
     [ObservableProperty]
     private DateTimeOffset? _oldestMessageTimestamp;
@@ -79,6 +82,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public ObservableCollection<MessageBubbleViewModel> Messages { get; } = [];
 
     public event Action? ScrollToBottomRequested;
+    public event Action<ChatMessage>? MessageProcessed;
 
     public void RequestScrollToBottom()
     {
@@ -389,10 +393,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private async Task<List<ChatMessage>> ProcessMamMessagesAsync(IEnumerable<MamMessageItem> items)
     {
         var chatMsgs = new List<ChatMessage>();
+        var parsedAccountJid = Jid.TryParse(_accountJid, out var parsedAcc) ? parsedAcc : null;
         foreach (var item in items)
         {
             var m = item.Message;
-            if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: false, out var reactArgs))
+            bool isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
+                           || (m.From?.EqualsBare(_client?.BoundJid) == true);
+
+            if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: isFromSelf, out var reactArgs))
             {
                 await HandleIncomingReactionAsync(reactArgs);
                 continue;
@@ -896,6 +904,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             {
                 OldestMessageTimestamp = bubble.Timestamp;
             }
+
+            MessageProcessed?.Invoke(msg);
         }
 
         PostToUi(Apply);

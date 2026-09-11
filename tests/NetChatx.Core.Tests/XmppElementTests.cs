@@ -34,4 +34,15 @@ public class XmppElementTests
         Assert.Contains("type=\"get\"", xml);
         Assert.Contains("xmlns=\"jabber:iq:roster\"", xml);
     }
+
+    [Fact]
+    public void ParseAndEmit_WithXmlLangAttribute_SerializesCorrectlyWithoutException()
+    {
+        string xml = "<message to='alice@example.com' from='bob@example.com' type='chat' xml:lang='en'><body>Hello with lang!</body></message>";
+        var elem = XmppElement.Parse(xml);
+
+        Assert.Equal("en", elem.GetAttr("xml:lang"));
+        string outputXml = elem.ToXmlString();
+        Assert.Contains("xml:lang=\"en\"", outputXml);
+    }
 }

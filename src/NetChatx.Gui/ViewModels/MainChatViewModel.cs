@@ -308,30 +308,48 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         try
         {
+            var parsedAccountJid = Jid.TryParse(AccountJid, out var parsedAcc) ? parsedAcc : null;
             var latestTimestamp = await _messageRepo.GetLatestMessageTimestampAsync(AccountJid);
-            MamQueryResult mamResult;
-            if (latestTimestamp.HasValue)
-            {
-                mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, start: latestTimestamp.Value);
-            }
-            else
-            {
-                mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, before: null);
-            }
+            DateTimeOffset? startTimestamp = latestTimestamp;
+            string? beforeId = null;
+            string? afterId = null;
+            const int maxPages = 10;
+            int pagesFetched = 0;
 
-            // If start filter returned 0 messages (e.g. clock drift or server does not support start), fallback to latest page
-            if (mamResult.Messages.Count == 0 && latestTimestamp.HasValue)
+            while (pagesFetched < maxPages)
             {
-                mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, before: null);
-            }
+                MamQueryResult mamResult;
+                if (startTimestamp.HasValue)
+                {
+                    mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, start: startTimestamp.Value, after: afterId);
+                }
+                else
+                {
+                    mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, before: beforeId);
+                }
 
-            if (mamResult.Messages.Count > 0)
-            {
+                pagesFetched++;
+
+                if (mamResult.Messages.Count == 0)
+                {
+                    if (startTimestamp.HasValue && pagesFetched == 1)
+                    {
+                        // Fallback to querying latest page with RSM <before/> in case start filter yields nothing
+                        startTimestamp = null;
+                        pagesFetched = 0;
+                        continue;
+                    }
+                    break;
+                }
+
                 var chatMsgs = new System.Collections.Generic.List<ChatMessage>();
                 foreach (var item in mamResult.Messages)
                 {
                     var m = item.Message;
-                    if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: false, out var reactArgs))
+                    bool isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
+                                   || (m.From?.EqualsBare(_client.BoundJid) == true);
+
+                    if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: isFromSelf, out var reactArgs))
                     {
                         await HandleIncomingReactionAsync(reactArgs);
                         continue;
@@ -339,7 +357,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
                     var defaultRemote = m.Type == MessageStanza.TypeGroupChat
                         ? (m.From ?? m.To)
-                        : (m.From?.EqualsBare(_client.BoundJid) == true ? m.To : m.From);
+                        : (isFromSelf ? m.To : m.From);
                     if (defaultRemote is null) continue;
 
                     var chatMsg = ChatConversationViewModel.ParseMamMessage(
@@ -363,7 +381,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     {
                         foreach (var msg in chatMsgs)
                         {
-                            var conv = Conversations.FirstOrDefault(c => c.RemoteJid.ToString().Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase));
+                            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(msg.RemoteJid, out var rJid) && c.RemoteJid.EqualsBare(rJid));
                             if (conv is not null)
                             {
                                 conv.ReceiveMessage(msg);
@@ -373,7 +391,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                                 ActiveConversation.ReceiveMessage(msg);
                             }
 
-                            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase));
+                            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && Jid.TryParse(msg.RemoteJid, out var rJid) && cJid.EqualsBare(rJid));
                             if (contact is not null)
                             {
                                 contact.LastMessagePreview = msg.Body;
@@ -401,6 +419,30 @@ public sealed partial class MainChatViewModel : ViewModelBase
                             }
                         }
                     });
+                }
+
+                if (mamResult.IsComplete)
+                    break;
+
+                if (startTimestamp.HasValue)
+                {
+                    string? nextAfter = !string.IsNullOrEmpty(mamResult.LastId)
+                        ? mamResult.LastId
+                        : mamResult.Messages.LastOrDefault()?.ArchiveId;
+
+                    if (string.IsNullOrEmpty(nextAfter) || nextAfter == afterId)
+                        break;
+                    afterId = nextAfter;
+                }
+                else
+                {
+                    string? nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
+                        ? mamResult.FirstId
+                        : mamResult.Messages.FirstOrDefault()?.ArchiveId;
+
+                    if (string.IsNullOrEmpty(nextBefore) || nextBefore == beforeId)
+                        break;
+                    beforeId = nextBefore;
                 }
             }
         }
@@ -468,6 +510,18 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _chatMarkers,
             _chatStates,
             _settingsRepo);
+
+        newConv.MessageProcessed += msg =>
+        {
+            PostToUi(() =>
+            {
+                var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
+                if (contact is not null)
+                {
+                    contact.LastMessagePreview = msg.Body;
+                }
+            });
+        };
 
         Conversations.Add(newConv);
         return newConv;
