@@ -9,6 +9,7 @@ using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Stanzas;
 using NetChatx.Core.Xml;
+using NetChatx.Gui.Helpers;
 using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Protocol.Xeps.Muc;
 using NetChatx.Protocol.Xeps.Omemo;
@@ -97,6 +98,159 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isSearching;
+
+    [ObservableProperty]
+    private string _searchResultsHeader = "Search Results";
+
+    [RelayCommand]
+    public async Task ExecuteSearchAsync()
+    {
+        var query = SearchQuery?.Trim();
+        if (string.IsNullOrEmpty(query))
+        {
+            CloseSearch();
+            return;
+        }
+
+        IsSearching = true;
+        SearchResults.Clear();
+
+        var messages = await _messageRepo.SearchMessagesAsync(AccountJid, query, limit: 50);
+        foreach (var msg in messages)
+        {
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis);
+            SearchResults.Add(bubble);
+        }
+
+        SearchResultsHeader = SearchResults.Count switch
+        {
+            0 => $"No results for \"{query}\"",
+            1 => $"1 result for \"{query}\"",
+            _ => $"{SearchResults.Count} results for \"{query}\""
+        };
+    }
+
+    [RelayCommand]
+    public void CloseSearch()
+    {
+        IsSearching = false;
+        SearchQuery = string.Empty;
+        SearchResults.Clear();
+        SearchResultsHeader = "Search Results";
+    }
+
+    [RelayCommand]
+    public async Task SelectSearchResultAsync(MessageBubbleViewModel? result)
+    {
+        if (result is null) return;
+
+        string targetJidStr = !string.IsNullOrEmpty(result.RemoteJid) ? result.RemoteJid : result.SenderName;
+        if (Jid.TryParse(targetJidStr, out var parsedTarget))
+        {
+            var bare = parsedTarget.BareJid;
+            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(bare.ToString(), StringComparison.OrdinalIgnoreCase));
+            string title = contact?.DisplayName ?? bare.ToString();
+            var conv = GetOrCreateConversation(bare.ToString(), title, bare, isGroupChat: false);
+            ActiveConversation = conv;
+            await conv.EnsureHistoryLoadedAsync();
+        }
+
+        IsSearching = false;
+    }
+
+    [ObservableProperty]
+    private bool _isNewChatDialogOpen;
+
+    [ObservableProperty]
+    private string _newChatJid = string.Empty;
+
+    [ObservableProperty]
+    private string _newChatDisplayName = string.Empty;
+
+    [ObservableProperty]
+    private string _newChatErrorMessage = string.Empty;
+
+    [RelayCommand]
+    public void OpenNewChatDialog()
+    {
+        NewChatJid = string.Empty;
+        NewChatDisplayName = string.Empty;
+        NewChatErrorMessage = string.Empty;
+        IsNewChatDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CancelNewChatDialog()
+    {
+        IsNewChatDialogOpen = false;
+        NewChatErrorMessage = string.Empty;
+    }
+
+    [RelayCommand]
+    public async Task ConfirmNewChatAsync()
+    {
+        NewChatErrorMessage = string.Empty;
+        var rawJid = NewChatJid?.Trim();
+        if (string.IsNullOrWhiteSpace(rawJid))
+        {
+            NewChatErrorMessage = "Please enter a contact JID.";
+            return;
+        }
+
+        if (!Jid.TryParse(rawJid, out var parsedJid))
+        {
+            NewChatErrorMessage = "Invalid JID format (e.g. user@example.com).";
+            return;
+        }
+
+        var bareJid = parsedJid.BareJid;
+        string displayName = !string.IsNullOrWhiteSpace(NewChatDisplayName)
+            ? NewChatDisplayName.Trim()
+            : (!string.IsNullOrEmpty(bareJid.LocalPart) ? bareJid.LocalPart : bareJid.ToString());
+
+        var existingContact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(bareJid.ToString(), StringComparison.OrdinalIgnoreCase));
+        if (existingContact is null)
+        {
+            var newContact = new ContactItemViewModel
+            {
+                AccountJid = AccountJid,
+                ContactJid = bareJid.ToString(),
+                Name = displayName,
+                Subscription = "none"
+            };
+            Contacts.Add(newContact);
+
+            await _rosterRepo.UpsertContactsAsync([new RosterContact
+            {
+                AccountJid = AccountJid,
+                ContactJid = bareJid.ToString(),
+                Name = displayName,
+                Subscription = "none"
+            }]);
+
+            if (_client.State == XmppClientState.Connected)
+            {
+                try
+                {
+                    var presence = new PresenceStanza
+                    {
+                        To = bareJid,
+                        Type = "subscribe"
+                    };
+                    await _client.SendStanzaAsync(presence);
+                }
+                catch
+                {
+                    // Soft failure sending subscribe presence
+                }
+            }
+        }
+
+        var conv = GetOrCreateConversation(bareJid.ToString(), displayName, bareJid, isGroupChat: false);
+        ActiveConversation = conv;
+        await conv.EnsureHistoryLoadedAsync();
+        IsNewChatDialogOpen = false;
+    }
 
     [ObservableProperty]
     private bool _isDetailsOpen;
@@ -656,33 +810,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
             }
         });
-    }
-
-    [RelayCommand]
-    public async Task ExecuteSearchAsync()
-    {
-        if (string.IsNullOrWhiteSpace(SearchQuery))
-        {
-            SearchResults.Clear();
-            IsSearching = false;
-            return;
-        }
-
-        IsSearching = true;
-        var results = await _messageRepo.SearchMessagesAsync(AccountJid, SearchQuery.Trim(), limit: 50);
-        SearchResults.Clear();
-        foreach (var r in results)
-        {
-            SearchResults.Add(MessageBubbleViewModel.FromChatMessage(r));
-        }
-    }
-
-    [RelayCommand]
-    public void CloseSearch()
-    {
-        SearchQuery = string.Empty;
-        SearchResults.Clear();
-        IsSearching = false;
     }
 
     [RelayCommand]

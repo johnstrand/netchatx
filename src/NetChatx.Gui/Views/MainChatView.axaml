@@ -5,7 +5,8 @@
              xmlns:conv="using:NetChatx.Gui.Converters"
              xmlns:controls="using:NetChatx.Gui.Controls"
              x:Class="NetChatx.Gui.Views.MainChatView"
-             x:DataType="vm:MainChatViewModel">
+             x:DataType="vm:MainChatViewModel"
+             DragDrop.AllowDrop="True">
 
     <UserControl.Resources>
         <conv:DirectionToAlignmentConverter x:Key="DirectionToAlignment" />
@@ -17,6 +18,7 @@
 
     <UserControl.KeyBindings>
         <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding OpenNewChatDialogCommand}" />
     </UserControl.KeyBindings>
 
     <UserControl.Styles>
@@ -97,7 +99,7 @@
             <!-- Row 0: Current User Presence Bar -->
             <Border Grid.Row="0" Padding="14,12" Background="#0F172A"
                     BorderBrush="#1E293B" BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                     <!-- User Status Dot & Avatar with Logo Icon -->
                     <Panel Grid.Column="0" Width="34" Height="34" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Border Width="34" Height="34" CornerRadius="9" ClipToBounds="True">
@@ -113,8 +115,19 @@
                         <TextBlock Text="{Binding UserBoundJid}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
+                    <!-- Start New Chat / Add Contact Button -->
+                    <Button Grid.Column="2" Content="+"
+                            ToolTip.Tip="Start New Chat / Add Contact (Ctrl+N)"
+                            Command="{Binding OpenNewChatDialogCommand}"
+                            Background="#1E293B" BorderBrush="#334155" BorderThickness="1"
+                            Foreground="#00F0FF" FontWeight="Bold" FontSize="15"
+                            CornerRadius="6"
+                            Width="28" Height="28"
+                            Padding="0"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                            Margin="4,0,2,0" />
                     <!-- Status Menu Button -->
-                    <DropDownButton Grid.Column="2" Content="●"
+                    <DropDownButton Grid.Column="3" Content="●"
                                     Foreground="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
                                     Background="Transparent" BorderThickness="0">
                         <DropDownButton.Flyout>
@@ -126,11 +139,11 @@
                         </DropDownButton.Flyout>
                     </DropDownButton>
                     <!-- Collapse Sidebar Button -->
-                    <Button Grid.Column="3" Content="◀"
+                    <Button Grid.Column="4" Content="◀"
                             ToolTip.Tip="Collapse Sidebar (Ctrl+B)"
                             Command="{Binding CollapseSidebarCommand}"
                             Background="Transparent" BorderThickness="0"
-                            Padding="6,4" Margin="4,0,0,0"
+                            Padding="6,4" Margin="2,0,0,0"
                             FontSize="12" VerticalAlignment="Center" />
                 </Grid>
             </Border>
@@ -138,47 +151,38 @@
             <!-- Row 1: Search Bar -->
             <Border Grid.Row="1" Padding="10,8" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Grid.Column="0" Text="{Binding SearchQuery}" Watermark="Search messages or contacts..."
+                    <TextBox x:Name="SearchInputBox" Grid.Column="0" Text="{Binding SearchQuery, Mode=TwoWay}" Watermark="Search messages (Ctrl+F)..."
                              Height="32" VerticalContentAlignment="Center"
-                             Background="#090D16" BorderBrush="#1E293B" />
-                    <Button Grid.Column="1" Content="🔍" Command="{Binding ExecuteSearchCommand}" Margin="6,0,0,0" Height="32" Width="36" />
+                             Background="#090D16" BorderBrush="#1E293B" Foreground="#F8FAFC" />
+                    <Button Grid.Column="1" Content="🔍" Command="{Binding ExecuteSearchCommand}" ToolTip.Tip="Search Messages (Enter)" Margin="6,0,0,0" Height="32" Width="36" />
                 </Grid>
             </Border>
 
             <!-- Row 2: Search Results or Tabs (Chats & Contacts) -->
             <!-- Search Results View -->
             <Grid Grid.Row="2" RowDefinitions="Auto,*" IsVisible="{Binding IsSearching}">
-                <Border Grid.Row="0" Padding="12,6" Background="{DynamicResource SystemChromeMediumColor}">
+                <Border Grid.Row="0" Padding="12,6" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Search Results" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="Close ✕" Command="{Binding CloseSearchCommand}" FontSize="11" Padding="6,2" />
+                        <TextBlock Grid.Column="0" Text="{Binding SearchResultsHeader}" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Close ✕" Command="{Binding CloseSearchCommand}" FontSize="11" Padding="6,2" Background="Transparent" BorderThickness="0" Foreground="#94A3B8" />
                     </Grid>
                 </Border>
-                <ListBox Grid.Row="1" ItemsSource="{Binding SearchResults}">
+                <ListBox Grid.Row="1" ItemsSource="{Binding SearchResults}"
+                         Background="Transparent">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:MessageBubbleViewModel}">
-                            <StackPanel Spacing="2" Margin="4">
-                                <Grid ColumnDefinitions="*,Auto,Auto">
-                                    <TextBlock Grid.Column="0" Text="{Binding SenderName}" FontWeight="SemiBold" FontSize="11" />
-                                    <Button Grid.Column="1" Classes="image-btn" Command="{Binding ToggleRawXmlCommand}" ToolTip.Tip="Toggle Raw XML" Margin="4,0">
-                                        <TextBlock Text="&lt;/&gt;" FontSize="10" Opacity="0.8" />
-                                    </Button>
-                                    <TextBlock Grid.Column="2" Text="{Binding FormattedDateTime}" Classes="muted" FontSize="10" />
-                                </Grid>
-                                <controls:HyperlinkTextBlock Text="{Binding Body}"
-                                                             IsMarkdownEnabled="{Binding !IsUnstyled}"
-                                                             MessageDirection="{Binding Direction}"
-                                                             FontSize="12"
-                                                             TextWrapping="Wrap" />
-                                <Border IsVisible="{Binding IsRawXmlVisible}"
-                                        Background="{DynamicResource SystemChromeMediumColor}"
-                                        CornerRadius="4" Padding="6" Margin="0,4,0,0">
-                                    <TextBox Text="{Binding RawXml, Mode=OneWay}"
-                                             IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-                                             FontFamily="Consolas, monospace" FontSize="10" MaxHeight="120"
-                                             Background="Transparent" BorderThickness="0" />
-                                </Border>
-                            </StackPanel>
+                            <Button Command="{Binding ((vm:MainChatViewModel)DataContext).SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                    Background="Transparent" BorderThickness="0" Padding="8,6">
+                                <StackPanel Spacing="3">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding SenderName}" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="{Binding FormattedDateTime}" Foreground="#64748B" FontSize="10" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Body}" Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="2" />
+                                </StackPanel>
+                            </Button>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -704,6 +708,34 @@
                         </Grid>
                     </Border>
 
+                    <!-- Replying to Message Banner -->
+                    <Border Background="#131C2D"
+                            BorderBrush="#00F0FF"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8"
+                            IsVisible="{Binding ActiveConversation.HasReplyingMessage}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="↩" FontSize="15" Foreground="#00F0FF" VerticalAlignment="Center" Margin="4,0,8,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding ActiveConversation.ReplyingToMessage.SenderName, StringFormat='Replying to {0}'}"
+                                           FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" />
+                                <TextBlock Text="{Binding ActiveConversation.ReplyingToMessage.Body}"
+                                           Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Content="✕"
+                                    ToolTip.Tip="Cancel Reply (Esc)"
+                                    Command="{Binding ActiveConversation.CancelReplyingMessageCommand}"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="#94A3B8"
+                                    Width="28" Height="28"
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
                     <!-- Message Input & Send Controls -->
                     <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                         <TextBox x:Name="MessageInputBox"
@@ -853,6 +885,59 @@
                 </StackPanel>
             </ScrollViewer>
         </Border>
+
+        <!-- ================= NEW CHAT / ADD CONTACT MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding IsNewChatDialogOpen}"
+              ZIndex="999">
+            <!-- Dark semi-transparent backdrop -->
+            <Border Background="#80000000" PointerPressed="OnNewChatBackdropPressed" />
+            <!-- Centered Card -->
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="400" Padding="24" CornerRadius="16"
+                    Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
+                    BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
+                <StackPanel Spacing="16">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Start New Chat" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" />
+                            <TextBlock Text="Enter a contact's Jabber ID to begin messaging." Foreground="#64748B" FontSize="11" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="✕" Command="{Binding CancelNewChatDialogCommand}"
+                                Background="Transparent" BorderThickness="0" Foreground="#94A3B8" Padding="6,2" />
+                    </Grid>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Contact JID" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
+                        <TextBox x:Name="NewChatJidInput" Text="{Binding NewChatJid, Mode=TwoWay}"
+                                 Watermark="e.g. alice@example.com"
+                                 Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
+                                 Foreground="#F8FAFC" Height="36" VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Display Name (Optional)" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
+                        <TextBox Text="{Binding NewChatDisplayName, Mode=TwoWay}"
+                                 Watermark="e.g. Alice Cooper"
+                                 Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
+                                 Foreground="#F8FAFC" Height="36" VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding NewChatErrorMessage}"
+                               Foreground="#F43F5E" FontSize="11"
+                               IsVisible="{Binding NewChatErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelNewChatDialogCommand}"
+                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1"
+                                Foreground="#94A3B8"
+                                Margin="0,0,8,0" Padding="14,6" CornerRadius="8" />
+                        <Button Grid.Column="2" Content="Start Chat" Classes="accent" Command="{Binding ConfirmNewChatCommand}"
+                                Padding="16,6" CornerRadius="8" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- ================= CODE BLOCK EDITOR MODAL OVERLAY ================= -->
         <Grid Grid.Column="0" Grid.ColumnSpan="4"

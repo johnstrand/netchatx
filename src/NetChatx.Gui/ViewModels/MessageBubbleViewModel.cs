@@ -89,6 +89,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private string _senderName = "Me";
 
     [ObservableProperty]
+    private string _remoteJid = string.Empty;
+
+    [ObservableProperty]
     private bool _isEncrypted;
 
     [ObservableProperty]
@@ -492,6 +495,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             Direction = msg.Direction,
             Timestamp = msg.Timestamp,
             SenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid,
+            RemoteJid = msg.RemoteJid ?? string.Empty,
             IsEncrypted = msg.IsEncrypted,
             EncryptionType = msg.EncryptionType,
             IsRead = msg.IsRead,

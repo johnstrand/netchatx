@@ -58,6 +58,18 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private string _inputText = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReplyingMessage))]
+    private MessageBubbleViewModel? _replyingToMessage;
+
+    public bool HasReplyingMessage => ReplyingToMessage != null;
+
+    [RelayCommand]
+    public void CancelReplyingMessage()
+    {
+        ReplyingToMessage = null;
+    }
+
+    [ObservableProperty]
     private byte[]? _pendingImageBytes;
 
     [ObservableProperty]
@@ -953,6 +965,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         InputText = string.Empty;
         ClearPendingImage();
+        CancelReplyingMessage();
 
         string? imageUrl = null;
         if (imageToSend is not null && imageToSend.Length > 0)
@@ -1136,6 +1149,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public void ReplyToMessage(MessageBubbleViewModel message)
     {
         if (message is null) return;
+        ReplyingToMessage = message;
 
         string textToQuote = !string.IsNullOrEmpty(message.Body) ? message.Body : (message.ImageUrl ?? string.Empty);
         if (string.IsNullOrWhiteSpace(textToQuote)) return;
