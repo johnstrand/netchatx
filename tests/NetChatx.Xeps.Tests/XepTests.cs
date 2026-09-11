@@ -645,4 +645,19 @@ public class XepTests
 
         Assert.Equal(Xep0424MessageRetraction.FallbackMessageText, parsed.Element("body")?.Value);
     }
+
+    [Fact]
+    public void Xep0393_MessageStyling_DiscoveryAndHelpers_Work()
+    {
+        var styling = new Xep0393MessageStyling();
+        Assert.Equal("urn:xmpp:styling:0", styling.FeatureUri);
+        Assert.Equal("XEP-0393: Message Styling", styling.Name);
+
+        var elem = new XmppElement("message");
+        Assert.False(Xep0393MessageStyling.IsUnstyled(elem));
+
+        Xep0393MessageStyling.AttachUnstyled(elem);
+        Assert.True(Xep0393MessageStyling.IsUnstyled(elem));
+        Assert.NotNull(elem.Element("unstyled", "urn:xmpp:styling:0"));
+    }
 }

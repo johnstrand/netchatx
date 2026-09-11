@@ -17,11 +17,13 @@ using NetChatx.Storage.Repositories;
 
 namespace NetChatx.Gui.ViewModels;
 
-public sealed partial class MessageBubbleViewModel : ViewModelBase
+public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 {
-    private static readonly Regex ImageUrlRegex = new(
-        @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?",
+    public static readonly Regex ImageUrlRegex = new(
+        @"https?://[^\s<>""]+?\.(?:png|jpe?g|gif|webp|bmp)(?:\?[^\s<>""]*)?|(?:https?://(?:media|c|www)\.tenor\.com/[^\s<>""]+)|(?:https?://(?:media\d*|i)\.giphy\.com/[^\s<>""]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private GifAnimationPlayer? _gifPlayer;
 
     public Func<MessageBubbleViewModel, string, Task>? ToggleReactionHandler { get; set; }
 
@@ -33,6 +35,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
 
     partial void OnBodyChanged(string value)
     {
+        _gifPlayer?.Dispose();
+        _gifPlayer = null;
         ExtractImageUrl(value);
         ExtractLinks(value);
         if (HasImage)
@@ -64,6 +68,22 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(FormattedTime))]
     [NotifyPropertyChangedFor(nameof(FormattedDateTime))]
     private DateTimeOffset _timestamp = DateTimeOffset.UtcNow;
+
+    partial void OnTimestampChanged(DateTimeOffset value)
+    {
+        if (MergedMessages.Count <= 1)
+        {
+            LatestTimestamp = value;
+        }
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormattedTime))]
+    [NotifyPropertyChangedFor(nameof(FormattedDateTime))]
+    private DateTimeOffset _latestTimestamp = default;
+
+    public List<ChatMessage> MergedMessages { get; } = [];
+    public HashSet<string> MergedMessageIds { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     [ObservableProperty]
     private string _senderName = "Me";
@@ -97,7 +117,13 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     private bool _hasImage;
 
     [ObservableProperty]
+    private bool _isGif;
+
+    [ObservableProperty]
     private bool _isOnlyImage;
+
+    [ObservableProperty]
+    private bool _isUnstyled;
 
     [ObservableProperty]
     private Bitmap? _imageThumbnail;
@@ -128,7 +154,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
     {
         get
         {
-            var local = Timestamp.ToLocalTime();
+            var time = LatestTimestamp != default ? LatestTimestamp : Timestamp;
+            var local = time.ToLocalTime();
             var today = DateTime.Today;
 
             if (local.Date == today)
@@ -150,7 +177,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         }
     }
 
-    public string FormattedDateTime => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    public string FormattedDateTime => (LatestTimestamp != default ? LatestTimestamp : Timestamp).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
 
@@ -235,6 +262,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             HasImage = false;
             ImageUrl = null;
             IsOnlyImage = false;
+            IsGif = false;
             return;
         }
 
@@ -244,12 +272,19 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
             ImageUrl = match.Value;
             HasImage = true;
             IsOnlyImage = body.Trim().Equals(match.Value, StringComparison.OrdinalIgnoreCase);
+            if (ImageUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                ImageUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
+                ImageUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase))
+            {
+                IsGif = true;
+            }
         }
         else
         {
             HasImage = false;
             ImageUrl = null;
             IsOnlyImage = false;
+            IsGif = false;
         }
     }
 
@@ -259,13 +294,31 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         IsLoadingImage = true;
         try
         {
-            var bmp = await AsyncImageLoader.LoadImageAsync(ImageUrl);
+            var (bmp, gifFrames) = await AsyncImageLoader.LoadImageOrGifAsync(ImageUrl);
             if (bmp is not null)
             {
                 Dispatcher.UIThread.Post(() =>
                 {
+                    _gifPlayer?.Dispose();
+                    _gifPlayer = null;
+
                     ImageThumbnail = bmp;
                     IsLoadingImage = false;
+
+                    if (gifFrames is not null && gifFrames.Count > 1)
+                    {
+                        IsGif = true;
+                        _gifPlayer = new GifAnimationPlayer(gifFrames, nextFrame =>
+                        {
+                            ImageThumbnail = nextFrame;
+                        });
+                    }
+                    else if (ImageUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                             ImageUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
+                             ImageUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase))
+                    {
+                        IsGif = true;
+                    }
                 });
             }
             else
@@ -295,12 +348,36 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
                     ImageUrl = match.Value;
                     HasImage = true;
                     IsOnlyImage = string.IsNullOrWhiteSpace(Body) || Body.Trim().Equals(match.Value, StringComparison.OrdinalIgnoreCase);
+                    if (ImageUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                        ImageUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
+                        ImageUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase))
+                    {
+                        IsGif = true;
+                    }
                 }
             }
         }
         catch
         {
             // Soft failure parsing raw XML for OOB
+        }
+    }
+
+    public void ExtractStyling(string? rawXml)
+    {
+        if (string.IsNullOrWhiteSpace(rawXml)) return;
+
+        try
+        {
+            var elem = NetChatx.Core.Xml.XmppElement.Parse(rawXml);
+            if (NetChatx.Protocol.Xeps.Messaging.Xep0393MessageStyling.IsUnstyled(elem))
+            {
+                IsUnstyled = true;
+            }
+        }
+        catch
+        {
+            // Soft failure parsing raw XML for styling
         }
     }
 
@@ -428,11 +505,15 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         var emojisToUse = quickEmojis ?? EmojiData.DefaultQuickEmojis;
         vm.EmojiPicker = new EmojiPickerViewModel(accountJid, emojisToUse, emoji => vm.QuickReactAsync(emoji), settingsRepo);
 
+        vm.AddMessageRecord(msg);
+        vm.LatestTimestamp = msg.Timestamp;
+
         vm.ExtractImageUrl(msg.Body);
         if (!vm.HasImage)
         {
             vm.ExtractOobImageUrl(msg.RawXml);
         }
+        vm.ExtractStyling(msg.RawXml);
         vm.ExtractLinks(msg.Body);
         if (vm.HasImage)
         {
@@ -440,5 +521,196 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase
         }
 
         return vm;
+    }
+
+    public bool ContainsMessageId(string? id)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        if (Id == id || StanzaId == id || OriginId == id) return true;
+        return MergedMessageIds.Contains(id);
+    }
+
+    public void AddMessageRecord(ChatMessage msg)
+    {
+        MergedMessages.Add(msg);
+        if (!string.IsNullOrEmpty(msg.Id)) MergedMessageIds.Add(msg.Id);
+        if (!string.IsNullOrEmpty(msg.StanzaId)) MergedMessageIds.Add(msg.StanzaId);
+        if (!string.IsNullOrEmpty(msg.OriginId)) MergedMessageIds.Add(msg.OriginId);
+    }
+
+    public bool CanMergeWith(ChatMessage msg, bool enableMerging, int thresholdSeconds)
+    {
+        if (!enableMerging || thresholdSeconds <= 0) return false;
+
+        // Must match message direction
+        if (Direction != msg.Direction) return false;
+
+        // For inbound, must match sender
+        if (Direction == MessageDirection.Inbound &&
+            !string.Equals(SenderName, msg.SenderJid, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Must be on the same calendar day
+        var timeToCompare = LatestTimestamp != default ? LatestTimestamp : Timestamp;
+        if (timeToCompare.ToLocalTime().Date != msg.Timestamp.ToLocalTime().Date)
+        {
+            return false;
+        }
+
+        // Must be within threshold seconds
+        var diffSeconds = Math.Abs((msg.Timestamp - timeToCompare).TotalSeconds);
+        return diffSeconds <= thresholdSeconds;
+    }
+
+    public void MergeMessage(ChatMessage msg)
+    {
+        AddMessageRecord(msg);
+
+        if (msg.Timestamp > LatestTimestamp)
+        {
+            LatestTimestamp = msg.Timestamp;
+        }
+
+        Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
+        IsRead = MergedMessages.All(m => m.IsRead);
+
+        ExtractImageUrl(Body);
+        ExtractLinks(Body);
+        if (HasImage && ImageThumbnail is null)
+        {
+            _ = LoadThumbnailAsync();
+        }
+    }
+
+    public bool RemoveMessageById(string messageOrStanzaId)
+    {
+        var match = MergedMessages.FirstOrDefault(m =>
+            m.Id == messageOrStanzaId ||
+            m.StanzaId == messageOrStanzaId ||
+            m.OriginId == messageOrStanzaId);
+
+        if (match is not null)
+        {
+            MergedMessages.Remove(match);
+            if (!string.IsNullOrEmpty(match.Id)) MergedMessageIds.Remove(match.Id);
+            if (!string.IsNullOrEmpty(match.StanzaId)) MergedMessageIds.Remove(match.StanzaId);
+            if (!string.IsNullOrEmpty(match.OriginId)) MergedMessageIds.Remove(match.OriginId);
+
+            if (MergedMessages.Count > 0)
+            {
+                var first = MergedMessages[0];
+                Id = first.Id;
+                StanzaId = first.StanzaId;
+                OriginId = first.OriginId;
+                ReplaceId = first.ReplaceId;
+                Timestamp = first.Timestamp;
+                Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
+                LatestTimestamp = MergedMessages.Max(m => m.Timestamp);
+                IsRead = MergedMessages.All(m => m.IsRead);
+                ExtractImageUrl(Body);
+                ExtractLinks(Body);
+            }
+            else
+            {
+                Id = string.Empty;
+                StanzaId = null;
+                OriginId = null;
+                ReplaceId = null;
+                LatestTimestamp = Timestamp;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public void UpdateMessageRecord(ChatMessage msg)
+    {
+        var existing = MergedMessages.FirstOrDefault(m =>
+            m.Id == msg.Id ||
+            (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == msg.StanzaId) ||
+            (!string.IsNullOrEmpty(m.OriginId) && m.OriginId == msg.OriginId));
+
+        if (existing is not null)
+        {
+            if (string.IsNullOrEmpty(existing.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId))
+            {
+                existing.StanzaId = msg.StanzaId;
+                MergedMessageIds.Add(msg.StanzaId);
+            }
+            if (string.IsNullOrEmpty(existing.OriginId) && !string.IsNullOrEmpty(msg.OriginId))
+            {
+                existing.OriginId = msg.OriginId;
+                MergedMessageIds.Add(msg.OriginId);
+            }
+            if (msg.IsRead)
+            {
+                existing.IsRead = true;
+            }
+            if (!string.IsNullOrEmpty(msg.ReplaceId))
+            {
+                existing.ReplaceId = msg.ReplaceId;
+                existing.Body = msg.Body;
+                IsEdited = true;
+                ReplaceId = msg.ReplaceId;
+            }
+        }
+
+        if (string.IsNullOrEmpty(StanzaId) && !string.IsNullOrEmpty(msg.StanzaId))
+        {
+            StanzaId = msg.StanzaId;
+        }
+        if (string.IsNullOrEmpty(OriginId) && !string.IsNullOrEmpty(msg.OriginId))
+        {
+            OriginId = msg.OriginId;
+        }
+        if (msg.IsRead && !IsRead)
+        {
+            IsRead = MergedMessages.All(m => m.IsRead);
+        }
+        if (!string.IsNullOrEmpty(msg.ReplaceId) && ReplaceId != msg.ReplaceId)
+        {
+            ReplaceId = msg.ReplaceId;
+            IsEdited = true;
+            Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
+            ExtractImageUrl(Body);
+            ExtractLinks(Body);
+        }
+    }
+
+    public void UpdateMessageContent(string originalId, string newBody, string? newRawXml)
+    {
+        var existing = MergedMessages.FirstOrDefault(m =>
+            m.Id == originalId ||
+            (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == originalId) ||
+            (!string.IsNullOrEmpty(m.OriginId) && m.OriginId == originalId));
+
+        if (existing is not null)
+        {
+            existing.ReplaceId = originalId;
+            existing.Body = newBody;
+            if (!string.IsNullOrEmpty(newRawXml)) existing.RawXml = newRawXml;
+        }
+
+        IsEdited = true;
+        ReplaceId = originalId;
+        if (MergedMessages.Count > 0)
+        {
+            Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
+        }
+        else
+        {
+            Body = newBody;
+        }
+        if (!string.IsNullOrEmpty(newRawXml)) RawXml = newRawXml;
+        ExtractImageUrl(Body);
+        ExtractLinks(Body);
+    }
+
+    public void Dispose()
+    {
+        _gifPlayer?.Dispose();
+        _gifPlayer = null;
     }
 }

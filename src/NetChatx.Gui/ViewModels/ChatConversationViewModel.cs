@@ -73,6 +73,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private bool _hasPendingImage;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PendingImageHeader))]
+    private bool _isPendingImageGif;
+
+    public string PendingImageHeader => IsPendingImageGif ? "🎞️ GIF ready to send" : "📷 Image ready to send";
+
+    [ObservableProperty]
     private bool _isRemoteComposing;
 
     [ObservableProperty]
@@ -97,6 +103,38 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public string LoadOlderButtonText => IsLoadingOlderHistory ? "Loading older messages..." : "▲ Load Older Messages";
 
     public ObservableCollection<MessageBubbleViewModel> Messages { get; } = [];
+
+    private bool _isLoadingSettings;
+
+    [ObservableProperty]
+    private bool _enableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
+
+    [ObservableProperty]
+    private int _messageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
+
+    partial void OnEnableMessageMergingChanged(bool value)
+    {
+        if (!_isLoadingSettings && _settingsRepo is not null)
+        {
+            _ = _settingsRepo.SetMergeMessagesEnabledAsync(_accountJid, value);
+        }
+        if (!_isLoadingSettings)
+        {
+            RebuildMessageBubbles();
+        }
+    }
+
+    partial void OnMessageMergeThresholdSecondsChanged(int value)
+    {
+        if (!_isLoadingSettings && _settingsRepo is not null)
+        {
+            _ = _settingsRepo.SetMergeMessagesThresholdSecondsAsync(_accountJid, value);
+        }
+        if (!_isLoadingSettings)
+        {
+            RebuildMessageBubbles();
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SendButtonIcon))]
@@ -319,11 +357,18 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         {
             try
             {
+                _isLoadingSettings = true;
                 _quickEmojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
+                EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
+                MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
             }
             catch
             {
                 // Fallback to default
+            }
+            finally
+            {
+                _isLoadingSettings = false;
             }
         }
 
@@ -621,21 +666,23 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (Messages.Count == 0) return;
 
-        var messageIds = Messages.Select(m => m.Id).ToList();
+        var messageIds = Messages.SelectMany(m => m.MergedMessageIds.Count > 0 ? m.MergedMessageIds : [m.Id]).Distinct().ToList();
         var rawReactions = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, messageIds);
 
         var reactionsByMsgId = rawReactions.GroupBy(r => r.MessageId).ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var bubble in Messages)
         {
-            if (reactionsByMsgId.TryGetValue(bubble.Id, out var msgReactions))
+            var bubbleReactions = new List<MessageReaction>();
+            var idsToCheck = bubble.MergedMessageIds.Count > 0 ? bubble.MergedMessageIds : [bubble.Id];
+            foreach (var id in idsToCheck)
             {
-                bubble.UpdateReactions(msgReactions, _accountJid);
+                if (reactionsByMsgId.TryGetValue(id, out var msgReactions))
+                {
+                    bubbleReactions.AddRange(msgReactions);
+                }
             }
-            else
-            {
-                bubble.UpdateReactions([], _accountJid);
-            }
+            bubble.UpdateReactions(bubbleReactions, _accountJid);
         }
     }
 
@@ -718,7 +765,17 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (imageBytes is null || imageBytes.Length == 0) return;
 
-        fileName ??= $"image_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.png";
+        bool isGif = GifDecoder.IsGif(imageBytes) || (fileName?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            string ext = isGif ? "gif" : "png";
+            fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
+        }
+        else if (isGif && !fileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = Path.ChangeExtension(fileName, ".gif");
+        }
+
         double kb = imageBytes.Length / 1024.0;
         string sizeText = kb >= 1024 ? $"{kb / 1024.0:F1} MB" : $"{kb:F0} KB";
 
@@ -738,6 +795,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PendingImageFileName = fileName;
         PendingImageSizeText = sizeText;
         PendingImagePreview = previewBitmap;
+        IsPendingImageGif = isGif;
         HasPendingImage = true;
     }
 
@@ -749,6 +807,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PendingImageBytes = null;
         PendingImageFileName = null;
         PendingImageSizeText = null;
+        IsPendingImageGif = false;
         HasPendingImage = false;
     }
 
@@ -756,7 +815,19 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (imageBytes is null || imageBytes.Length == 0) return null;
 
-        fileName ??= $"image_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.png";
+        bool isGif = GifDecoder.IsGif(imageBytes) || (fileName?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true);
+        string defaultExt = isGif ? "gif" : "png";
+        string contentType = isGif ? "image/gif" : "image/png";
+
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{defaultExt}";
+        }
+        else if (isGif && !fileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = Path.ChangeExtension(fileName, ".gif");
+        }
+
         string? imageUrl = null;
 
         // 1. Try XEP-0363 HTTP File Upload if available
@@ -768,7 +839,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 var serviceJid = await _httpUploadManager.DiscoverUploadServiceAsync(Jid.Parse(domain));
                 if (serviceJid is not null)
                 {
-                    imageUrl = await _httpUploadManager.UploadBytesAsync(serviceJid, imageBytes, fileName, "image/png");
+                    imageUrl = await _httpUploadManager.UploadBytesAsync(serviceJid, imageBytes, fileName, contentType);
                 }
             }
             catch
@@ -1038,6 +1109,13 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(bubble.StanzaId) && bubble.StanzaId == msg.Id) return true;
         if (!string.IsNullOrEmpty(msg.StanzaId) && msg.StanzaId == bubble.Id) return true;
 
+        if (bubble.ContainsMessageId(msg.Id) ||
+            (!string.IsNullOrEmpty(msg.StanzaId) && bubble.ContainsMessageId(msg.StanzaId)) ||
+            (!string.IsNullOrEmpty(msg.OriginId) && bubble.ContainsMessageId(msg.OriginId)))
+        {
+            return true;
+        }
+
         // Content similarity within 60 seconds (when IDs are not available on both sides or differing MAM archive IDs)
         if (bubble.Direction == msg.Direction &&
             bubble.Body == msg.Body &&
@@ -1083,6 +1161,42 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
     }
 
+    public void InjectCodeBlock(string codeBlockMarkdown, int insertionIndex = -1)
+    {
+        if (string.IsNullOrEmpty(codeBlockMarkdown)) return;
+
+        if (string.IsNullOrEmpty(InputText))
+        {
+            InputText = codeBlockMarkdown;
+            return;
+        }
+
+        if (insertionIndex < 0 || insertionIndex > InputText.Length)
+        {
+            insertionIndex = InputText.Length;
+        }
+
+        string before = InputText[..insertionIndex];
+        string after = InputText[insertionIndex..];
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append(before);
+        if (before.Length > 0 && !before.EndsWith('\n') && !before.EndsWith('\r'))
+        {
+            sb.Append('\n');
+        }
+
+        sb.Append(codeBlockMarkdown);
+
+        if (after.Length > 0 && !after.StartsWith('\n') && !after.StartsWith('\r'))
+        {
+            sb.Append('\n');
+        }
+        sb.Append(after);
+
+        InputText = sb.ToString();
+    }
+
     [RelayCommand]
     public void StartEditingMessage(MessageBubbleViewModel message)
     {
@@ -1121,36 +1235,53 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (message is null) return;
 
-        if (IsEditingMessage && (EditingMessageId == message.Id || EditingMessageId == message.StanzaId || EditingMessageId == message.OriginId))
+        if (IsEditingMessage && (EditingMessageId == message.Id || EditingMessageId == message.StanzaId || EditingMessageId == message.OriginId || message.ContainsMessageId(EditingMessageId)))
         {
             CancelEditingMessage();
         }
 
-        string targetId = message.StanzaId ?? message.OriginId ?? message.Id;
+        var idsToDelete = new List<string>();
+        if (message.MergedMessages.Count > 0)
+        {
+            foreach (var m in message.MergedMessages)
+            {
+                var tid = m.StanzaId ?? m.OriginId ?? m.Id;
+                idsToDelete.Add(tid);
+                if (!string.IsNullOrEmpty(m.Id) && m.Id != tid) idsToDelete.Add(m.Id);
+            }
+        }
+        else
+        {
+            string targetId = message.StanzaId ?? message.OriginId ?? message.Id;
+            idsToDelete.Add(targetId);
+            if (!string.IsNullOrEmpty(message.Id) && message.Id != targetId) idsToDelete.Add(message.Id);
+        }
 
         // If outbound and client connected, send XEP-0424 retraction stanza
         if (message.IsOutbound && _client is not null)
         {
-            try
+            foreach (var tid in idsToDelete.Distinct())
             {
-                var retractStanza = Xep0424MessageRetraction.CreateRetractionStanza(
-                    RemoteJid,
-                    targetId,
-                    IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat);
+                try
+                {
+                    var retractStanza = Xep0424MessageRetraction.CreateRetractionStanza(
+                        RemoteJid,
+                        tid,
+                        IsGroupChat ? MessageStanza.TypeGroupChat : MessageStanza.TypeChat);
 
-                await _client.SendStanzaAsync(retractStanza);
-            }
-            catch
-            {
-                // Soft failure sending retraction stanza
+                    await _client.SendStanzaAsync(retractStanza);
+                }
+                catch
+                {
+                    // Soft failure sending retraction stanza
+                }
             }
         }
 
         // Delete from database
-        await _messageRepo.DeleteMessageAsync(_accountJid, targetId);
-        if (!string.IsNullOrEmpty(message.Id) && message.Id != targetId)
+        foreach (var tid in idsToDelete.Distinct())
         {
-            await _messageRepo.DeleteMessageAsync(_accountJid, message.Id);
+            await _messageRepo.DeleteMessageAsync(_accountJid, tid);
         }
 
         void RemoveFromList()
@@ -1167,16 +1298,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         void Apply()
         {
             var targetBubble = Messages.FirstOrDefault(m =>
-                m.Id == originalId || m.StanzaId == originalId || m.OriginId == originalId);
+                m.Id == originalId || m.StanzaId == originalId || m.OriginId == originalId || m.ContainsMessageId(originalId));
             if (targetBubble is not null)
             {
-                targetBubble.Body = newBody;
-                targetBubble.IsEdited = true;
-                targetBubble.ReplaceId = originalId;
-                if (!string.IsNullOrEmpty(newRawXml))
-                {
-                    targetBubble.RawXml = newRawXml;
-                }
+                targetBubble.UpdateMessageContent(originalId, newBody, newRawXml);
             }
         }
 
@@ -1188,10 +1313,21 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         void Apply()
         {
             var targetBubble = Messages.FirstOrDefault(m =>
-                m.Id == targetId || m.StanzaId == targetId || m.OriginId == targetId);
+                m.Id == targetId || m.StanzaId == targetId || m.OriginId == targetId || m.ContainsMessageId(targetId));
             if (targetBubble is not null)
             {
-                Messages.Remove(targetBubble);
+                if (targetBubble.MergedMessages.Count > 1)
+                {
+                    targetBubble.RemoveMessageById(targetId);
+                    if (targetBubble.MergedMessages.Count == 0)
+                    {
+                        Messages.Remove(targetBubble);
+                    }
+                }
+                else
+                {
+                    Messages.Remove(targetBubble);
+                }
                 UpdateDateHeaders();
             }
         }
@@ -1206,25 +1342,28 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
             if (existing is not null)
             {
-                if (string.IsNullOrEmpty(existing.StanzaId) && !string.IsNullOrEmpty(msg.StanzaId))
-                {
-                    existing.StanzaId = msg.StanzaId;
-                }
-                if (string.IsNullOrEmpty(existing.OriginId) && !string.IsNullOrEmpty(msg.OriginId))
-                {
-                    existing.OriginId = msg.OriginId;
-                }
-                if (msg.IsRead && !existing.IsRead)
-                {
-                    existing.IsRead = true;
-                }
-                if (!string.IsNullOrEmpty(msg.ReplaceId) && existing.ReplaceId != msg.ReplaceId)
-                {
-                    existing.ReplaceId = msg.ReplaceId;
-                    existing.IsEdited = true;
-                    existing.Body = msg.Body;
-                }
+                existing.UpdateMessageRecord(msg);
                 return;
+            }
+
+            if (EnableMessageMerging && MessageMergeThresholdSeconds > 0 && Messages.Count > 0)
+            {
+                int insertIdx = 0;
+                while (insertIdx < Messages.Count && Messages[insertIdx].Timestamp <= msg.Timestamp)
+                {
+                    insertIdx++;
+                }
+
+                if (insertIdx > 0)
+                {
+                    var prevBubble = Messages[insertIdx - 1];
+                    if (prevBubble.CanMergeWith(msg, EnableMessageMerging, MessageMergeThresholdSeconds))
+                    {
+                        prevBubble.MergeMessage(msg);
+                        MessageProcessed?.Invoke(msg);
+                        return;
+                    }
+                }
             }
 
             var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis);
@@ -1245,6 +1384,43 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             }
 
             MessageProcessed?.Invoke(msg);
+        }
+
+        PostToUi(Apply);
+    }
+
+    public void RebuildMessageBubbles()
+    {
+        void Apply()
+        {
+            if (Messages.Count == 0) return;
+
+            var allMsgs = Messages
+                .SelectMany(b => b.MergedMessages.Count > 0 ? b.MergedMessages : [new ChatMessage
+                {
+                    Id = b.Id,
+                    AccountJid = _accountJid,
+                    RemoteJid = RemoteJid.ToString(),
+                    SenderJid = b.SenderName,
+                    Body = b.Body,
+                    Direction = b.Direction,
+                    Timestamp = b.Timestamp,
+                    IsRead = b.IsRead,
+                    StanzaId = b.StanzaId,
+                    OriginId = b.OriginId,
+                    ReplaceId = b.ReplaceId,
+                    RawXml = b.RawXml
+                }])
+                .OrderBy(m => m.Timestamp)
+                .ToList();
+
+            Messages.Clear();
+            foreach (var msg in allMsgs)
+            {
+                AddOrUpdateMessage(msg);
+            }
+            UpdateDateHeaders();
+            _ = LoadReactionsForCurrentMessagesAsync();
         }
 
         PostToUi(Apply);

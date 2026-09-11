@@ -9,8 +9,8 @@ public sealed record TextSegment(string Text, bool IsLink, string? NavigateUri =
 
 public static class LinkParser
 {
-    private static readonly Regex UrlCandidateRegex = new(
-        @"(?<url>(?:https?://|mailto:|xmpp:|www\.)[^\s<>""]+)",
+    private static readonly Regex CombinedLinkRegex = new(
+        @"(?<mdlink>\[(?<label>[^\]\r\n]+)\]\((?<mdurl>[^\)\s]+)\))|(?<url>(?:https?://|mailto:|xmpp:|www\.)[^\s<>""]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static IReadOnlyList<TextSegment> Parse(string? text)
@@ -21,7 +21,7 @@ public static class LinkParser
         }
 
         var segments = new List<TextSegment>();
-        var matches = UrlCandidateRegex.Matches(text);
+        var matches = CombinedLinkRegex.Matches(text);
 
         if (matches.Count == 0)
         {
@@ -37,12 +37,34 @@ public static class LinkParser
                 continue;
             }
 
-            string rawCandidate = match.Groups["url"].Value;
-            int candidateStart = match.Index;
+            if (match.Groups["mdlink"].Success)
+            {
+                string label = match.Groups["label"].Value;
+                string mdurl = match.Groups["mdurl"].Value;
 
+                if (IsValidUrl(mdurl, out var targetUri))
+                {
+                    if (match.Index > currentIndex)
+                    {
+                        segments.Add(new TextSegment(text.Substring(currentIndex, match.Index - currentIndex), IsLink: false));
+                    }
+
+                    segments.Add(new TextSegment(label, IsLink: true, NavigateUri: targetUri));
+                    currentIndex = match.Index + match.Length;
+                    continue;
+                }
+            }
+
+            string rawCandidate = match.Groups["url"].Value;
+            if (string.IsNullOrEmpty(rawCandidate))
+            {
+                continue;
+            }
+
+            int candidateStart = match.Index;
             var (cleanUrl, trailingPunctuation) = TrimTrailingPunctuation(rawCandidate);
 
-            if (IsValidUrl(cleanUrl, out var targetUri))
+            if (IsValidUrl(cleanUrl, out var targetUri2))
             {
                 // Preceding plain text
                 if (candidateStart > currentIndex)
@@ -51,7 +73,7 @@ public static class LinkParser
                 }
 
                 // Link segment
-                segments.Add(new TextSegment(cleanUrl, IsLink: true, NavigateUri: targetUri));
+                segments.Add(new TextSegment(cleanUrl, IsLink: true, NavigateUri: targetUri2));
                 currentIndex = candidateStart + cleanUrl.Length;
 
                 // Trailing punctuation from trimming
@@ -103,7 +125,7 @@ public static class LinkParser
         return false;
     }
 
-    private static (string CleanUrl, string Trailing) TrimTrailingPunctuation(string candidate)
+    public static (string CleanUrl, string Trailing) TrimTrailingPunctuation(string candidate)
     {
         var trailing = new StringBuilder();
         string url = candidate;

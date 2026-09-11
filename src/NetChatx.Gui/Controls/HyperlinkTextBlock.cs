@@ -7,19 +7,25 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using NetChatx.Gui.Helpers;
+using NetChatx.Gui.Helpers.Markdown;
 using NetChatx.Storage.Models;
 
 namespace NetChatx.Gui.Controls;
 
 public class HyperlinkTextBlock : TextBlock
 {
-    private static readonly IBrush DefaultInboundBrush = new SolidColorBrush(Color.Parse("#60A5FA"));  // Tailwind Blue 400
+    private static readonly IBrush DefaultInboundBrush = new SolidColorBrush(Color.Parse("#00F0FF"));  // Electric Cyan
     private static readonly IBrush DefaultOutboundBrush = new SolidColorBrush(Color.Parse("#BAE6FD")); // Tailwind Sky 200
 
     public static readonly StyledProperty<MessageDirection> MessageDirectionProperty =
         AvaloniaProperty.Register<HyperlinkTextBlock, MessageDirection>(
             nameof(MessageDirection),
             defaultValue: MessageDirection.Inbound);
+
+    public static readonly StyledProperty<bool> IsMarkdownEnabledProperty =
+        AvaloniaProperty.Register<HyperlinkTextBlock, bool>(
+            nameof(IsMarkdownEnabled),
+            defaultValue: true);
 
     public static readonly StyledProperty<IBrush?> InboundLinkBrushProperty =
         AvaloniaProperty.Register<HyperlinkTextBlock, IBrush?>(nameof(InboundLinkBrush));
@@ -37,6 +43,12 @@ public class HyperlinkTextBlock : TextBlock
     {
         get => GetValue(MessageDirectionProperty);
         set => SetValue(MessageDirectionProperty, value);
+    }
+
+    public bool IsMarkdownEnabled
+    {
+        get => GetValue(IsMarkdownEnabledProperty);
+        set => SetValue(IsMarkdownEnabledProperty, value);
     }
 
     public IBrush? InboundLinkBrush
@@ -81,10 +93,12 @@ public class HyperlinkTextBlock : TextBlock
             UpdateInlines();
         }
         else if (change.Property == MessageDirectionProperty ||
+                 change.Property == IsMarkdownEnabledProperty ||
                  change.Property == InboundLinkBrushProperty ||
                  change.Property == OutboundLinkBrushProperty ||
                  change.Property == FontSizeProperty ||
-                 change.Property == FontFamilyProperty)
+                 change.Property == FontFamilyProperty ||
+                 change.Property == ForegroundProperty)
         {
             UpdateInlines();
         }
@@ -99,6 +113,39 @@ public class HyperlinkTextBlock : TextBlock
             return;
         }
 
+        var linkBrush = MessageDirection == MessageDirection.Outbound
+            ? (OutboundLinkBrush ?? DefaultOutboundBrush)
+            : (InboundLinkBrush ?? DefaultInboundBrush);
+
+        if (IsMarkdownEnabled && MarkdownParser.HasMarkdownOrLinks(text))
+        {
+            _isUpdatingInlines = true;
+            try
+            {
+                SetCurrentValue(TextProperty, null);
+                Inlines ??= new InlineCollection();
+                Inlines.Clear();
+
+                var doc = MarkdownParser.Parse(text);
+                var context = new MarkdownRenderContext(
+                    FontSize: this.FontSize,
+                    FontFamily: this.FontFamily,
+                    Foreground: this.Foreground,
+                    LinkBrush: linkBrush,
+                    OpenUrlAction: OpenUrlAction,
+                    CopyUrlAction: CopyUrlAction,
+                    MessageDirection: MessageDirection);
+
+                MarkdownRenderer.RenderToInlines(doc, Inlines, context);
+                return;
+            }
+            finally
+            {
+                _isUpdatingInlines = false;
+            }
+        }
+
+        // When Markdown is disabled or text does not contain markdown/links
         var segments = LinkParser.Parse(text);
         bool hasLinks = false;
         for (int i = 0; i < segments.Count; i++)
@@ -123,9 +170,14 @@ public class HyperlinkTextBlock : TextBlock
             Inlines ??= new InlineCollection();
             Inlines.Clear();
 
-            var linkBrush = MessageDirection == MessageDirection.Outbound
-                ? (OutboundLinkBrush ?? DefaultOutboundBrush)
-                : (InboundLinkBrush ?? DefaultInboundBrush);
+            var fallbackContext = new MarkdownRenderContext(
+                FontSize: this.FontSize,
+                FontFamily: this.FontFamily,
+                Foreground: this.Foreground,
+                LinkBrush: linkBrush,
+                OpenUrlAction: OpenUrlAction,
+                CopyUrlAction: CopyUrlAction,
+                MessageDirection: MessageDirection);
 
             foreach (var segment in segments)
             {
@@ -136,70 +188,7 @@ public class HyperlinkTextBlock : TextBlock
                 else
                 {
                     var navUrl = segment.NavigateUri ?? segment.Text;
-                    var linkTb = new TextBlock
-                    {
-                        Text = segment.Text,
-                        TextDecorations = Avalonia.Media.TextDecorations.Underline,
-                        Foreground = linkBrush,
-                        FontSize = this.FontSize,
-                        FontFamily = this.FontFamily,
-                        FontWeight = this.FontWeight,
-                        FontStyle = this.FontStyle,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        TextWrapping = TextWrapping.Wrap,
-                        MaxWidth = 520
-                    };
-
-                    var btn = new Button
-                    {
-                        Content = linkTb,
-                        Classes = { "inline-link" },
-                        Background = Brushes.Transparent,
-                        BorderThickness = new Thickness(0),
-                        Padding = new Thickness(0),
-                        Margin = new Thickness(0),
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-
-                    try
-                    {
-                        btn.Cursor = Cursor.Parse("Hand");
-                    }
-                    catch { }
-
-                    ToolTip.SetTip(btn, navUrl);
-
-                    btn.Click += (s, e) =>
-                    {
-                        if (OpenUrlAction is not null) OpenUrlAction(navUrl);
-                        else UrlLauncher.OpenUrl(navUrl);
-                        e.Handled = true;
-                    };
-
-                    var flyout = new MenuFlyout();
-                    var openItem = new MenuItem { Header = "🌐 Open Link" };
-                    openItem.Click += (_, _) =>
-                    {
-                        if (OpenUrlAction is not null) OpenUrlAction(navUrl);
-                        else UrlLauncher.OpenUrl(navUrl);
-                    };
-
-                    var copyItem = new MenuItem { Header = "📋 Copy Link Address" };
-                    copyItem.Click += async (_, _) =>
-                    {
-                        if (CopyUrlAction is not null) await CopyUrlAction(navUrl);
-                        else await UrlLauncher.CopyToClipboardAsync(navUrl);
-                    };
-
-                    flyout.Items.Add(openItem);
-                    flyout.Items.Add(copyItem);
-                    btn.ContextFlyout = flyout;
-
-                    var container = new InlineUIContainer(btn)
-                    {
-                        BaselineAlignment = BaselineAlignment.Baseline
-                    };
-
+                    var container = MarkdownRenderer.CreateLinkContainer(new MarkdownLink(segment.Text, navUrl), fallbackContext);
                     Inlines.Add(container);
                 }
             }
