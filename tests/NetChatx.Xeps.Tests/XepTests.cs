@@ -495,4 +495,154 @@ public class XepTests
         Assert.Equal("bob@mock.example.com/mobile", receivedFrom?.ToString());
         Assert.Equal(ChatState.Composing, receivedState);
     }
+
+    [Fact]
+    public async Task Xep0308_LastMessageCorrection_SendAndReceive_WorksCorrectly()
+    {
+        var correction = new Xep0308LastMessageCorrection();
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        await correction.AttachAsync(client);
+        await client.ConnectAsync();
+
+        MessageStanza? serverReceivedStanza = null;
+        server.OnMessageReceived += msg => serverReceivedStanza = msg;
+
+        // 1. Send correction test
+        await correction.SendCorrectionAsync(Jid.Parse("bob@mock.example.com"), "orig_msg_1", "Edited message content");
+
+        for (int i = 0; i < 20 && serverReceivedStanza is null; i++) await Task.Delay(25);
+
+        Assert.NotNull(serverReceivedStanza);
+        Assert.Equal("Edited message content", serverReceivedStanza.Body);
+        var replaceElem = serverReceivedStanza.RawElement.Element("replace", Xep0308LastMessageCorrection.NsCorrection);
+        Assert.NotNull(replaceElem);
+        Assert.Equal("orig_msg_1", replaceElem.GetAttr("id"));
+
+        // 2. Receive incoming correction test
+        MessageStanza? clientReceivedStanza = null;
+        string? clientReceivedOriginalId = null;
+
+        correction.MessageCorrected += (msg, originalId) =>
+        {
+            clientReceivedStanza = msg;
+            clientReceivedOriginalId = originalId;
+        };
+
+        var incomingCorrection = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com/mobile")
+            .Attr("to", "alice@mock.example.com")
+            .Child(new XmppElement("body") { Value = "New corrected body" })
+            .Child(new XmppElement("replace", Xep0308LastMessageCorrection.NsCorrection).Attr("id", "msg_to_replace_42"));
+
+        bool pass = await correction.OnIncomingElementAsync(client, incomingCorrection);
+        Assert.False(pass); // Consumed by filter
+        Assert.NotNull(clientReceivedStanza);
+        Assert.Equal("New corrected body", clientReceivedStanza.Body);
+        Assert.Equal("msg_to_replace_42", clientReceivedOriginalId);
+    }
+
+    [Fact]
+    public async Task Xep0424_MessageRetraction_SendAndReceive_WorksCorrectly()
+    {
+        var retraction = new Xep0424MessageRetraction();
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        await retraction.AttachAsync(client);
+        await client.ConnectAsync();
+
+        MessageStanza? serverReceivedStanza = null;
+        server.OnMessageReceived += msg => serverReceivedStanza = msg;
+
+        // 1. Send retraction test
+        await retraction.SendRetractionAsync(Jid.Parse("bob@mock.example.com"), "msg_to_delete_99");
+
+        for (int i = 0; i < 20 && serverReceivedStanza is null; i++) await Task.Delay(25);
+
+        Assert.NotNull(serverReceivedStanza);
+        Assert.Equal("bob@mock.example.com", serverReceivedStanza.To?.ToString());
+        Assert.Equal("chat", serverReceivedStanza.Type);
+        Assert.Equal("jabber:client", serverReceivedStanza.RawElement.GetAttr("xmlns"));
+
+        var originIdElem = serverReceivedStanza.RawElement.Element("origin-id", "urn:xmpp:sid:0");
+        Assert.NotNull(originIdElem);
+        Assert.Equal(serverReceivedStanza.Id, originIdElem.GetAttr("id"));
+
+        var retractElem = serverReceivedStanza.RawElement.Element("retract", Xep0424MessageRetraction.NsRetraction1);
+        Assert.NotNull(retractElem);
+        Assert.Equal("msg_to_delete_99", retractElem.GetAttr("id"));
+
+        var fallbackElem = serverReceivedStanza.RawElement.Element("fallback", Xep0424MessageRetraction.NsFallback);
+        Assert.NotNull(fallbackElem);
+        Assert.Equal(Xep0424MessageRetraction.NsRetraction1, fallbackElem.GetAttr("for"));
+
+        Assert.Equal(Xep0424MessageRetraction.FallbackMessageText, serverReceivedStanza.Body);
+
+        // 2. Receive incoming retraction test (retract:1)
+        string? retractedTargetId = null;
+        Jid? retractedSenderJid = null;
+
+        retraction.MessageRetracted += (targetId, sender) =>
+        {
+            retractedTargetId = targetId;
+            retractedSenderJid = sender;
+        };
+
+        var incomingRetraction = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com/mobile")
+            .Attr("to", "alice@mock.example.com")
+            .Child(new XmppElement("retract", Xep0424MessageRetraction.NsRetraction1).Attr("id", "target_retract_55"));
+
+        bool pass = await retraction.OnIncomingElementAsync(client, incomingRetraction);
+        Assert.False(pass); // Consumed by filter
+        Assert.Equal("target_retract_55", retractedTargetId);
+        Assert.Equal("bob@mock.example.com/mobile", retractedSenderJid?.ToString());
+    }
+
+    [Fact]
+    public void Xep0424_CreateRetractionStanza_MatchesSpecification()
+    {
+        var to = Jid.Parse("richard@squishythoughts.com");
+        var msg = Xep0424MessageRetraction.CreateRetractionStanza(to, "3ecb8966023d449db0d20114071be2c9");
+        msg.Id = "06c46d61-65dc-4724-a994-55ee57fea07b";
+        msg.RawElement.Element("origin-id", "urn:xmpp:sid:0")!.Attr("id", msg.Id);
+
+        string xml = msg.ToXmlString(indent: true);
+        var parsed = XmppElement.Parse(xml);
+
+        Assert.Equal("richard@squishythoughts.com", parsed.GetAttr("to"));
+        Assert.Equal("chat", parsed.GetAttr("type"));
+        Assert.Equal("06c46d61-65dc-4724-a994-55ee57fea07b", parsed.GetAttr("id"));
+        Assert.Equal("jabber:client", parsed.GetAttr("xmlns"));
+
+        var originId = parsed.Element("origin-id", "urn:xmpp:sid:0");
+        Assert.NotNull(originId);
+        Assert.Equal("06c46d61-65dc-4724-a994-55ee57fea07b", originId.GetAttr("id"));
+
+        var retract = parsed.Element("retract", Xep0424MessageRetraction.NsRetraction1);
+        Assert.NotNull(retract);
+        Assert.Equal("3ecb8966023d449db0d20114071be2c9", retract.GetAttr("id"));
+
+        var fallback = parsed.Element("fallback", Xep0424MessageRetraction.NsFallback);
+        Assert.NotNull(fallback);
+        Assert.Equal(Xep0424MessageRetraction.NsRetraction1, fallback.GetAttr("for"));
+
+        Assert.Equal(Xep0424MessageRetraction.FallbackMessageText, parsed.Element("body")?.Value);
+    }
 }

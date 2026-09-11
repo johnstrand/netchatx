@@ -860,6 +860,210 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public void ChatConversationViewModel_StageImageAttachment_SetsPendingPropertiesAndClears()
+    {
+        string account = "alice@example.com";
+        var remote = Jid.Parse("bob@example.com");
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        var dummyBytes = new byte[2048]; // 2 KB
+        conv.StageImageAttachment(dummyBytes, "vacation.png");
+
+        Assert.True(conv.HasPendingImage);
+        Assert.Equal("vacation.png", conv.PendingImageFileName);
+        Assert.Equal(dummyBytes, conv.PendingImageBytes);
+        Assert.Equal("2 KB", conv.PendingImageSizeText);
+
+        // Discard pending image
+        conv.ClearPendingImage();
+
+        Assert.False(conv.HasPendingImage);
+        Assert.Null(conv.PendingImageFileName);
+        Assert.Null(conv.PendingImageBytes);
+        Assert.Null(conv.PendingImageSizeText);
+        Assert.Null(conv.PendingImagePreview);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendMessageAsync_WithPendingImageAndCaption_SendsCombinedMessage()
+    {
+        string account = "alice@example.com";
+        var remote = Jid.Parse("bob@example.com");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/desktop"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        var dummyBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+        conv.StageImageAttachment(dummyBytes, "snapshot.png");
+        conv.InputText = "Look at this snapshot!";
+
+        await conv.SendMessageAsync();
+
+        // Pending image and input text should be reset
+        Assert.False(conv.HasPendingImage);
+        Assert.Empty(conv.InputText);
+
+        // Message should contain both file URI and caption text
+        Assert.Single(conv.Messages);
+        var sentMsg = conv.Messages[0];
+        Assert.Contains("snapshot.png", sentMsg.Body);
+        Assert.Contains("Look at this snapshot!", sentMsg.Body);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendMessageAsync_ProducesCompleteXmppMessageXml()
+    {
+        string account = "john@squishythoughts.com";
+        var remote = Jid.Parse("richard@squishythoughts.com");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/Conversations.7Rzy"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Richard",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        var dummyBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+        conv.StageImageAttachment(dummyBytes, "Y_NYoSXcSzOeKD6AyCUnEg.png");
+        conv.InputText = "Test";
+
+        await conv.SendMessageAsync();
+
+        Assert.Single(conv.Messages);
+        var sentMsg = conv.Messages[0];
+        Assert.NotNull(sentMsg.RawXml);
+
+        var xml = sentMsg.RawXml;
+
+        // Verify root element attributes
+        Assert.Contains("from=\"john@squishythoughts.com/Conversations.7Rzy\"", xml);
+        Assert.Contains("to=\"richard@squishythoughts.com\"", xml);
+        Assert.Contains("xml:lang=\"en\"", xml);
+        Assert.Contains("type=\"chat\"", xml);
+        Assert.Contains("xmlns=\"jabber:client\"", xml);
+
+        // Verify child elements
+        Assert.Contains("<request xmlns=\"urn:xmpp:receipts\"", xml);
+        Assert.Contains("<markable xmlns=\"urn:xmpp:chat-markers:0\"", xml);
+        Assert.Contains("<x xmlns=\"jabber:x:oob\">", xml);
+        Assert.Contains("<url>file:///", xml);
+        Assert.Contains("Y_NYoSXcSzOeKD6AyCUnEg.png</url>", xml);
+        Assert.Contains("<body>file:///", xml);
+        Assert.Contains("Test</body>", xml);
+        Assert.Contains("<active xmlns=\"http://jabber.org/protocol/chatstates\"", xml);
+        Assert.Contains("<stanza-id by=\"john@squishythoughts.com\"", xml);
+        Assert.Contains("xmlns=\"urn:xmpp:sid:0\"", xml);
+        Assert.Contains("<origin-id", xml);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_FromChatMessage_ExtractsOobImageUrl()
+    {
+        string rawXml =
+            "<message from=\"john@squishythoughts.com/Conversations.7Rzy\" id=\"63f358a1-25dc-4b33-9e28-3e80c8252712\" to=\"richard@squishythoughts.com\" xml:lang=\"en\" type=\"chat\" xmlns=\"jabber:client\">\n" +
+            "  <request xmlns=\"urn:xmpp:receipts\" />\n" +
+            "  <markable xmlns=\"urn:xmpp:chat-markers:0\" />\n" +
+            "  <x xmlns=\"jabber:x:oob\">\n" +
+            "    <url>https://chat.squishythoughts.com/upload/11decc24-8d94-4bc2-830b-0890251cba5f/Y_NYoSXcSzOeKD6AyCUnEg.png</url>\n" +
+            "  </x>\n" +
+            "  <body>Check this photo!</body>\n" +
+            "  <active xmlns=\"http://jabber.org/protocol/chatstates\" />\n" +
+            "</message>";
+
+        var msg = new ChatMessage
+        {
+            Id = "oob_test_1",
+            AccountJid = "richard@squishythoughts.com",
+            RemoteJid = "john@squishythoughts.com",
+            SenderJid = "john@squishythoughts.com/Conversations.7Rzy",
+            Body = "Check this photo!",
+            RawXml = rawXml,
+            Direction = MessageDirection.Inbound,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+
+        Assert.True(bubble.HasImage);
+        Assert.Equal("https://chat.squishythoughts.com/upload/11decc24-8d94-4bc2-830b-0890251cba5f/Y_NYoSXcSzOeKD6AyCUnEg.png", bubble.ImageUrl);
+        Assert.False(bubble.IsOnlyImage);
+        Assert.Equal("Check this photo!", bubble.Body);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_SendMessageAsync_EmptyWithoutImage_DoesNotSend()
+    {
+        string account = "alice@example.com";
+        var remote = Jid.Parse("bob@example.com");
+
+        var transport = new LoopbackTransport();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse($"{account}/desktop"),
+            Password = "pass"
+        }, transport);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        conv.InputText = "   ";
+        await conv.SendMessageAsync();
+
+        Assert.Empty(conv.Messages);
+    }
+
+    [Theory]
+    [InlineData("image.png", true)]
+    [InlineData("photo.jpg", true)]
+    [InlineData("photo.jpeg", true)]
+    [InlineData("animation.gif", true)]
+    [InlineData("graphic.webp", true)]
+    [InlineData("bitmap.bmp", true)]
+    [InlineData("icon.ico", true)]
+    [InlineData("document.pdf", false)]
+    [InlineData("binary.exe", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void ClipboardImageHelper_IsImageFile_DetectsSupportedExtensions(string? path, bool expected)
+    {
+        Assert.Equal(expected, ClipboardImageHelper.IsImageFile(path!));
+    }
+
+    [Fact]
     public async Task AsyncImageLoader_Security_RejectsFileAndUncPaths()
     {
         // file:// URIs
@@ -1873,6 +2077,396 @@ public class ViewModelTests : IDisposable
         vm.CollapseSidebar();
         Assert.False(vm.IsSidebarOpen);
         Assert.False(vm.ShowEmptyStateHeader); // ActiveConversation is not null
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_EditAndDelete_PropertiesAndCallbacks_WorkCorrectly()
+    {
+        var msgOut = new ChatMessage
+        {
+            Id = "msg_test_edit_1",
+            AccountJid = "user@test.org",
+            RemoteJid = "contact@test.org",
+            SenderJid = "user@test.org",
+            Body = "Initial text",
+            Direction = MessageDirection.Outbound,
+            ReplaceId = "replaced_stanza_1"
+        };
+        var bubbleOut = MessageBubbleViewModel.FromChatMessage(msgOut);
+
+        Assert.True(bubbleOut.IsOutbound);
+        Assert.True(bubbleOut.IsEdited);
+        Assert.Equal("replaced_stanza_1", bubbleOut.ReplaceId);
+
+        var msgIn = new ChatMessage
+        {
+            Id = "msg_test_edit_2",
+            AccountJid = "user@test.org",
+            RemoteJid = "contact@test.org",
+            SenderJid = "contact@test.org",
+            Body = "Peer text",
+            Direction = MessageDirection.Inbound
+        };
+        var bubbleIn = MessageBubbleViewModel.FromChatMessage(msgIn);
+
+        Assert.False(bubbleIn.IsOutbound);
+        Assert.False(bubbleIn.IsEdited);
+
+        bool editCalled = false;
+        bool deleteCalled = false;
+        bubbleOut.EditRequested = b => editCalled = true;
+        bubbleOut.DeleteRequested = b => deleteCalled = true;
+
+        bubbleOut.Edit();
+        bubbleOut.Delete();
+
+        Assert.True(editCalled);
+        Assert.True(deleteCalled);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_StartAndCancelEditing_ManagesStateAndDraft()
+    {
+        var remote = Jid.Parse("contact@test.org");
+        var conv = new ChatConversationViewModel(
+            "user@test.org",
+            remote.ToString(),
+            "Contact",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        var bubble1 = new MessageBubbleViewModel
+        {
+            Id = "m1",
+            Body = "First outbound message",
+            Direction = MessageDirection.Outbound
+        };
+        var bubble2 = new MessageBubbleViewModel
+        {
+            Id = "m2",
+            Body = "Inbound message from contact",
+            Direction = MessageDirection.Inbound
+        };
+        var bubble3 = new MessageBubbleViewModel
+        {
+            Id = "m3",
+            Body = "Latest outbound message",
+            Direction = MessageDirection.Outbound
+        };
+        conv.Messages.Add(bubble1);
+        conv.Messages.Add(bubble2);
+        conv.Messages.Add(bubble3);
+
+        // Type some draft text
+        conv.InputText = "My unsent draft message";
+
+        // Up arrow triggers StartEditingLastSentMessage
+        conv.StartEditingLastSentMessage();
+
+        Assert.True(conv.IsEditingMessage);
+        Assert.Equal("m3", conv.EditingMessageId);
+        Assert.Equal("Latest outbound message", conv.EditingMessagePreviewText);
+        Assert.Equal("Latest outbound message", conv.InputText);
+        Assert.Equal("✓", conv.SendButtonIcon);
+
+        // Cancel editing restores draft
+        conv.CancelEditingMessage();
+
+        Assert.False(conv.IsEditingMessage);
+        Assert.Null(conv.EditingMessageId);
+        Assert.Null(conv.EditingMessagePreviewText);
+        Assert.Equal("My unsent draft message", conv.InputText);
+        Assert.Equal("➤", conv.SendButtonIcon);
+
+        // Start editing bubble1 directly
+        conv.StartEditingMessage(bubble1);
+        Assert.True(conv.IsEditingMessage);
+        Assert.Equal("m1", conv.EditingMessageId);
+        Assert.Equal("First outbound message", conv.InputText);
+
+        // Inbound message cannot be edited
+        conv.CancelEditingMessage();
+        conv.StartEditingMessage(bubble2);
+        Assert.False(conv.IsEditingMessage);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_EditSentMessage_SendsXep0308StanzaAndUpdatesUiAndDatabase()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        MessageStanza? serverReceivedStanza = null;
+        server.OnMessageReceived += msg => serverReceivedStanza = msg;
+
+        // Save original message in DB and conversation
+        var origMsg = new ChatMessage
+        {
+            Id = "stanza_orig_123",
+            StanzaId = "stanza_orig_123",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = account,
+            Body = "Original message text",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Outbound
+        };
+        await _messageRepo.SaveMessageAsync(origMsg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        await conv.LoadHistoryAsync();
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+        Assert.False(bubble.IsEdited);
+
+        // Start editing
+        conv.StartEditingMessage(bubble);
+        Assert.True(conv.IsEditingMessage);
+        Assert.Equal("stanza_orig_123", conv.EditingMessageId);
+
+        // Change text and send
+        conv.InputText = "Corrected message text";
+        await conv.SendMessageAsync();
+
+        for (int i = 0; i < 20 && serverReceivedStanza is null; i++) await Task.Delay(25);
+
+        // 1. Edit mode exited
+        Assert.False(conv.IsEditingMessage);
+        Assert.Equal(string.Empty, conv.InputText);
+
+        // 2. UI bubble updated in-place
+        Assert.Equal("Corrected message text", bubble.Body);
+        Assert.True(bubble.IsEdited);
+        Assert.False(string.IsNullOrEmpty(bubble.ReplaceId));
+
+        // 3. Stanza sent contains XEP-0308 <replace id="stanza_orig_123" xmlns="urn:xmpp:message-correct:0"/>
+        Assert.NotNull(serverReceivedStanza);
+        Assert.Equal("Corrected message text", serverReceivedStanza.Body);
+        var replaceElem = serverReceivedStanza.RawElement.Element("replace", "urn:xmpp:message-correct:0");
+        Assert.NotNull(replaceElem);
+        Assert.Equal("stanza_orig_123", replaceElem.GetAttr("id"));
+
+        // 4. SQLite database updated
+        var dbMsgs = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMsgs);
+        Assert.Equal("Corrected message text", dbMsgs[0].Body);
+        Assert.Equal(serverReceivedStanza.Id, dbMsgs[0].ReplaceId);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_DeleteOutboundMessage_SendsXep0424StanzaAndRemovesFromUiAndDatabase()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        MessageStanza? serverReceivedStanza = null;
+        server.OnMessageReceived += msg => serverReceivedStanza = msg;
+
+        var msg = new ChatMessage
+        {
+            Id = "stanza_del_456",
+            StanzaId = "stanza_del_456",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = account,
+            Body = "Message to be deleted",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Outbound
+        };
+        await _messageRepo.SaveMessageAsync(msg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: client);
+
+        await conv.LoadHistoryAsync();
+        Assert.Single(conv.Messages);
+        var bubble = conv.Messages[0];
+
+        // Delete message
+        await conv.DeleteMessageAsync(bubble);
+
+        for (int i = 0; i < 20 && serverReceivedStanza is null; i++) await Task.Delay(25);
+
+        // 1. Removed from UI Messages collection
+        Assert.Empty(conv.Messages);
+
+        // 2. Sent retraction stanza per XEP-0424
+        Assert.NotNull(serverReceivedStanza);
+        Assert.Equal("jabber:client", serverReceivedStanza.RawElement.GetAttr("xmlns"));
+        var originIdElem = serverReceivedStanza.RawElement.Element("origin-id", "urn:xmpp:sid:0");
+        Assert.NotNull(originIdElem);
+        Assert.Equal(serverReceivedStanza.Id, originIdElem.GetAttr("id"));
+
+        var retractElem = serverReceivedStanza.RawElement.Element("retract", "urn:xmpp:message-retract:1");
+        Assert.NotNull(retractElem);
+        Assert.Equal("stanza_del_456", retractElem.GetAttr("id"));
+
+        var fallbackElem = serverReceivedStanza.RawElement.Element("fallback", "urn:xmpp:fallback:0");
+        Assert.NotNull(fallbackElem);
+        Assert.Equal("urn:xmpp:message-retract:1", fallbackElem.GetAttr("for"));
+
+        Assert.Equal("/me retracted a previous message, but it's unsupported by your client.", serverReceivedStanza.Body);
+
+        // 3. Removed from database
+        var dbMsgs = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Empty(dbMsgs);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_HandleIncomingCorrectionAndRetraction_UpdatesUi()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Bob",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        var bubble1 = new MessageBubbleViewModel
+        {
+            Id = "msg_peer_1",
+            StanzaId = "stanza_peer_1",
+            Body = "Before edit",
+            Direction = MessageDirection.Inbound
+        };
+        var bubble2 = new MessageBubbleViewModel
+        {
+            Id = "msg_peer_2",
+            StanzaId = "stanza_peer_2",
+            Body = "Message to retract",
+            Direction = MessageDirection.Inbound
+        };
+        conv.Messages.Add(bubble1);
+        conv.Messages.Add(bubble2);
+
+        // Handle incoming correction for bubble1
+        conv.HandleIncomingCorrection("stanza_peer_1", "After edit by peer");
+        Assert.Equal("After edit by peer", bubble1.Body);
+        Assert.True(bubble1.IsEdited);
+
+        // Handle incoming retraction for bubble2
+        conv.HandleIncomingRetraction("stanza_peer_2");
+        Assert.Single(conv.Messages);
+        Assert.Equal("msg_peer_1", conv.Messages[0].Id);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_IncomingCorrectionAndRetractionStanzas_HandledProperly()
+    {
+        string account = "alice@mock.example.com";
+        var remote = Jid.Parse("bob@mock.example.com");
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        var vm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await vm.InitializeAsync();
+        await client.ConnectAsync();
+
+        // 1. Initial message from Bob
+        var origStanza = new MessageStanza(
+            to: Jid.Parse(account),
+            body: "Bob original message",
+            type: MessageStanza.TypeChat,
+            from: remote);
+        origStanza.Id = "bob_msg_101";
+
+        await server.InjectStanzaAsync(origStanza);
+
+        var conv = vm.GetOrCreateConversation(remote.ToString(), "Bob", remote, false);
+        for (int i = 0; i < 20 && conv.Messages.Count == 0; i++) await Task.Delay(25);
+
+        Assert.Single(conv.Messages);
+        Assert.Equal("Bob original message", conv.Messages[0].Body);
+        Assert.False(conv.Messages[0].IsEdited);
+
+        // 2. Incoming XEP-0308 Correction from Bob
+        var correctionStanza = new MessageStanza(
+            to: Jid.Parse(account),
+            body: "Bob corrected message",
+            type: MessageStanza.TypeChat,
+            from: remote);
+        correctionStanza.Id = "bob_msg_102";
+        correctionStanza.RawElement.Child(new XmppElement("replace", "urn:xmpp:message-correct:0").Attr("id", "bob_msg_101"));
+
+        await server.InjectStanzaAsync(correctionStanza);
+        for (int i = 0; i < 20 && !conv.Messages[0].IsEdited; i++) await Task.Delay(25);
+
+        // Still 1 message, but updated text and edited indicator
+        Assert.Single(conv.Messages);
+        Assert.Equal("Bob corrected message", conv.Messages[0].Body);
+        Assert.True(conv.Messages[0].IsEdited);
+
+        // Verify DB updated
+        var dbMsgs = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Single(dbMsgs);
+        Assert.Equal("Bob corrected message", dbMsgs[0].Body);
+
+        // 3. Incoming XEP-0424 Retraction from Bob
+        var retractionStanza = new MessageStanza(
+            to: Jid.Parse(account),
+            type: MessageStanza.TypeChat,
+            from: remote);
+        retractionStanza.Id = "bob_msg_103";
+        retractionStanza.RawElement.Child(new XmppElement("retract", "urn:xmpp:message-retract:0").Attr("id", "bob_msg_101"));
+
+        await server.InjectStanzaAsync(retractionStanza);
+        for (int i = 0; i < 20 && conv.Messages.Count > 0; i++) await Task.Delay(25);
+
+        // Message removed from conversation and database
+        Assert.Empty(conv.Messages);
+        var dbMsgsAfterRetract = await _messageRepo.GetMessagesAsync(account, remote.ToString());
+        Assert.Empty(dbMsgsAfterRetract);
     }
 
     public void Dispose()

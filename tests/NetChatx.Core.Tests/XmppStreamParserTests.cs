@@ -61,4 +61,18 @@ public class XmppStreamParserTests
         Assert.Equal("r", res[0].Name);
         Assert.Equal("urn:xmpp:sm:3", res[0].GetAttr("xmlns"));
     }
+
+    [Fact]
+    public void ParseChunk_TextWithApostrophesAndQuotes_ParsesSuccessfully()
+    {
+        var parser = new XmppStreamParser();
+        _ = parser.ParseChunk("<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>").ToList();
+
+        string xml = "<message type='chat' to='richard@squishythoughts.com'><body>/me retracted a previous message, but it's unsupported by your client. \"Hello!\"</body></message>";
+        var res = parser.ParseChunk(xml).ToList();
+
+        Assert.Single(res);
+        Assert.Equal("message", res[0].Name);
+        Assert.Equal("/me retracted a previous message, but it's unsupported by your client. \"Hello!\"", res[0].Element("body")?.Value);
+    }
 }

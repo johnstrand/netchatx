@@ -213,8 +213,9 @@ public sealed class MessageRepository
 
     public async Task<bool> UpdateMessageByReplaceIdAsync(
         string accountJid,
-        string replaceId,
+        string targetId,
         string newBody,
+        string? replacementStanzaId = null,
         CancellationToken cancellationToken = default)
     {
         using var connection = _context.CreateConnection();
@@ -223,14 +224,56 @@ public sealed class MessageRepository
         cmd.CommandText = """
             UPDATE messages
             SET body = $body, replace_id = $replace_id
-            WHERE account_jid = $account_jid AND (id = $replace_id OR stanza_id = $replace_id OR origin_id = $replace_id);
+            WHERE account_jid = $account_jid AND (id = $target_id OR stanza_id = $target_id OR origin_id = $target_id);
         """;
 
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
-        cmd.Parameters.AddWithValue("$replace_id", replaceId);
+        cmd.Parameters.AddWithValue("$target_id", targetId);
+        cmd.Parameters.AddWithValue("$replace_id", (object?)replacementStanzaId ?? targetId);
         cmd.Parameters.AddWithValue("$body", newBody);
 
         int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        return rows > 0;
+    }
+
+    public async Task<bool> DeleteMessageAsync(
+        string accountJid,
+        string messageId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(messageId)) return false;
+
+        using var connection = _context.CreateConnection();
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // 1. Delete associated reactions
+        using (var delReactCmd = connection.CreateCommand())
+        {
+            delReactCmd.Transaction = (SqliteTransaction)transaction;
+            delReactCmd.CommandText = """
+                DELETE FROM message_reactions
+                WHERE account_jid = $account_jid AND (message_id = $id OR message_id IN (
+                    SELECT id FROM messages WHERE account_jid = $account_jid AND (id = $id OR stanza_id = $id OR origin_id = $id)
+                ));
+            """;
+            delReactCmd.Parameters.AddWithValue("$account_jid", accountJid);
+            delReactCmd.Parameters.AddWithValue("$id", messageId);
+            await delReactCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // 2. Delete message
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = (SqliteTransaction)transaction;
+        cmd.CommandText = """
+            DELETE FROM messages
+            WHERE account_jid = $account_jid AND (id = $id OR stanza_id = $id OR origin_id = $id);
+        """;
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        cmd.Parameters.AddWithValue("$id", messageId);
+
+        int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
         return rows > 0;
     }
 

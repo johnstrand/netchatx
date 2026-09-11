@@ -33,6 +33,12 @@ public sealed class MessageStanza : Stanza
         }
     }
 
+    public string? Language
+    {
+        get => RawElement.GetAttr("xml:lang");
+        set => RawElement.Attr("xml:lang", value);
+    }
+
     public string? Subject
     {
         get => RawElement.Element("subject")?.Value;
