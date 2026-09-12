@@ -256,4 +256,40 @@ public class ChatEnhancementsTests : IDisposable
         Assert.NotNull(savedContact);
         Assert.Equal("New Contact", savedContact.Name);
     }
+
+    [Fact]
+    public void ChatConversationViewModel_ButtonIcons_ReflectSyncAndLoadState()
+    {
+        string account = "me@example.com";
+        var remote = Jid.Parse("peer@example.com");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo);
+
+        // Initial default state
+        Assert.Equal("🔄", conv.SyncButtonIcon);
+        Assert.Equal("Sync 🔄", conv.SyncButtonText);
+        Assert.Equal("▲", conv.LoadOlderButtonIcon);
+        Assert.Equal("▲ Load Older Messages", conv.LoadOlderButtonText);
+
+        // While syncing / loading
+        conv.IsSyncing = true;
+        Assert.Equal("⏳", conv.SyncButtonIcon);
+        Assert.Equal("Syncing... ⏳", conv.SyncButtonText);
+
+        conv.IsLoadingOlderHistory = true;
+        Assert.Equal("⏳", conv.LoadOlderButtonIcon);
+        Assert.Equal("Loading older messages...", conv.LoadOlderButtonText);
+
+        // Reset
+        conv.IsSyncing = false;
+        conv.IsLoadingOlderHistory = false;
+        Assert.Equal("🔄", conv.SyncButtonIcon);
+        Assert.Equal("▲", conv.LoadOlderButtonIcon);
+    }
 }

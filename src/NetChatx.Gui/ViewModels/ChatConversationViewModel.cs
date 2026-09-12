@@ -101,18 +101,22 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LoadOlderButtonText))]
+    [NotifyPropertyChangedFor(nameof(LoadOlderButtonIcon))]
     private bool _isLoadingOlderHistory;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SyncButtonText))]
+    [NotifyPropertyChangedFor(nameof(SyncButtonIcon))]
     private bool _isSyncing;
 
     public string SyncButtonText => IsSyncing ? "Syncing... ⏳" : "Sync 🔄";
+    public string SyncButtonIcon => IsSyncing ? "⏳" : "🔄";
 
     [ObservableProperty]
     private DateTimeOffset? _oldestMessageTimestamp;
 
     public string LoadOlderButtonText => IsLoadingOlderHistory ? "Loading older messages..." : "▲ Load Older Messages";
+    public string LoadOlderButtonIcon => IsLoadingOlderHistory ? "⏳" : "▲";
 
     public ObservableCollection<MessageBubbleViewModel> Messages { get; } = [];
 

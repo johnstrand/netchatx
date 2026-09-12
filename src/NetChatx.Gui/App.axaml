@@ -81,5 +81,103 @@
             <Setter Property="Background" Value="#334155" />
             <Setter Property="Foreground" Value="#64748B" />
         </Style>
+
+        <!-- Uniform 32x32 Icon Button Styles -->
+        <Style Selector="Button.icon-btn">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MaxWidth" Value="32" />
+            <Setter Property="MaxHeight" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#94A3B8" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2D3B55" />
+            <Setter Property="BorderBrush" Value="#00F0FF" />
+            <Setter Property="Foreground" Value="#00F0FF" />
+        </Style>
+        <Style Selector="Button.icon-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#162032" />
+            <Setter Property="BorderBrush" Value="#00C8FF" />
+            <Setter Property="Foreground" Value="#00F0FF" />
+        </Style>
+        <Style Selector="Button.icon-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#131B2B" />
+            <Setter Property="BorderBrush" Value="#1E293B" />
+            <Setter Property="Foreground" Value="#475569" />
+        </Style>
+
+        <!-- Accent Icon Button (Send, Confirm, Add) -->
+        <Style Selector="Button.icon-btn.accent">
+            <Setter Property="Background" Value="{StaticResource NetChatxCyberGradient}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.icon-btn.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource NetChatxCyberGradientHover}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.icon-btn.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#6D28D9" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- Subtle Icon Button (Transparent by default) -->
+        <Style Selector="Button.icon-btn.subtle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#64748B" />
+        </Style>
+        <Style Selector="Button.icon-btn.subtle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#00F0FF" />
+        </Style>
+
+        <!-- Danger Icon Button (Disconnect, Delete) -->
+        <Style Selector="Button.icon-btn.danger">
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="Foreground" Value="#F43F5E" />
+        </Style>
+        <Style Selector="Button.icon-btn.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2B141D" />
+            <Setter Property="BorderBrush" Value="#F43F5E" />
+            <Setter Property="Foreground" Value="#FDA4AF" />
+        </Style>
+
+        <!-- Uniform DropDownButton Style -->
+        <Style Selector="DropDownButton.icon-btn">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MaxWidth" Value="32" />
+            <Setter Property="MaxHeight" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="DropDownButton.icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1E293B" />
+        </Style>
     </Application.Styles>
 </Application>
