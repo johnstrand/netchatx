@@ -715,6 +715,15 @@ public class StorageTests : IDisposable
         Assert.Equal("Unread from Carol", summaries[remote2].lastPreview);
     }
 
+    [Fact]
+    public void DatabaseContext_GetDefaultDatabasePath_ReturnsValidAppDataPath()
+    {
+        string defaultPath = DatabaseContext.GetDefaultDatabasePath();
+        Assert.False(string.IsNullOrWhiteSpace(defaultPath));
+        Assert.EndsWith("netchatx.db", defaultPath, StringComparison.OrdinalIgnoreCase);
+        Assert.True(Directory.Exists(Path.GetDirectoryName(defaultPath)));
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))
@@ -723,3 +732,4 @@ public class StorageTests : IDisposable
         }
     }
 }
+
