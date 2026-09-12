@@ -302,9 +302,14 @@ public static class MarkdownRenderer
             Padding = new Thickness(5, 2),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            Foreground = new SolidColorBrush(Color.Parse("#94A3B8")),
-            Cursor = Cursor.Parse("Hand")
+            Foreground = new SolidColorBrush(Color.Parse("#94A3B8"))
         };
+
+        try
+        {
+            copyBtn.Cursor = Cursor.Parse("Hand");
+        }
+        catch { }
         copyBtn.Click += async (_, _) =>
         {
             await UrlLauncher.CopyToClipboardAsync(codeBlock.Code);
