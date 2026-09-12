@@ -292,4 +292,146 @@ public class ChatEnhancementsTests : IDisposable
         Assert.Equal("🔄", conv.SyncButtonIcon);
         Assert.Equal("▲", conv.LoadOlderButtonIcon);
     }
+
+    [Fact]
+    public void MessageBubbleViewModel_ResolveSenderDisplayName_ResolvesFriendlyNames()
+    {
+        // Outbound
+        Assert.Equal("Me", MessageBubbleViewModel.ResolveSenderDisplayName("user@domain.com", MessageDirection.Outbound));
+        Assert.Equal("Me", MessageBubbleViewModel.ResolveSenderDisplayName("Me", MessageDirection.Inbound));
+
+        // Empty / Null
+        Assert.Equal("Unknown", MessageBubbleViewModel.ResolveSenderDisplayName(null));
+        Assert.Equal("Unknown", MessageBubbleViewModel.ResolveSenderDisplayName("   "));
+
+        // 1-on-1 JIDs
+        Assert.Equal("Bob", MessageBubbleViewModel.ResolveSenderDisplayName("bob@example.com"));
+        Assert.Equal("John Doe", MessageBubbleViewModel.ResolveSenderDisplayName("john.doe@example.com"));
+        Assert.Equal("Jane Smith", MessageBubbleViewModel.ResolveSenderDisplayName("jane_smith@example.com"));
+        Assert.Equal("Alice", MessageBubbleViewModel.ResolveSenderDisplayName("alice@example.com/mobile"));
+
+        // Groupchat (MUC / Conference) with resource
+        Assert.Equal("Alice", MessageBubbleViewModel.ResolveSenderDisplayName("room@conference.example.com/Alice"));
+        Assert.Equal("Richard", MessageBubbleViewModel.ResolveSenderDisplayName("team@muc.company.org/Richard"));
+
+        // Bare domain
+        Assert.Equal("domain.com", MessageBubbleViewModel.ResolveSenderDisplayName("domain.com"));
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_SenderDisplayName_PropertyBehavior()
+    {
+        var msg = new ChatMessage
+        {
+            AccountJid = "me@example.com",
+            RemoteJid = "john.doe@example.com",
+            Direction = MessageDirection.Inbound,
+            SenderJid = "john.doe@example.com/laptop",
+            Body = "Hello world"
+        };
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+        Assert.Equal("john.doe@example.com/laptop", bubble.SenderName);
+        Assert.Equal("John Doe", bubble.SenderDisplayName);
+
+        // Custom display name override
+        bubble.SenderDisplayName = "Johnny";
+        Assert.Equal("Johnny", bubble.SenderDisplayName);
+        Assert.Equal("john.doe@example.com/laptop", bubble.SenderName);
+
+        // Reset custom display name back to null/empty
+        bubble.SenderDisplayName = null!;
+        Assert.Equal("John Doe", bubble.SenderDisplayName);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_GetSenderDisplayName_HandlesOneOnOneAndGroupChat()
+    {
+        string account = "me@example.com";
+        var peerJid = Jid.Parse("alice.cooper@example.com");
+
+        // 1-on-1 conversation with friendly contact title
+        var conv1 = new ChatConversationViewModel(
+            account,
+            peerJid.ToString(),
+            "Alice Cooper",
+            peerJid,
+            isGroupChat: false,
+            _messageRepo);
+
+        var inboundMsg = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            Direction = MessageDirection.Inbound,
+            SenderJid = "alice.cooper@example.com/phone",
+            Body = "Hi there"
+        };
+        var outboundMsg = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            Direction = MessageDirection.Outbound,
+            SenderJid = "me@example.com",
+            Body = "Hello Alice"
+        };
+
+        Assert.Equal("Alice Cooper", conv1.GetSenderDisplayName(inboundMsg));
+        Assert.Equal("Me", conv1.GetSenderDisplayName(outboundMsg));
+
+        // Group chat conversation
+        var roomJid = Jid.Parse("general@conference.example.com");
+        var convGroup = new ChatConversationViewModel(
+            account,
+            roomJid.ToString(),
+            "General Discussion",
+            roomJid,
+            isGroupChat: true,
+            _messageRepo);
+
+        var participantMsg = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = roomJid.ToString(),
+            Direction = MessageDirection.Inbound,
+            SenderJid = "general@conference.example.com/Dave",
+            Body = "Dave joined"
+        };
+
+        Assert.Equal("Dave", convGroup.GetSenderDisplayName(participantMsg));
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_OnTitleChanged_UpdatesInboundBubbleSenderDisplayNames()
+    {
+        string account = "me@example.com";
+        var peerJid = Jid.Parse("bob@example.com");
+
+        var conv = new ChatConversationViewModel(
+            account,
+            peerJid.ToString(),
+            "bob@example.com",
+            peerJid,
+            isGroupChat: false,
+            _messageRepo);
+
+        conv.AddOrUpdateMessage(new ChatMessage
+        {
+            Id = "msg-1",
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            Direction = MessageDirection.Inbound,
+            SenderJid = "bob@example.com/desktop",
+            Body = "Hey!",
+            Timestamp = DateTimeOffset.UtcNow
+        });
+
+        Assert.Equal("bob@example.com/desktop", conv.Messages[0].SenderName);
+        Assert.Equal("Bob", conv.Messages[0].SenderDisplayName);
+
+        // Update Title to a friendly contact name
+        conv.Title = "Robert The Bruce";
+        Assert.Equal("Robert The Bruce", conv.Messages[0].SenderDisplayName);
+    }
 }
+

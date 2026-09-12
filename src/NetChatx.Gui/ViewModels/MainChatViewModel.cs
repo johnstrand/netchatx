@@ -118,7 +118,23 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var messages = await _messageRepo.SearchMessagesAsync(AccountJid, query, limit: 50);
         foreach (var msg in messages)
         {
-            var bubble = MessageBubbleViewModel.FromChatMessage(msg, AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis);
+            string? displayName = null;
+            if (msg.Direction == MessageDirection.Outbound)
+            {
+                displayName = "Me";
+            }
+            else
+            {
+                var contact = Contacts.FirstOrDefault(c =>
+                    c.ContactJid.Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase) ||
+                    c.ContactJid.Equals(msg.SenderJid, StringComparison.OrdinalIgnoreCase));
+                if (contact is not null && !string.IsNullOrWhiteSpace(contact.DisplayName))
+                {
+                    displayName = contact.DisplayName;
+                }
+            }
+
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis, displayName);
             SearchResults.Add(bubble);
         }
 
@@ -752,6 +768,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         var existing = Conversations.FirstOrDefault(c => c.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
         if (existing is not null) return existing;
+
+        if (!isGroupChat && (title == id || title == remoteJid.ToString()))
+        {
+            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(remoteJid));
+            if (contact is not null && !string.IsNullOrWhiteSpace(contact.DisplayName))
+            {
+                title = contact.DisplayName;
+            }
+        }
 
         var newConv = new ChatConversationViewModel(
             AccountJid,
