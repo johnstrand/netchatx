@@ -11,6 +11,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NetChatx.Core;
 using NetChatx.Gui.Helpers;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
@@ -54,6 +55,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ReceiptIcon))]
     [NotifyPropertyChangedFor(nameof(IsOutbound))]
+    [NotifyPropertyChangedFor(nameof(SenderDisplayName))]
     private MessageDirection _direction = MessageDirection.Outbound;
 
     public bool IsOutbound => Direction == MessageDirection.Outbound;
@@ -86,7 +88,27 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     public HashSet<string> MergedMessageIds { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SenderDisplayName))]
     private string _senderName = "Me";
+
+    private string? _senderDisplayName;
+
+    public string SenderDisplayName
+    {
+        get => !string.IsNullOrWhiteSpace(_senderDisplayName)
+            ? _senderDisplayName
+            : ResolveSenderDisplayName(SenderName, Direction);
+        set
+        {
+            if (SetProperty(ref _senderDisplayName, value))
+            {
+                OnPropertyChanged(nameof(SenderDisplayName));
+            }
+        }
+    }
+
+    [ObservableProperty]
+    private string _remoteJid = string.Empty;
 
     [ObservableProperty]
     private bool _isEncrypted;
@@ -483,7 +505,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         ChatMessage msg,
         string accountJid = "",
         SettingsRepository? settingsRepo = null,
-        IEnumerable<string>? quickEmojis = null)
+        IEnumerable<string>? quickEmojis = null,
+        string? senderDisplayName = null)
     {
         var vm = new MessageBubbleViewModel
         {
@@ -492,6 +515,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             Direction = msg.Direction,
             Timestamp = msg.Timestamp,
             SenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid,
+            SenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
+                ? senderDisplayName
+                : ResolveSenderDisplayName(msg.SenderJid, msg.Direction),
+            RemoteJid = msg.RemoteJid ?? string.Empty,
             IsEncrypted = msg.IsEncrypted,
             EncryptionType = msg.EncryptionType,
             IsRead = msg.IsRead,
@@ -521,6 +548,83 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         }
 
         return vm;
+    }
+
+    public static string ResolveSenderDisplayName(string? sender, MessageDirection direction = MessageDirection.Inbound)
+    {
+        if (direction == MessageDirection.Outbound)
+        {
+            return "Me";
+        }
+
+        if (string.IsNullOrWhiteSpace(sender))
+        {
+            return "Unknown";
+        }
+
+        if (string.Equals(sender, "Me", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Me";
+        }
+
+        if (Jid.TryParse(sender, out var jid))
+        {
+            if (!string.IsNullOrWhiteSpace(jid.LocalPart))
+            {
+                // In groupchats (conference/muc), the resource is often the participant nickname
+                if ((jid.Domain.Contains("conference", StringComparison.OrdinalIgnoreCase) ||
+                     jid.Domain.Contains("muc", StringComparison.OrdinalIgnoreCase)) &&
+                    !string.IsNullOrWhiteSpace(jid.Resource))
+                {
+                    return jid.Resource;
+                }
+
+                return FormatNameFromJid(jid);
+            }
+
+            if (!string.IsNullOrWhiteSpace(jid.Resource))
+            {
+                return jid.Resource;
+            }
+
+            return jid.Domain;
+        }
+
+        return sender;
+    }
+
+    public static string FormatNameFromJid(Jid jid)
+    {
+        if (!string.IsNullOrWhiteSpace(jid.LocalPart))
+        {
+            var local = jid.LocalPart.Trim();
+            if (local.Contains('.') || local.Contains('_'))
+            {
+                var parts = local.Split(['.', '_'], StringSplitOptions.RemoveEmptyEntries);
+                return string.Join(" ", parts.Select(Capitalize));
+            }
+
+            return Capitalize(local);
+        }
+
+        if (!string.IsNullOrWhiteSpace(jid.Resource))
+        {
+            return jid.Resource;
+        }
+
+        return jid.Domain;
+    }
+
+    public static string Capitalize(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        if (text.Length == 1) return text.ToUpperInvariant();
+        if (text.Any(char.IsUpper) && text.Any(char.IsLower))
+        {
+            return char.ToUpperInvariant(text[0]) + text.Substring(1);
+        }
+
+        return char.ToUpperInvariant(text[0]) + text.Substring(1).ToLowerInvariant();
     }
 
     public bool ContainsMessageId(string? id)

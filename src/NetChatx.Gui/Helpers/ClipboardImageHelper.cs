@@ -22,6 +22,13 @@ public static class ClipboardImageHelper
 
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
 
+    public static bool IsSupportedImageFile(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return false;
+        var ext = Path.GetExtension(filePath);
+        return !string.IsNullOrEmpty(ext) && ImageExtensions.Contains(ext);
+    }
+
     public static async Task<byte[]?> GetClipboardImageBytesAsync(TopLevel? topLevel)
     {
         var result = await GetClipboardImageAsync(topLevel);

@@ -28,10 +28,8 @@
                 </StackPanel>
 
                 <Button Grid.Column="2" Content="✕"
-                        Classes="image-btn"
+                        Classes="icon-btn subtle"
                         Command="{Binding CancelCommand}"
-                        FontSize="14" Width="28" Height="28"
-                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                         ToolTip.Tip="Close (Esc)" />
             </Grid>
 
@@ -118,13 +116,15 @@
                 </StackPanel>
 
                 <!-- Action Buttons -->
-                <Button Grid.Column="2" Content="Cancel"
+                <Button Grid.Column="2" Content="✕"
+                        ToolTip.Tip="Cancel (Esc)"
                         Command="{Binding CancelCommand}"
-                        Margin="0,0,8,0" Padding="14,6" />
-                <Button Grid.Column="3" Content="Insert Code Block"
-                        Classes="accent"
-                        Command="{Binding InsertCommand}"
-                        Padding="16,6" FontWeight="SemiBold" />
+                        Classes="icon-btn"
+                        Margin="0,0,8,0" />
+                <Button Grid.Column="3" Content="✓"
+                        ToolTip.Tip="Insert Code Block (Ctrl+Enter)"
+                        Classes="icon-btn accent"
+                        Command="{Binding InsertCommand}" />
             </Grid>
         </Grid>
     </Border>

@@ -58,6 +58,18 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private string _inputText = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReplyingMessage))]
+    private MessageBubbleViewModel? _replyingToMessage;
+
+    public bool HasReplyingMessage => ReplyingToMessage != null;
+
+    [RelayCommand]
+    public void CancelReplyingMessage()
+    {
+        ReplyingToMessage = null;
+    }
+
+    [ObservableProperty]
     private byte[]? _pendingImageBytes;
 
     [ObservableProperty]
@@ -89,18 +101,22 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LoadOlderButtonText))]
+    [NotifyPropertyChangedFor(nameof(LoadOlderButtonIcon))]
     private bool _isLoadingOlderHistory;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SyncButtonText))]
+    [NotifyPropertyChangedFor(nameof(SyncButtonIcon))]
     private bool _isSyncing;
 
     public string SyncButtonText => IsSyncing ? "Syncing... ⏳" : "Sync 🔄";
+    public string SyncButtonIcon => IsSyncing ? "⏳" : "🔄";
 
     [ObservableProperty]
     private DateTimeOffset? _oldestMessageTimestamp;
 
     public string LoadOlderButtonText => IsLoadingOlderHistory ? "Loading older messages..." : "▲ Load Older Messages";
+    public string LoadOlderButtonIcon => IsLoadingOlderHistory ? "⏳" : "▲";
 
     public ObservableCollection<MessageBubbleViewModel> Messages { get; } = [];
 
@@ -953,6 +969,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         InputText = string.Empty;
         ClearPendingImage();
+        CancelReplyingMessage();
 
         string? imageUrl = null;
         if (imageToSend is not null && imageToSend.Length > 0)
@@ -1136,6 +1153,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public void ReplyToMessage(MessageBubbleViewModel message)
     {
         if (message is null) return;
+        ReplyingToMessage = message;
 
         string textToQuote = !string.IsNullOrEmpty(message.Body) ? message.Body : (message.ImageUrl ?? string.Empty);
         if (string.IsNullOrWhiteSpace(textToQuote)) return;
@@ -1366,7 +1384,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 }
             }
 
-            var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis);
+            var displayName = GetSenderDisplayName(msg);
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, displayName);
             bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
             bubble.ReplyRequested = ReplyToMessage;
             bubble.EditRequested = StartEditingMessage;
@@ -1387,6 +1406,60 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         PostToUi(Apply);
+    }
+
+    public string GetSenderDisplayName(ChatMessage msg) => GetSenderDisplayName(msg.SenderJid, msg.Direction);
+
+    public string GetSenderDisplayName(string senderJid, MessageDirection direction)
+    {
+        if (direction == MessageDirection.Outbound)
+        {
+            return "Me";
+        }
+
+        if (IsGroupChat)
+        {
+            if (Jid.TryParse(senderJid, out var pJid) && !string.IsNullOrEmpty(pJid.Resource))
+            {
+                return pJid.Resource;
+            }
+        }
+        else
+        {
+            // 1-on-1 chat: If Title is a friendly name (e.g. "Alice Cooper"), use it.
+            // If Title is a JID (e.g. "alice@example.com"), format the JID name.
+            if (!string.IsNullOrWhiteSpace(Title))
+            {
+                if (Title.Contains('@') && Jid.TryParse(Title, out var titleJid))
+                {
+                    return MessageBubbleViewModel.FormatNameFromJid(titleJid);
+                }
+
+                if (!Title.Contains(' ') && (Title.Contains('.') || Title.Contains('_')))
+                {
+                    var parts = Title.Split(['.', '_'], StringSplitOptions.RemoveEmptyEntries);
+                    return string.Join(" ", parts.Select(MessageBubbleViewModel.Capitalize));
+                }
+
+                return Title;
+            }
+        }
+
+        return MessageBubbleViewModel.ResolveSenderDisplayName(senderJid, direction);
+    }
+
+    partial void OnTitleChanged(string value)
+    {
+        if (!IsGroupChat && Messages.Count > 0)
+        {
+            foreach (var b in Messages)
+            {
+                if (b.Direction == MessageDirection.Inbound)
+                {
+                    b.SenderDisplayName = GetSenderDisplayName(b.SenderName, MessageDirection.Inbound);
+                }
+            }
+        }
     }
 
     public void RebuildMessageBubbles()

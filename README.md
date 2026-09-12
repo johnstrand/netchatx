@@ -87,12 +87,31 @@ To start NetChatx:
 dotnet run --project src/NetChatx.Gui/NetChatx.Gui.csproj
 ```
 
-### Running Tests
+### Running Tests & Code Coverage
 NetChatx includes an in-memory loopback XMPP mock server (`NetChatx.MockServer`), allowing end-to-end protocol and UI logic testing without an external XMPP server:
 
 ```bash
 dotnet test NetChatx.slnx
 ```
+
+To run tests with code coverage and generate HTML & Cobertura reports locally:
+```bash
+# Using PowerShell:
+pwsh ./scripts/coverage.ps1
+
+# Using Bash:
+./scripts/coverage.sh
+```
+
+Or directly via the .NET CLI:
+```bash
+dotnet test NetChatx.slnx --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+reportgenerator -reports:TestResults/**/coverage.cobertura.xml -targetdir:coveragereport "-reporttypes:MarkdownSummaryGithub;Html;Cobertura;Badges"
+```
+The resulting reports will be generated in `coveragereport/`:
+- `SummaryGithub.md`: Formatted for GitHub Step Summary and PR comments.
+- `index.html`: Interactive browsable HTML coverage report.
+- `Cobertura.xml`: Unified Cobertura XML report for CI systems and third-party tools.
 
 ### Building for Release
 ```bash

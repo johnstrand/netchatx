@@ -1,6 +1,9 @@
 name: PR CI
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -9,6 +12,9 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -19,5 +25,64 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Run tests
-        run: dotnet test NetChatx.slnx --configuration Release
+      - name: Run tests with Code Coverage
+        run: dotnet test NetChatx.slnx --configuration Release --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+
+      - name: Generate Code Coverage Report
+        uses: danielpalme/ReportGenerator-GitHub-Action@5.4.4
+        with:
+          reports: 'TestResults/**/coverage.cobertura.xml'
+          targetdir: 'coveragereport'
+          reporttypes: 'MarkdownSummaryGithub;Html;Cobertura;Badges'
+          title: 'NetChatx Code Coverage'
+
+      - name: Publish Coverage to GitHub Step Summary
+        if: always()
+        run: cat coveragereport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate High-Level Summary & PR Table
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        if: always()
+        with:
+          filename: 'coveragereport/Cobertura.xml'
+          badge: true
+          fail_below_min: false
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: false
+          indicators: true
+          output: both
+          thresholds: '60 80'
+
+      - name: Add Coverage Comment to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request' && always()
+        continue-on-error: true
+        with:
+          recreate: true
+          path: code-coverage-results.md
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        if: always()
+        continue-on-error: true
+        with:
+          files: coveragereport/Cobertura.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      - name: Upload Coverage HTML Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-coverage-report
+          path: coveragereport/
+          retention-days: 14
+
+      - name: Upload Cobertura XML Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-coverage-xml
+          path: coveragereport/Cobertura.xml
+          retention-days: 14

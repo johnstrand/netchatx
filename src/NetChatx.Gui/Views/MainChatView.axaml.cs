@@ -18,6 +18,7 @@ public partial class MainChatView : UserControl
     private ChatConversationViewModel? _currentConversation;
     private ScrollViewer? _messagesScrollViewer;
     private TextBox? _messageInputBox;
+    private TextBox? _searchInputBox;
     private Button? _attachFileButton;
     private Button? _insertCodeBlockButton;
     private GridSplitter? _sidebarSplitter;
@@ -35,6 +36,7 @@ public partial class MainChatView : UserControl
 
         _messagesScrollViewer = this.FindControl<ScrollViewer>("MessagesScrollViewer");
         _messageInputBox = this.FindControl<TextBox>("MessageInputBox");
+        _searchInputBox = this.FindControl<TextBox>("SearchInputBox");
         _attachFileButton = this.FindControl<Button>("AttachFileButton");
         _insertCodeBlockButton = this.FindControl<Button>("InsertCodeBlockButton");
         _sidebarSplitter = this.FindControl<GridSplitter>("SidebarSplitter");
@@ -45,6 +47,15 @@ public partial class MainChatView : UserControl
             _messageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown, RoutingStrategies.Tunnel);
             _messageInputBox.AddHandler(InputElement.TextInputEvent, OnMessageInputTextInput, RoutingStrategies.Tunnel);
         }
+
+        if (_searchInputBox is not null)
+        {
+            _searchInputBox.AddHandler(InputElement.KeyDownEvent, OnSearchInputKeyDown, RoutingStrategies.Tunnel);
+        }
+
+        AddHandler(InputElement.KeyDownEvent, OnGlobalKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
 
         if (_insertCodeBlockButton is not null)
         {
@@ -79,6 +90,15 @@ public partial class MainChatView : UserControl
             _messageInputBox.RemoveHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown);
             _messageInputBox.RemoveHandler(InputElement.TextInputEvent, OnMessageInputTextInput);
         }
+
+        if (_searchInputBox is not null)
+        {
+            _searchInputBox.RemoveHandler(InputElement.KeyDownEvent, OnSearchInputKeyDown);
+        }
+
+        RemoveHandler(InputElement.KeyDownEvent, OnGlobalKeyDown);
+        RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
+        RemoveHandler(DragDrop.DropEvent, OnDrop);
 
         if (_insertCodeBlockButton is not null)
         {
@@ -276,6 +296,13 @@ public partial class MainChatView : UserControl
                 if (conv.HasPendingImage)
                 {
                     conv.ClearPendingImage();
+                    e.Handled = true;
+                    return;
+                }
+
+                if (conv.HasReplyingMessage)
+                {
+                    conv.CancelReplyingMessage();
                     e.Handled = true;
                     return;
                 }
@@ -508,6 +535,77 @@ public partial class MainChatView : UserControl
         catch
         {
             // Soft failure / prevent unhandled exception in async void event handler
+        }
+    }
+
+    private async void OnSearchInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Return && DataContext is MainChatViewModel vm)
+        {
+            await vm.ExecuteSearchAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && DataContext is MainChatViewModel mainVm)
+        {
+            mainVm.CloseSearch();
+            e.Handled = true;
+        }
+    }
+
+    private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
+        {
+            _searchInputBox?.Focus();
+            _searchInputBox?.SelectAll();
+            e.Handled = true;
+        }
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data.Contains(DataFormats.Files))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+        }
+        else
+        {
+            e.DragEffects = DragDropEffects.None;
+        }
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (!e.Data.Contains(DataFormats.Files) || _currentConversation is null) return;
+
+        var files = e.Data.GetFiles();
+        if (files is null) return;
+
+        foreach (var file in files)
+        {
+            var localPath = file.TryGetLocalPath() ?? file.Path.LocalPath;
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath) && ClipboardImageHelper.IsSupportedImageFile(localPath))
+            {
+                try
+                {
+                    var bytes = await File.ReadAllBytesAsync(localPath);
+                    _currentConversation.StageImageAttachment(bytes, file.Name);
+                    break;
+                }
+                catch
+                {
+                    // Soft failure loading dragged file
+                }
+            }
+        }
+    }
+
+    public void OnNewChatBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.CancelNewChatDialog();
+            e.Handled = true;
         }
     }
 
