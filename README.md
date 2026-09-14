@@ -7,6 +7,15 @@
 ## Highlights & Features
 
 - **Modern Cross-Platform GUI**: Built with **Avalonia UI 11** and Fluent Design, offering dark and light theme adaptability, crisp high-DPI scaling, and native feel across Windows, Linux, and macOS.
+- **Deep Customization & Settings**:
+  - **Typography**: Custom font family and configurable font size.
+  - **Chat Bubble Styling**: Customizable background colors for incoming and outgoing chat bubbles.
+  - **Message Merging**: Configurable time window for merging consecutive messages from the same sender into clean conversational bubbles.
+  - **Dynamic Chat Box**: Text wrapping with auto-expanding input field up to a configurable maximum line count before scrolling begins.
+- **Native System Notifications & Flashing**:
+  - **Platform-Specific Notifications**: Hooks into native OS notification subsystems (Windows Runtime / PowerShell toasts, Linux D-Bus / `notify-send`, and macOS AppleScript notifications).
+  - **Window & Taskbar Flashing**: Flashes window and taskbar / dock icon on new messages when the window is inactive or running in the background.
+  - **Configurable Preferences**: Independent settings toggles for system popups and window flashing.
 - **Rich Media & In-Chat Previews**:
   - **Clipboard Image Pasting**: Directly paste screenshots or copied images (`Ctrl+V` / `Cmd+V`) using native Windows clipboard interop (`PNG` & `CF_DIB`) and cross-platform clipboard providers.
   - **File Attachments**: Pick and send images via the 📎 attachment button.
@@ -117,6 +126,38 @@ The resulting reports will be generated in `coveragereport/`:
 ```bash
 dotnet build NetChatx.slnx -c Release
 ```
+
+---
+
+## Releases & Installation Packages
+
+NetChatx features an automated, run-on-demand GitHub Actions release pipeline ([`.github/workflows/release.yml`](.github/workflows/release.yml)) that produces self-contained, native installation packages for 64-bit systems:
+
+### Platform Packages
+- **Windows (`win-x64`)**:
+  - **Inno Setup Installer (`.exe`)**: `NetChatx-v{version}-win-x64-installer.exe` featuring Start Menu & Desktop shortcuts, uninstaller, and icon associations.
+  - **Portable Archive (`.zip`)**: `NetChatx-v{version}-win-x64.zip` for instant portable execution.
+- **Linux (`linux-x64`)**:
+  - **Debian Package (`.deb`)**: `NetChatx-v{version}-linux-x64.deb` installing to `/usr/lib/netchatx` with `/usr/bin/netchatx` launcher, desktop launcher entry, and hi-res hicolor app icon.
+  - **Tarball Archive (`.tar.gz`)**: `NetChatx-v{version}-linux-x64.tar.gz` for portable installation across all Linux distributions.
+- **macOS / OSX (`osx-arm64` & `osx-x64`)**:
+  - **DMG Disk Image (`.dmg`)**: `NetChatx-v{version}-osx-{arch}.dmg` with drag-to-Applications installer, retina `.icns` bundle icons, and ad-hoc code signing for Apple Silicon and Intel Macs.
+  - **App Bundle ZIP (`.zip`)**: `NetChatx-v{version}-osx-{arch}.zip` containing the signed `NetChatx.app`.
+
+### Versioning & Git Labels
+- **Rolling Minor/Major Versioning**: The release workflow automatically increments the minor version (`0.1.0` $\rightarrow$ `0.2.0` $\dots \rightarrow$ `0.9.0`). When the minor version reaches `10`, it resets to `0` and increments the major version (`0.9.0` $\rightarrow$ `1.0.0`, `1.9.0` $\rightarrow$ `2.0.0`).
+- **Git Tags & Labels**: Each release automatically creates an annotated git release tag (`vX.Y.0`) and creates/updates a matching GitHub repository label (`vX.Y.0`).
+- **On-Demand Dispatch**:
+  ```bash
+  # Trigger automated release bump
+  gh workflow run release.yml
+
+  # Test build matrix with dry-run mode
+  gh workflow run release.yml -f dry_run=true
+
+  # Trigger release with explicit version override
+  gh workflow run release.yml -f version_override="1.0.0"
+  ```
 
 ---
 

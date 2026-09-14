@@ -315,7 +315,10 @@
 
             <!-- Center: Messages Scroll Area -->
             <Grid Grid.Row="1" IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <ScrollViewer x:Name="MessagesScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="MessagesScrollViewer"
+                              FontFamily="{Binding ChatFontFamily}"
+                              FontSize="{Binding ChatFontSize}"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="8" Margin="16">
                         <!-- Load Older Messages Button -->
                         <Button Content="{Binding ActiveConversation.LoadOlderButtonIcon}"
@@ -349,7 +352,7 @@
                                         <!-- Message Bubble Container -->
                                         <Border Classes="bubble-container"
                                                 HorizontalAlignment="{Binding Direction, Converter={StaticResource DirectionToAlignment}}"
-                                                Background="{Binding Direction, Converter={StaticResource DirectionToBackground}}"
+                                                Background="{Binding BubbleBackground}"
                                                 CornerRadius="14"
                                                 Padding="12,8"
                                                 MaxWidth="580"
@@ -512,7 +515,8 @@
                                                                              IsMarkdownEnabled="{Binding !IsUnstyled}"
                                                                              MessageDirection="{Binding Direction}"
                                                                              Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                                             FontSize="13"
+                                                                             FontSize="{Binding ((vm:MainChatViewModel)DataContext).ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                             FontFamily="{Binding ((vm:MainChatViewModel)DataContext).ChatFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              TextWrapping="Wrap"
                                                                              IsVisible="{Binding !IsOnlyImage}" />
 
@@ -520,7 +524,7 @@
                                                 <Button Classes="image-btn"
                                                         Command="{Binding OpenImageCommand}"
                                                         CornerRadius="8" ClipToBounds="True" Margin="0,2"
-                                                        IsVisible="{Binding HasImage}"
+                                                        IsVisible="{Binding IsPreviewVisible}"
                                                         MaxWidth="380" MaxHeight="260" HorizontalAlignment="Left"
                                                         Cursor="Hand">
                                                     <Panel Background="#15888888">
@@ -528,6 +532,13 @@
                                                         <ProgressBar IsIndeterminate="True" Width="80" Height="4"
                                                                      IsVisible="{Binding IsLoadingImage}"
                                                                      VerticalAlignment="Center" HorizontalAlignment="Center" />
+
+                                                        <!-- Manual download button if auto-download off and not yet loaded -->
+                                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,8"
+                                                                    IsVisible="{Binding ImageThumbnail, Converter={x:Static ObjectConverters.IsNull}}">
+                                                            <Button Content="📥 Load Image Preview" Command="{Binding LoadMediaCommand}"
+                                                                    Classes="accent" FontSize="11" Padding="8,4" />
+                                                        </StackPanel>
 
                                                         <!-- Thumbnail Image -->
                                                         <Image Source="{Binding ImageThumbnail}"
@@ -744,32 +755,41 @@
                         <TextBox x:Name="MessageInputBox"
                                  Grid.Column="0"
                                  Text="{Binding ActiveConversation.InputText, Mode=TwoWay}"
-                                 Watermark="Type a message... (Enter to send, Shift+Enter for newline, or ``` for code)"
+                                 Watermark="{Binding MessageInputWatermark}"
+                                 FontFamily="{Binding ChatFontFamily}"
+                                 FontSize="{Binding ChatFontSize}"
                                  AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 MinLines="1"
+                                 MaxLines="{Binding ChatInputMaxLines}"
                                  Background="#090D16"
                                  BorderBrush="#1E293B"
                                  CornerRadius="8"
                                  Foreground="#F8FAFC"
-                                 MaxHeight="100"
                                  VerticalContentAlignment="Center" />
                         <Button x:Name="InsertCodeBlockButton"
                                 Grid.Column="1"
                                 Content="&lt;/&gt;"
                                 ToolTip.Tip="Insert Code Block (```)"
                                 Classes="icon-btn"
-                                Margin="8,0,0,0" />
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Bottom" />
                         <Button x:Name="AttachFileButton"
                                 Grid.Column="2"
                                 Content="📎"
                                 ToolTip.Tip="Attach Image"
                                 Classes="icon-btn"
-                                Margin="8,0,0,0" />
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Bottom" />
                         <Button Grid.Column="3"
                                 Content="{Binding ActiveConversation.SendButtonIcon}"
                                 ToolTip.Tip="{Binding ActiveConversation.SendButtonToolTip}"
                                 Classes="icon-btn accent"
                                 Command="{Binding ActiveConversation.SendMessageCommand}"
-                                Margin="8,0,0,0" />
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Bottom" />
                     </Grid>
                 </StackPanel>
             </Border>

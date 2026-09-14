@@ -9,6 +9,7 @@ using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Stanzas;
 using NetChatx.Core.Xml;
+using NetChatx.Gui.Converters;
 using NetChatx.Gui.Helpers;
 using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Protocol.Xeps.Muc;
@@ -324,6 +325,22 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [ObservableProperty]
     private SettingsViewModel _settings;
 
+    [ObservableProperty]
+    private string _chatFontFamily = SettingsRepository.DefaultFontFamily;
+
+    [ObservableProperty]
+    private double _chatFontSize = SettingsRepository.DefaultFontSize;
+
+    [ObservableProperty]
+    private bool _sendOnEnter = SettingsRepository.DefaultSendOnEnter;
+
+    [ObservableProperty]
+    private int _chatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
+
+    public string MessageInputWatermark => SendOnEnter
+        ? "Type a message... (Enter to send, Shift+Enter for newline, or ``` for code)"
+        : "Type a message... (Ctrl+Enter to send, Enter for newline, or ``` for code)";
+
     public INotificationService NotificationService => _notificationService;
 
     public bool IsWindowActive
@@ -391,6 +408,64 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 {
                     _notificationService.StopFlashing();
                 }
+            },
+            onTypographyChanged: (font, size) =>
+            {
+                ChatFontFamily = font;
+                ChatFontSize = size;
+            },
+            onSendOnEnterChanged: sendOnEnter =>
+            {
+                SendOnEnter = sendOnEnter;
+                OnPropertyChanged(nameof(MessageInputWatermark));
+            },
+            onUse24HourClockChanged: use24h =>
+            {
+                MessageBubbleViewModel.Use24HourClock = use24h;
+                foreach (var conv in Conversations)
+                {
+                    foreach (var msg in conv.Messages)
+                    {
+                        msg.RefreshTimeDisplay();
+                    }
+                }
+            },
+            onMediaSettingsChanged: (showPreviews, autoDownload) =>
+            {
+                MessageBubbleViewModel.ShowInlinePreviews = showPreviews;
+                MessageBubbleViewModel.AutoDownloadMedia = autoDownload;
+                foreach (var conv in Conversations)
+                {
+                    foreach (var msg in conv.Messages)
+                    {
+                        msg.RefreshPreviewVisibility();
+                    }
+                }
+            },
+            onThemeChanged: (theme, accent) =>
+            {
+            },
+            onQuickEmojisChanged: quickEmojis =>
+            {
+                foreach (var conv in Conversations)
+                {
+                    conv.UpdateQuickEmojis(quickEmojis);
+                }
+            },
+            onBubbleColorChanged: (outColor, inColor) =>
+            {
+                DirectionToBackgroundConverter.SetColors(outColor, inColor);
+                foreach (var conv in Conversations)
+                {
+                    foreach (var msg in conv.Messages)
+                    {
+                        msg.RefreshBubbleStyle();
+                    }
+                }
+            },
+            onChatInputMaxLinesChanged: maxLines =>
+            {
+                ChatInputMaxLines = maxLines;
             });
     }
 
@@ -516,6 +591,22 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await Settings.LoadSettingsAsync();
             EnableMessageMerging = Settings.EnableMessageMerging;
             MessageMergeThresholdSeconds = Settings.MessageMergeThresholdSeconds;
+            ChatFontFamily = Settings.EffectiveFontFamily;
+            ChatFontSize = Settings.FontSize;
+            SendOnEnter = Settings.SendOnEnter;
+            ChatInputMaxLines = Settings.ChatInputMaxLines;
+            MessageBubbleViewModel.Use24HourClock = Settings.Use24HourClock;
+            MessageBubbleViewModel.ShowInlinePreviews = Settings.ShowInlinePreviews;
+            MessageBubbleViewModel.AutoDownloadMedia = Settings.AutoDownloadMedia;
+            DirectionToBackgroundConverter.SetColors(Settings.OutboundBubbleColor, Settings.InboundBubbleColor);
+            foreach (var conv in Conversations)
+            {
+                foreach (var msg in conv.Messages)
+                {
+                    msg.RefreshBubbleStyle();
+                }
+            }
+            OnPropertyChanged(nameof(MessageInputWatermark));
         }
         catch
         {

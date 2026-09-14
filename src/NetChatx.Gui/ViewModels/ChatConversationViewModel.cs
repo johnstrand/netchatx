@@ -35,6 +35,17 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly string _accountJid;
 
     private List<string> _quickEmojis = [.. EmojiData.DefaultQuickEmojis];
+    public IReadOnlyList<string> QuickEmojis => _quickEmojis;
+
+    public void UpdateQuickEmojis(IEnumerable<string> emojis)
+    {
+        _quickEmojis = emojis.ToList();
+        foreach (var msg in Messages)
+        {
+            msg.EmojiPicker?.UpdateQuickEmojis(_quickEmojis);
+        }
+    }
+
     private System.Threading.CancellationTokenSource? _remoteComposingCts;
     private System.Threading.CancellationTokenSource? _localPauseCts;
     private ChatState? _lastSentLocalState;

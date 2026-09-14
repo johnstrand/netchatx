@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.0.0</Version>
+    <AssemblyVersion>0.0.0.0</AssemblyVersion>
+    <FileVersion>0.0.0.0</FileVersion>
+    <InformationalVersion>0.0.0</InformationalVersion>
+    <Authors>John Strand and NetChatx Contributors</Authors>
+    <Company>NetChatx</Company>
+    <Product>NetChatx</Product>
+    <Copyright>Copyright © 2026</Copyright>
+    <PackageProjectUrl>https://github.com/johnstrand/netchatx</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/johnstrand/netchatx</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+</Project>

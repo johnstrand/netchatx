@@ -110,6 +110,58 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsRepository_FullConfigurability_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        string account = "config_user@example.org";
+
+        // Verify default values
+        Assert.Equal(SettingsRepository.DefaultFontFamily, await repo.GetFontFamilyAsync(account));
+        Assert.Equal(SettingsRepository.DefaultFontSize, await repo.GetFontSizeAsync(account));
+        Assert.Equal(SettingsRepository.DefaultSendOnEnter, await repo.GetSendOnEnterAsync(account));
+        Assert.Equal(SettingsRepository.DefaultUse24HourClock, await repo.GetUse24HourClockAsync(account));
+        Assert.Equal(SettingsRepository.DefaultShowInlinePreviews, await repo.GetShowInlinePreviewsAsync(account));
+        Assert.Equal(SettingsRepository.DefaultAutoDownloadMedia, await repo.GetAutoDownloadMediaAsync(account));
+        Assert.Equal(SettingsRepository.DefaultThemeMode, await repo.GetThemeModeAsync(account));
+        Assert.Equal(SettingsRepository.DefaultAccentColor, await repo.GetAccentColorAsync(account));
+        Assert.Equal(SettingsRepository.DefaultOutboundBubbleColor, await repo.GetOutboundBubbleColorAsync(account));
+        Assert.Equal(SettingsRepository.DefaultInboundBubbleColor, await repo.GetInboundBubbleColorAsync(account));
+        Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, await repo.GetChatInputMaxLinesAsync(account));
+
+        // Update all values
+        await repo.SetFontFamilyAsync(account, "Cascadia Code");
+        await repo.SetFontSizeAsync(account, 16.5);
+        await repo.SetSendOnEnterAsync(account, false);
+        await repo.SetUse24HourClockAsync(account, false);
+        await repo.SetShowInlinePreviewsAsync(account, false);
+        await repo.SetAutoDownloadMediaAsync(account, false);
+        await repo.SetThemeModeAsync(account, "Light");
+        await repo.SetAccentColorAsync(account, "#A855F7");
+        await repo.SetOutboundBubbleColorAsync(account, "#7C3AED");
+        await repo.SetInboundBubbleColorAsync(account, "#14332B");
+        await repo.SetChatInputMaxLinesAsync(account, 8);
+
+        // Verify updated values persist
+        Assert.Equal("Cascadia Code", await repo.GetFontFamilyAsync(account));
+        Assert.Equal(16.5, await repo.GetFontSizeAsync(account));
+        Assert.False(await repo.GetSendOnEnterAsync(account));
+        Assert.False(await repo.GetUse24HourClockAsync(account));
+        Assert.False(await repo.GetShowInlinePreviewsAsync(account));
+        Assert.False(await repo.GetAutoDownloadMediaAsync(account));
+        Assert.Equal("Light", await repo.GetThemeModeAsync(account));
+        Assert.Equal("#A855F7", await repo.GetAccentColorAsync(account));
+        Assert.Equal("#7C3AED", await repo.GetOutboundBubbleColorAsync(account));
+        Assert.Equal("#14332B", await repo.GetInboundBubbleColorAsync(account));
+        Assert.Equal(8, await repo.GetChatInputMaxLinesAsync(account));
+
+        // Clamping test
+        await repo.SetChatInputMaxLinesAsync(account, 999);
+        Assert.Equal(20, await repo.GetChatInputMaxLinesAsync(account));
+        await repo.SetChatInputMaxLinesAsync(account, -5);
+        Assert.Equal(1, await repo.GetChatInputMaxLinesAsync(account));
+    }
+
+    [Fact]
     public async Task AccountRepository_Crud_Succeeds()
     {
         var repo = new AccountRepository(_context);
