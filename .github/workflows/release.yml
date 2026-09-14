@@ -179,6 +179,11 @@ jobs:
     needs: [calculate-and-tag-version, build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.calculate-and-tag-version.outputs.commit_sha }}
+
       - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
