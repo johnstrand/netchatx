@@ -950,10 +950,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
                 if (targetBubble is not null)
                 {
-                    targetBubble.Body = newText;
-                    targetBubble.IsEdited = true;
-                    targetBubble.ReplaceId = replaceStanza.Id;
-                    targetBubble.RawXml = replaceStanza.ToXmlString(indent: true);
+                    targetBubble.UpdateMessageContent(targetId, newText, replaceStanza.ToXmlString(indent: true));
                 }
 
                 await _messageRepo.UpdateMessageByReplaceIdAsync(_accountJid, targetId, newText, replaceStanza.Id);

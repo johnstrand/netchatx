@@ -585,4 +585,105 @@ public class MessageMergingTests : IDisposable
         mainVm.MessageMergeThresholdSeconds = 42;
         Assert.Equal(42, conv.MessageMergeThresholdSeconds);
     }
+
+    [Fact]
+    public void MessageBubbleViewModel_MergeMessage_ConcatenatesRawXmlAcrossAllMergedMessages()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var msg1 = new ChatMessage
+        {
+            Id = "m1",
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "First message",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now,
+            RawXml = "<message id='m1'><body>First message</body></message>"
+        };
+        var msg2 = new ChatMessage
+        {
+            Id = "m2",
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "Second message",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddSeconds(2),
+            RawXml = "<message id='m2'><body>Second message</body></message>"
+        };
+        var msg3 = new ChatMessage
+        {
+            Id = "m3",
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "Third message",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddSeconds(4),
+            RawXml = "<message id='m3'><body>Third message</body></message>"
+        };
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg1);
+        Assert.Equal("<message id='m1'><body>First message</body></message>", bubble.RawXml);
+
+        bubble.MergeMessage(msg2);
+        var expectedTwo = "<message id='m1'><body>First message</body></message>\n\n<message id='m2'><body>Second message</body></message>";
+        Assert.Equal(expectedTwo, bubble.RawXml);
+
+        bubble.MergeMessage(msg3);
+        var expectedThree = "<message id='m1'><body>First message</body></message>\n\n<message id='m2'><body>Second message</body></message>\n\n<message id='m3'><body>Third message</body></message>";
+        Assert.Equal(expectedThree, bubble.RawXml);
+
+        // ToggleRawXml ensures RawXml is populated and toggles visibility
+        bubble.ToggleRawXml();
+        Assert.True(bubble.IsRawXmlVisible);
+        Assert.Equal(expectedThree, bubble.RawXml);
+
+        bubble.ToggleRawXml();
+        Assert.False(bubble.IsRawXmlVisible);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_RemoveAndContentUpdate_KeepsRawXmlConsistent()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var msg1 = new ChatMessage
+        {
+            Id = "m1",
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "Original 1",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now,
+            RawXml = "<message id='m1'><body>Original 1</body></message>"
+        };
+        var msg2 = new ChatMessage
+        {
+            Id = "m2",
+            AccountJid = "user@test.org",
+            RemoteJid = "peer@test.org",
+            SenderJid = "user@test.org",
+            Body = "Original 2",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddSeconds(2),
+            RawXml = "<message id='m2'><body>Original 2</body></message>"
+        };
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg1);
+        bubble.MergeMessage(msg2);
+
+        // Edit/correct m1
+        bubble.UpdateMessageContent("m1", "Corrected 1", "<message id='m1'><replace id='m1'/><body>Corrected 1</body></message>");
+        Assert.Equal("Corrected 1\nOriginal 2", bubble.Body);
+        var expectedCorrected = "<message id='m1'><replace id='m1'/><body>Corrected 1</body></message>\n\n<message id='m2'><body>Original 2</body></message>";
+        Assert.Equal(expectedCorrected, bubble.RawXml);
+
+        // Remove m1 (retraction)
+        bool removed = bubble.RemoveMessageById("m1");
+        Assert.True(removed);
+        Assert.Equal("Original 2", bubble.Body);
+        Assert.Equal("<message id='m2'><body>Original 2</body></message>", bubble.RawXml);
+    }
 }

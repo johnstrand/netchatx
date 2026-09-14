@@ -197,7 +197,30 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public void ToggleRawXml()
     {
+        if (!IsRawXmlVisible)
+        {
+            UpdateRawXml();
+        }
         IsRawXmlVisible = !IsRawXmlVisible;
+    }
+
+    public void UpdateRawXml()
+    {
+        if (MergedMessages.Count == 0)
+        {
+            return;
+        }
+
+        if (MergedMessages.Count == 1)
+        {
+            var single = MergedMessages[0];
+            RawXml = !string.IsNullOrWhiteSpace(single.RawXml) ? single.RawXml : GenerateFallbackRawXml(single);
+        }
+        else
+        {
+            RawXml = string.Join("\n\n", MergedMessages.Select(m =>
+                !string.IsNullOrWhiteSpace(m.RawXml) ? m.RawXml : GenerateFallbackRawXml(m)));
+        }
     }
 
     public string FormattedTime
@@ -708,6 +731,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
         Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
         IsRead = MergedMessages.All(m => m.IsRead);
+        UpdateRawXml();
 
         ExtractImageUrl(Body);
         ExtractLinks(Body);
@@ -751,6 +775,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
                 LatestTimestamp = MergedMessages.Max(m => m.Timestamp);
                 IsRead = MergedMessages.All(m => m.IsRead);
+                UpdateRawXml();
                 ExtractImageUrl(Body);
                 ExtractLinks(Body);
             }
@@ -761,6 +786,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 OriginId = null;
                 ReplaceId = null;
                 LatestTimestamp = Timestamp;
+                RawXml = null;
             }
             return true;
         }
@@ -840,12 +866,13 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         if (MergedMessages.Count > 0)
         {
             Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
+            UpdateRawXml();
         }
         else
         {
             Body = newBody;
+            if (!string.IsNullOrEmpty(newRawXml)) RawXml = newRawXml;
         }
-        if (!string.IsNullOrEmpty(newRawXml)) RawXml = newRawXml;
         ExtractImageUrl(Body);
         ExtractLinks(Body);
     }

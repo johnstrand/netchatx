@@ -631,5 +631,33 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.Equal(Color.Parse("#E11D48"), ((SolidColorBrush)outBubble.BubbleBackground).Color);
         Assert.Equal(Color.Parse("#111827"), ((SolidColorBrush)inBubble.BubbleBackground).Color);
     }
+
+    [Fact]
+    public async Task SettingsRepository_LastActiveChatAndPresenceMode_PersistenceAndDefaults()
+    {
+        string account = "session_user@test.org";
+
+        // Defaults
+        var defaultChat = await _settingsRepo.GetLastActiveChatAsync(account);
+        var defaultMode = await _settingsRepo.GetLastPresenceModeAsync(account);
+        var defaultStatus = await _settingsRepo.GetLastStatusMessageAsync(account);
+
+        Assert.Null(defaultChat);
+        Assert.Equal(SettingsRepository.DefaultPresenceMode, defaultMode);
+        Assert.Equal(SettingsRepository.DefaultStatusMessage, defaultStatus);
+
+        // Update values
+        await _settingsRepo.SetLastActiveChatAsync(account, "friend@test.org");
+        await _settingsRepo.SetLastPresenceModeAsync(account, "away");
+        await _settingsRepo.SetLastStatusMessageAsync(account, "Out for lunch");
+
+        var updatedChat = await _settingsRepo.GetLastActiveChatAsync(account);
+        var updatedMode = await _settingsRepo.GetLastPresenceModeAsync(account);
+        var updatedStatus = await _settingsRepo.GetLastStatusMessageAsync(account);
+
+        Assert.Equal("friend@test.org", updatedChat);
+        Assert.Equal("away", updatedMode);
+        Assert.Equal("Out for lunch", updatedStatus);
+    }
 }
 

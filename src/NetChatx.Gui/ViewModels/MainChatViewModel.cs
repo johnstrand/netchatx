@@ -108,13 +108,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             _notificationService.StopFlashing();
 
-            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(newValue.RemoteJid.ToString(), StringComparison.OrdinalIgnoreCase));
+            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(newValue.RemoteJid.ToString(), StringComparison.OrdinalIgnoreCase) ||
+                (Jid.TryParse(c.ContactJid, out var cj) && cj.EqualsBare(newValue.RemoteJid)));
             if (contact is not null)
             {
                 contact.UnreadCount = 0;
             }
 
             _ = newValue.EnsureHistoryLoadedAsync();
+
+            if (!_isInitializingActiveChat && !string.IsNullOrWhiteSpace(AccountJid))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _settingsRepo.SetLastActiveChatAsync(AccountJid, newValue.RemoteJid.BareJid.ToString());
+                    }
+                    catch
+                    {
+                        // Soft failure saving active chat setting
+                    }
+                });
+            }
         }
     }
 
@@ -301,6 +317,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private bool _isDetailsOpen;
 
     private bool _isInitializingSettings;
+    private bool _isInitializingActiveChat;
 
     [ObservableProperty]
     private bool _enableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
@@ -604,10 +621,28 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await HandleIncomingPresenceAsync(pres);
         };
 
+        // Restore last presence mode and status message from settings per user preference
+        string initialPresence = SettingsRepository.DefaultPresenceMode;
+        try
+        {
+            initialPresence = await _settingsRepo.GetLastPresenceModeAsync(AccountJid);
+            var savedStatus = await _settingsRepo.GetLastStatusMessageAsync(AccountJid);
+            if (!string.IsNullOrWhiteSpace(savedStatus))
+            {
+                StatusMessage = savedStatus;
+            }
+        }
+        catch
+        {
+            // Soft failure reading presence settings
+        }
+
+        UserPresence = initialPresence;
+
         // Send initial presence per RFC 6121 to signal availability and release queued offline messages
         try
         {
-            await SetPresenceAsync("available");
+            await SetPresenceAsync(initialPresence);
         }
         catch
         {
@@ -760,8 +795,53 @@ public sealed partial class MainChatViewModel : ViewModelBase
         // Trigger background account-wide archive catch-up (XEP-0313 MAM) for any missed messages
         _ = CatchUpAccountArchiveAsync();
 
-        // If contacts exist, select the first one by default
-        if (Contacts.Count > 0)
+        // Restore last active chat from settings, or fall back to the first contact
+        bool restoredActiveChat = false;
+        try
+        {
+            _isInitializingActiveChat = true;
+            var lastActiveChat = await _settingsRepo.GetLastActiveChatAsync(AccountJid);
+            if (!string.IsNullOrWhiteSpace(lastActiveChat))
+            {
+                var targetContact = Contacts.FirstOrDefault(c =>
+                    c.ContactJid.Equals(lastActiveChat, StringComparison.OrdinalIgnoreCase) ||
+                    (Jid.TryParse(c.ContactJid, out var cj) && Jid.TryParse(lastActiveChat, out var lj) && cj.EqualsBare(lj)));
+
+                if (targetContact is not null)
+                {
+                    await SelectContactAsync(targetContact);
+                    restoredActiveChat = true;
+                }
+                else
+                {
+                    var targetConv = Conversations.FirstOrDefault(c =>
+                        c.Id.Equals(lastActiveChat, StringComparison.OrdinalIgnoreCase) ||
+                        (Jid.TryParse(lastActiveChat, out var lastJid) && c.RemoteJid.EqualsBare(lastJid)));
+
+                    if (targetConv is not null)
+                    {
+                        await SelectConversationAsync(targetConv);
+                        restoredActiveChat = true;
+                    }
+                    else if (Jid.TryParse(lastActiveChat, out var parsedLastJid))
+                    {
+                        var conv = GetOrCreateConversation(parsedLastJid.BareJid.ToString(), parsedLastJid.BareJid.ToString(), parsedLastJid.BareJid, isGroupChat: false);
+                        await SelectConversationAsync(conv);
+                        restoredActiveChat = true;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure restoring active chat
+        }
+        finally
+        {
+            _isInitializingActiveChat = false;
+        }
+
+        if (!restoredActiveChat && Contacts.Count > 0)
         {
             await SelectContactAsync(Contacts[0]);
         }
@@ -1109,6 +1189,19 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(AccountJid))
+            {
+                await _settingsRepo.SetLastPresenceModeAsync(AccountJid, show);
+                await _settingsRepo.SetLastStatusMessageAsync(AccountJid, StatusMessage);
+            }
+        }
+        catch
+        {
+            // Soft failure saving presence setting
+        }
+
+        try
+        {
             await _client.SendStanzaAsync(stanza);
         }
         catch
@@ -1147,8 +1240,18 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         // Check if this is our own presence being reflected back
-        if (senderBare.Equals(AccountJid, StringComparison.OrdinalIgnoreCase) ||
-            (_client.BoundJid is not null && senderBare.Equals(_client.BoundJid.ToBareString(), StringComparison.OrdinalIgnoreCase)))
+        bool isOurOwnPresence = false;
+        if (_client.BoundJid is not null)
+        {
+            isOurOwnPresence = fromJid is not null && (fromJid.Equals(_client.BoundJid) ||
+                (string.IsNullOrEmpty(fromJid.Resource) && senderBare.Equals(_client.BoundJid.ToBareString(), StringComparison.OrdinalIgnoreCase)));
+        }
+        else
+        {
+            isOurOwnPresence = senderBare.Equals(AccountJid, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (isOurOwnPresence)
         {
             string selfShow;
             if (!presence.IsAvailable || string.Equals(presence.Type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase))
