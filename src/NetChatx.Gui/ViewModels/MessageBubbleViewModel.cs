@@ -7,11 +7,13 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NetChatx.Core;
+using NetChatx.Gui.Converters;
 using NetChatx.Gui.Helpers;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
@@ -166,6 +168,32 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isRawXmlVisible;
 
+    public static bool Use24HourClock { get; set; } = true;
+    public static bool ShowInlinePreviews { get; set; } = true;
+    public static bool AutoDownloadMedia { get; set; } = true;
+
+    public bool IsPreviewVisible => HasImage && ShowInlinePreviews;
+
+    public IBrush BubbleBackground => Direction == MessageDirection.Outbound
+        ? DirectionToBackgroundConverter.OutboundBrush
+        : DirectionToBackgroundConverter.InboundBrush;
+
+    public void RefreshBubbleStyle()
+    {
+        OnPropertyChanged(nameof(BubbleBackground));
+    }
+
+    public void RefreshTimeDisplay()
+    {
+        OnPropertyChanged(nameof(FormattedTime));
+        OnPropertyChanged(nameof(FormattedDateTime));
+    }
+
+    public void RefreshPreviewVisibility()
+    {
+        OnPropertyChanged(nameof(IsPreviewVisible));
+    }
+
     [RelayCommand]
     public void ToggleRawXml()
     {
@@ -179,27 +207,28 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             var time = LatestTimestamp != default ? LatestTimestamp : Timestamp;
             var local = time.ToLocalTime();
             var today = DateTime.Today;
+            string timeFmt = Use24HourClock ? "HH:mm" : "h:mm tt";
 
             if (local.Date == today)
             {
-                return local.ToString("HH:mm");
+                return local.ToString(timeFmt);
             }
             else if (local.Date == today.AddDays(-1))
             {
-                return $"Yesterday {local:HH:mm}";
+                return $"Yesterday {local.ToString(timeFmt)}";
             }
             else if (local.Year == today.Year)
             {
-                return local.ToString("MMM d, HH:mm");
+                return local.ToString($"MMM d, {timeFmt}");
             }
             else
             {
-                return local.ToString("yyyy-MM-dd HH:mm");
+                return local.ToString($"yyyy-MM-dd {timeFmt}");
             }
         }
     }
 
-    public string FormattedDateTime => (LatestTimestamp != default ? LatestTimestamp : Timestamp).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    public string FormattedDateTime => (LatestTimestamp != default ? LatestTimestamp : Timestamp).ToLocalTime().ToString(Use24HourClock ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd h:mm tt");
 
     public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
 
@@ -542,7 +571,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         }
         vm.ExtractStyling(msg.RawXml);
         vm.ExtractLinks(msg.Body);
-        if (vm.HasImage)
+        if (vm.HasImage && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = vm.LoadThumbnailAsync();
         }
@@ -682,9 +711,18 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
         ExtractImageUrl(Body);
         ExtractLinks(Body);
-        if (HasImage && ImageThumbnail is null)
+        if (HasImage && ImageThumbnail is null && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = LoadThumbnailAsync();
+        }
+    }
+
+    [RelayCommand]
+    public async Task LoadMediaAsync()
+    {
+        if (HasImage && ImageThumbnail is null && !IsLoadingImage)
+        {
+            await LoadThumbnailAsync();
         }
     }
 

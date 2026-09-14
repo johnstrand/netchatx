@@ -55,6 +55,15 @@ public sealed partial class EmojiPickerViewModel : ViewModelBase
         UpdateDisplayedEmojis();
     }
 
+    public void UpdateQuickEmojis(IEnumerable<string> emojis)
+    {
+        QuickEmojis.Clear();
+        foreach (var emoji in emojis)
+        {
+            QuickEmojis.Add(emoji);
+        }
+    }
+
     partial void OnSearchQueryChanged(string value)
     {
         UpdateDisplayedEmojis();
