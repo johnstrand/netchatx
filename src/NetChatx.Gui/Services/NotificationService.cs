@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Threading.Tasks;
@@ -41,11 +43,61 @@ public sealed class NotificationService : INotificationService
 
     public bool IsFlashing => _isFlashing;
 
+    private readonly bool _dispatchNative;
+
+    private static bool DetectTestEnvironment()
+    {
+        try
+        {
+            if (AppDomain.CurrentDomain.GetAssemblies().Any(a =>
+            {
+                var name = a.GetName().Name;
+                return name != null && (
+                    name.StartsWith("xunit", StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith("testhost", StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith("Microsoft.TestPlatform", StringComparison.OrdinalIgnoreCase) ||
+                    name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase));
+            }))
+            {
+                return true;
+            }
+
+            var procName = Process.GetCurrentProcess().ProcessName;
+            if (procName.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
+                procName.Contains("vstest", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Soft failure
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets or sets whether native OS notifications (PowerShell toasts, notify-send, AppleScript) are dispatched.
+    /// Defaults to true in application execution, or false when running under automated tests.
+    /// </summary>
+    public static bool EnableNativeNotifications { get; set; } = !DetectTestEnvironment();
+
+    public NotificationService(bool dispatchNative = true)
+    {
+        _dispatchNative = dispatchNative;
+    }
+
     public void ShowSystemNotification(string title, string message)
     {
         LastNotificationTitle = title;
         LastNotificationMessage = message;
         SystemNotificationCount++;
+
+        if (!_dispatchNative || !EnableNativeNotifications)
+        {
+            return;
+        }
 
         if (OperatingSystem.IsWindows())
         {
@@ -65,6 +117,8 @@ public sealed class NotificationService : INotificationService
 
     private void ShowWindowsNotification(string title, string message)
     {
+        if (!EnableNativeNotifications) return;
+
         try
         {
             var handle = GetWindowHandle();
@@ -200,6 +254,8 @@ try {{
 
     private static void ShowLinuxNotification(string title, string message)
     {
+        if (!EnableNativeNotifications) return;
+
         try
         {
             var psi = new ProcessStartInfo
@@ -233,9 +289,9 @@ try {{
     {
         try
         {
-            if (string.IsNullOrEmpty(DBusAddress.Session)) return;
+            if (string.IsNullOrEmpty(Address.Session)) return;
 
-            using var connection = new DBusConnection(DBusAddress.Session);
+            using var connection = new Connection(Address.Session);
             await connection.ConnectAsync();
 
             var writer = connection.GetMessageWriter();
@@ -271,6 +327,8 @@ try {{
 
     private static void ShowMacNotification(string title, string message)
     {
+        if (!EnableNativeNotifications) return;
+
         try
         {
             string safeTitle = EscapeAppleScript(title);
@@ -401,7 +459,7 @@ try {{
 
     public void FlashWindow()
     {
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows() && EnableNativeNotifications)
         {
             try
             {
@@ -431,7 +489,7 @@ try {{
 
     public void StopFlashing()
     {
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows() && EnableNativeNotifications)
         {
             try
             {

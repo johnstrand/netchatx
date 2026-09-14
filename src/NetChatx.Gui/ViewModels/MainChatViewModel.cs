@@ -369,7 +369,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _client = client;
         _dbContext = dbContext;
         _onDisconnectRequested = onDisconnectRequested;
-        _notificationService = notificationService ?? new NotificationService();
+        _notificationService = notificationService ?? (NetChatx.Gui.Services.NotificationService.EnableNativeNotifications ? new NetChatx.Gui.Services.NotificationService() : new NetChatx.Gui.Services.NotificationService(dispatchNative: false));
         _notificationService.WindowActiveChanged += active =>
         {
             OnPropertyChanged(nameof(IsWindowActive));
@@ -540,7 +540,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         try
         {
-            await _carbons.EnableAsync();
+            if (_client.State == XmppClientState.Connected)
+            {
+                await _carbons.EnableAsync();
+            }
         }
         catch
         {
@@ -624,11 +627,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
         // Query roster from server per RFC 6121
         try
         {
-            var rosterIq = IqStanza.CreateGet();
-            rosterIq.RawElement.Child(new XmppElement("query", "jabber:iq:roster"));
-            var result = await _client.SendIqAsync(rosterIq);
-            var queryElem = result.RawElement.Element("query", "jabber:iq:roster");
-            if (queryElem is not null)
+            if (_client.State == XmppClientState.Connected)
+            {
+                var rosterIq = IqStanza.CreateGet();
+                rosterIq.RawElement.Child(new XmppElement("query", "jabber:iq:roster"));
+                var result = await _client.SendIqAsync(rosterIq);
+                var queryElem = result.RawElement.Element("query", "jabber:iq:roster");
+                if (queryElem is not null)
             {
                 var contactsToUpsert = new System.Collections.Generic.List<RosterContact>();
                 foreach (var item in queryElem.Elements("item"))
@@ -669,6 +674,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 {
                     await _rosterRepo.UpsertContactsAsync(contactsToUpsert);
                 }
+            }
             }
         }
         catch
