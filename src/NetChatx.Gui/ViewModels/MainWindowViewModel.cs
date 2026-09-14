@@ -22,6 +22,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusText = "Starting NetChatx...";
 
+    public string AppVersion => Helpers.AppVersionHelper.Version;
+    public string AppVersionDisplay => Helpers.AppVersionHelper.DisplayString;
+
     private XmppClient? _client;
 
     public MainWindowViewModel(DatabaseContext? dbContext = null)

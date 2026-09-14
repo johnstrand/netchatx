@@ -421,4 +421,58 @@ public class HelperAndViewModelCoverageTests
         Assert.True(enterArgs.Handled);
         Assert.True(loginInvoked);
     }
+
+    [Fact]
+    public void AppVersionHelper_ResolvesValidVersion()
+    {
+        try
+        {
+            AppVersionHelper.SetVersionOverrideForTesting(null);
+            var version = AppVersionHelper.Version;
+            Assert.NotNull(version);
+            Assert.StartsWith("v", version);
+
+            var display = AppVersionHelper.DisplayString;
+            Assert.StartsWith("NetChatx v", display);
+        }
+        finally
+        {
+            AppVersionHelper.SetVersionOverrideForTesting(null);
+        }
+    }
+
+    [Fact]
+    public void AppVersionHelper_HandlesOverridesAndFormatting()
+    {
+        try
+        {
+            AppVersionHelper.SetVersionOverrideForTesting("1.2.3");
+            Assert.Equal("v1.2.3", AppVersionHelper.Version);
+            Assert.Equal("NetChatx v1.2.3", AppVersionHelper.DisplayString);
+
+            AppVersionHelper.SetVersionOverrideForTesting("v2.0.0");
+            Assert.Equal("v2.0.0", AppVersionHelper.Version);
+            Assert.Equal("NetChatx v2.0.0", AppVersionHelper.DisplayString);
+        }
+        finally
+        {
+            AppVersionHelper.SetVersionOverrideForTesting(null);
+        }
+    }
+
+    [Fact]
+    public void MainWindowViewModel_ExposesDynamicAppVersion()
+    {
+        try
+        {
+            AppVersionHelper.SetVersionOverrideForTesting("1.5.0");
+            var vm = new MainWindowViewModel();
+            Assert.Equal("v1.5.0", vm.AppVersion);
+            Assert.Equal("NetChatx v1.5.0", vm.AppVersionDisplay);
+        }
+        finally
+        {
+            AppVersionHelper.SetVersionOverrideForTesting(null);
+        }
+    }
 }
