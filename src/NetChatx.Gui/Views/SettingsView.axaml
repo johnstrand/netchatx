@@ -4,114 +4,628 @@
              x:Class="NetChatx.Gui.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
+    <UserControl.Styles>
+        <!-- Compact, refined TabItem typography -->
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="MinHeight" Value="28" />
+        </Style>
+    </UserControl.Styles>
+
     <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-            Width="480" MaxWidth="520" Padding="24" CornerRadius="16"
+            Width="530" MaxWidth="560" MaxHeight="620" Padding="18" CornerRadius="16"
             Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
             BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
-        <StackPanel Spacing="18">
+        <Grid RowDefinitions="Auto,*,Auto">
             <!-- Modal Header -->
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                 <StackPanel Grid.Column="0" Spacing="2">
-                    <TextBlock Text="⚙ Preferences" FontWeight="Bold" FontSize="18" Foreground="#F8FAFC" />
-                    <TextBlock Text="Configure notifications and chat bubble behavior." Foreground="#64748B" FontSize="11" />
+                    <TextBlock Text="⚙ Preferences" FontWeight="Bold" FontSize="15" Foreground="#F8FAFC" />
+                    <TextBlock Text="Personalize theme, typography, input, chat display, media, and notifications." Foreground="#64748B" FontSize="10.5" />
                 </StackPanel>
                 <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}"
                         ToolTip.Tip="Close (Esc)"
                         Classes="icon-btn subtle" />
             </Grid>
 
-            <!-- Section 1: Notifications -->
-            <StackPanel Spacing="8">
-                <TextBlock Text="NOTIFICATIONS" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" LetterSpacing="0.5" />
-                
-                <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
-                    <StackPanel Spacing="14">
-                        <!-- Popup Notifications Switch -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="System Notifications" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
-                                <TextBlock Text="Display native OS desktop notifications for new messages when in other chats or inactive."
-                                           Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch Grid.Column="1"
-                                          IsChecked="{Binding NotificationPopupsEnabled, Mode=TwoWay}"
-                                          OnContent="" OffContent=""
-                                          VerticalAlignment="Center"
-                                          Margin="12,0,0,0" />
-                        </Grid>
+            <!-- Categorized Settings Tabs -->
+            <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex}" Margin="0,0,0,12">
+                <!-- ================= TAB 1: APPEARANCE & THEME ================= -->
+                <TabItem Header="🎨 Appearance">
+                    <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <StackPanel Spacing="12" Margin="0,0,6,0">
+                            <!-- Theme & Accent Section -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="THEME &amp; ACCENT" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
 
-                        <Separator Background="#1E293B" Height="1" />
+                                    <!-- Theme Mode -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Interface Theme" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Switch between Dark, Light, or System appearance." Foreground="#64748B" FontSize="10" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding AvailableThemeModes}"
+                                                  SelectedItem="{Binding ThemeMode, Mode=TwoWay}"
+                                                  Width="120" FontSize="11.5" VerticalAlignment="Center" />
+                                    </Grid>
 
-                        <!-- Taskbar Icon Flashing Switch -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="Flash Taskbar Icon" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
-                                <TextBlock Text="Flash the window and taskbar icon when messages arrive while inactive."
-                                           Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch Grid.Column="1"
-                                          IsChecked="{Binding IconFlashingEnabled, Mode=TwoWay}"
-                                          OnContent="" OffContent=""
-                                          VerticalAlignment="Center"
-                                          Margin="12,0,0,0" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+                                    <Separator Background="#1E293B" Height="1" />
 
-            <!-- Section 2: Chat & Bubble Merging -->
-            <StackPanel Spacing="8">
-                <TextBlock Text="CHAT BUBBLE MERGING" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" LetterSpacing="0.5" />
+                                    <!-- Accent Color Palette -->
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="Accent Color" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="Accent color used for active buttons, badges, and highlights." Foreground="#64748B" FontSize="10" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding SelectedAccentName}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource NetChatxCyanBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
 
-                <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
-                    <StackPanel Spacing="14">
-                        <!-- Merge Toggle -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="Merge Consecutive Messages" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
-                                <TextBlock Text="Group consecutive messages sent within seconds into a single chat bubble."
-                                           Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch Grid.Column="1"
-                                          IsChecked="{Binding EnableMessageMerging, Mode=TwoWay}"
-                                          OnContent="" OffContent=""
-                                          VerticalAlignment="Center"
-                                          Margin="12,0,0,0" />
-                        </Grid>
+                                        <!-- 4 Color Swatch Buttons with Active Indicators -->
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" Margin="0,4,0,0">
+                                            <!-- Cyan -->
+                                            <Button Grid.Column="0" Command="{Binding SelectAccentCommand}" CommandParameter="#00F0FF"
+                                                    Width="34" Height="34" CornerRadius="17" Background="#00F0FF" Margin="0,0,10,0"
+                                                    ToolTip.Tip="Electric Cyan (#00F0FF)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="Black" FontWeight="Bold" FontSize="14"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsCyanSelected}" />
+                                            </Button>
 
-                        <!-- Merge Threshold Slider (Visible when enabled) -->
-                        <StackPanel Spacing="6" IsVisible="{Binding EnableMessageMerging}">
-                            <Separator Background="#1E293B" Height="1" Margin="0,0,0,8" />
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0" Text="Merge Time Window" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1" Text="{Binding MessageMergeThresholdSeconds, StringFormat='{}{0} seconds'}"
-                                           FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" VerticalAlignment="Center" />
-                            </Grid>
-                            <Slider Minimum="1" Maximum="60"
-                                    Value="{Binding MessageMergeThresholdSeconds, Mode=TwoWay}"
-                                    TickFrequency="1" IsSnapToTickEnabled="True" />
-                            <Grid ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock Grid.Column="0" Text="1s" FontSize="10" Foreground="#475569" />
-                                <TextBlock Grid.Column="2" Text="60s" FontSize="10" Foreground="#475569" />
-                            </Grid>
+                                            <!-- Purple -->
+                                            <Button Grid.Column="1" Command="{Binding SelectAccentCommand}" CommandParameter="#A855F7"
+                                                    Width="34" Height="34" CornerRadius="17" Background="#A855F7" Margin="0,0,10,0"
+                                                    ToolTip.Tip="Neon Purple (#A855F7)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="14"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsPurpleSelected}" />
+                                            </Button>
+
+                                            <!-- Emerald -->
+                                            <Button Grid.Column="2" Command="{Binding SelectAccentCommand}" CommandParameter="#10B981"
+                                                    Width="34" Height="34" CornerRadius="17" Background="#10B981" Margin="0,0,10,0"
+                                                    ToolTip.Tip="Emerald Green (#10B981)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="14"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsEmeraldSelected}" />
+                                            </Button>
+
+                                            <!-- Amber -->
+                                            <Button Grid.Column="3" Command="{Binding SelectAccentCommand}" CommandParameter="#F59E0B"
+                                                    Width="34" Height="34" CornerRadius="17" Background="#F59E0B" Margin="0,0,10,0"
+                                                    ToolTip.Tip="Vibrant Amber (#F59E0B)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="14"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsAmberSelected}" />
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Typography & Font Configuration -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="CHAT TYPOGRAPHY" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <!-- Font Family Selector -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Font Family" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Font family applied to message bubbles and input composer." Foreground="#64748B" FontSize="10" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding AvailableFontFamilies}"
+                                                  SelectedItem="{Binding FontFamily, Mode=TwoWay}"
+                                                  Width="140" FontSize="11.5" VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <!-- Custom Font Name Input -->
+                                    <StackPanel Spacing="3" IsVisible="{Binding IsCustomFont}">
+                                        <TextBlock Text="Custom Font Family Name" FontSize="10" Foreground="#94A3B8" />
+                                        <TextBox Text="{Binding CustomFontFamily, Mode=TwoWay}"
+                                                 Watermark="Enter system font name (e.g. Fira Code, Arial)"
+                                                 Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
+                                                 Foreground="#F8FAFC" FontSize="11.5" />
+                                    </StackPanel>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- Font Size Slider -->
+                                    <StackPanel Spacing="4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0" Text="Font Size" FontSize="11.5" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding FontSize, StringFormat='{}{0:0} px'}"
+                                                       FontWeight="SemiBold" FontSize="11.5" Foreground="{DynamicResource NetChatxCyanBrush}" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Slider Minimum="11" Maximum="20"
+                                                Value="{Binding FontSize, Mode=TwoWay}"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="11px (Compact)" FontSize="9.5" Foreground="#475569" />
+                                            <TextBlock Grid.Column="2" Text="20px (Large)" FontSize="9.5" Foreground="#475569" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Live Typography Preview -->
+                                    <Border Background="#090D16" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="10">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="LIVE TYPOGRAPHY PREVIEW" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
+                                            <TextBlock Text="Hello! NetChatx with customizable typography and cyber glass styling. 🚀"
+                                                       FontFamily="{Binding EffectiveFontFamily}"
+                                                       FontSize="{Binding FontSize}"
+                                                       Foreground="#F1F5F9"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Chat Bubble Colors -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="CHAT BUBBLE COLORS" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <!-- Outbound (Sent) Messages -->
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="Sent Messages (Outbound)" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="Choose a preset, match your theme accent, or enter a custom hex." Foreground="#64748B" FontSize="10" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding OutboundBubbleColor}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource NetChatxCyanBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+
+                                        <!-- Outbound Presets & Match Accent -->
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,8,Auto,*,Auto" Margin="0,2,0,0">
+                                            <!-- Blue -->
+                                            <Button Grid.Column="0" Command="{Binding SelectOutboundBubbleColorCommand}" CommandParameter="#2563EB"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#2563EB" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Primary Blue (#2563EB)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOutboundBlueSelected}" />
+                                            </Button>
+
+                                            <!-- Violet -->
+                                            <Button Grid.Column="1" Command="{Binding SelectOutboundBubbleColorCommand}" CommandParameter="#7C3AED"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#7C3AED" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Deep Violet (#7C3AED)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOutboundVioletSelected}" />
+                                            </Button>
+
+                                            <!-- Teal -->
+                                            <Button Grid.Column="2" Command="{Binding SelectOutboundBubbleColorCommand}" CommandParameter="#0D9488"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#0D9488" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Teal (#0D9488)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOutboundTealSelected}" />
+                                            </Button>
+
+                                            <!-- Emerald -->
+                                            <Button Grid.Column="3" Command="{Binding SelectOutboundBubbleColorCommand}" CommandParameter="#059669"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#059669" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Emerald (#059669)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOutboundEmeraldSelected}" />
+                                            </Button>
+
+                                            <!-- Rose -->
+                                            <Button Grid.Column="4" Command="{Binding SelectOutboundBubbleColorCommand}" CommandParameter="#E11D48"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#E11D48" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Rose (#E11D48)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOutboundRoseSelected}" />
+                                            </Button>
+
+                                            <!-- Orange -->
+                                            <Button Grid.Column="5" Command="{Binding SelectOutboundBubbleColorCommand}" CommandParameter="#EA580C"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#EA580C" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Sunset Orange (#EA580C)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOutboundOrangeSelected}" />
+                                            </Button>
+
+                                            <!-- Match Accent -->
+                                            <Button Grid.Column="7" Command="{Binding MatchAccentBubbleColorCommand}"
+                                                    Content="Match Accent" FontSize="10.5" Padding="7,3"
+                                                    Background="#1E293B" Foreground="{DynamicResource NetChatxCyanBrush}"
+                                                    BorderBrush="#334155" BorderThickness="1"
+                                                    CornerRadius="6" Cursor="Hand" VerticalAlignment="Center"
+                                                    ToolTip.Tip="Match bubble color to active theme accent" />
+
+                                            <!-- Custom Hex TextBox -->
+                                            <TextBox Grid.Column="9" Text="{Binding OutboundBubbleColor, Mode=TwoWay}"
+                                                     Width="80" MaxLength="9" FontSize="11"
+                                                     Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                     VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #2563EB)" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- Inbound (Received) Messages -->
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="Received Messages (Inbound)" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="Choose a dark glass shade or enter a custom hex for received messages." Foreground="#64748B" FontSize="10" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding InboundBubbleColor}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource NetChatxCyanBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+
+                                        <!-- Inbound Presets -->
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="0,2,0,0">
+                                            <!-- Obsidian Slate -->
+                                            <Button Grid.Column="0" Command="{Binding SelectInboundBubbleColorCommand}" CommandParameter="#1E293B"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#1E293B" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Obsidian Slate (#1E293B)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsInboundSlateSelected}" />
+                                            </Button>
+
+                                            <!-- Charcoal Black -->
+                                            <Button Grid.Column="1" Command="{Binding SelectInboundBubbleColorCommand}" CommandParameter="#111827"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#111827" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Charcoal Black (#111827)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsInboundCharcoalSelected}" />
+                                            </Button>
+
+                                            <!-- Midnight Indigo -->
+                                            <Button Grid.Column="2" Command="{Binding SelectInboundBubbleColorCommand}" CommandParameter="#1E1B4B"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#1E1B4B" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Midnight Indigo (#1E1B4B)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsInboundIndigoSelected}" />
+                                            </Button>
+
+                                            <!-- Dark Forest -->
+                                            <Button Grid.Column="3" Command="{Binding SelectInboundBubbleColorCommand}" CommandParameter="#14332B"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#14332B" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Dark Forest (#14332B)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsInboundForestSelected}" />
+                                            </Button>
+
+                                            <!-- Dark Plum -->
+                                            <Button Grid.Column="4" Command="{Binding SelectInboundBubbleColorCommand}" CommandParameter="#2A1B28"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#2A1B28" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Dark Plum (#2A1B28)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsInboundPlumSelected}" />
+                                            </Button>
+
+                                            <!-- Dark Stone -->
+                                            <Button Grid.Column="5" Command="{Binding SelectInboundBubbleColorCommand}" CommandParameter="#292524"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#292524" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Dark Stone (#292524)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsInboundStoneSelected}" />
+                                            </Button>
+
+                                            <!-- Custom Hex TextBox -->
+                                            <TextBox Grid.Column="7" Text="{Binding InboundBubbleColor, Mode=TwoWay}"
+                                                     Width="80" MaxLength="9" FontSize="11"
+                                                     Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                     VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #1E293B)" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Live Bubble Preview -->
+                                    <Border Background="#090D16" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="10">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Text="LIVE BUBBLE PREVIEW" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
+                                            <Border HorizontalAlignment="Left" Background="{Binding PreviewInboundBrush}" CornerRadius="12" Padding="10,6" MaxWidth="320">
+                                                <TextBlock Text="Hey! Custom chat bubble styling in action." FontSize="11.5" Foreground="#F1F5F9" />
+                                            </Border>
+                                            <Border HorizontalAlignment="Right" Background="{Binding PreviewOutboundBrush}" CornerRadius="12" Padding="10,6" MaxWidth="320">
+                                                <TextBlock Text="Looks amazing and matches our vibe! 🚀" FontSize="11.5" Foreground="White" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
 
-            <!-- Modal Action Buttons -->
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Grid.Column="0" Content="Reset Defaults"
+                <!-- ================= TAB 2: CHAT & INPUT ================= -->
+                <TabItem Header="💬 Chat">
+                    <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <StackPanel Spacing="12" Margin="0,0,6,0">
+                            <!-- Input Shortcuts & Clock -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="INPUT &amp; TIMESTAMPS" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <!-- Send on Enter Toggle -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Send Message on Enter" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Press Enter to send (Shift+Enter for newline). When disabled, Ctrl+Enter sends."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding SendOnEnter, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- 24-Hour Clock Toggle -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="24-Hour Clock" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Display timestamps in 24-hour format (14:30) instead of 12-hour format (2:30 PM)."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding Use24HourClock, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- Chatbox Auto-Expansion Limit -->
+                                    <StackPanel Spacing="4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="Chatbox Auto-Expansion" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="The input field wraps text and expands vertically up to this limit before scrolling."
+                                                           Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding ChatInputMaxLines, StringFormat='{}{0} lines'}"
+                                                       FontWeight="SemiBold" FontSize="11.5" Foreground="{DynamicResource NetChatxCyanBrush}" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Slider Minimum="1" Maximum="12"
+                                                Value="{Binding ChatInputMaxLines, Mode=TwoWay}"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="1 line (No growth)" FontSize="9.5" Foreground="#475569" />
+                                            <TextBlock Grid.Column="2" Text="12 lines (Expanded)" FontSize="9.5" Foreground="#475569" />
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Message Merging -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="BUBBLE MERGING" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Merge Consecutive Messages" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Group consecutive messages sent within seconds into a single chat bubble."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding EnableMessageMerging, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+
+                                    <!-- Merge Threshold Slider -->
+                                    <StackPanel Spacing="4" IsVisible="{Binding EnableMessageMerging}">
+                                        <Separator Background="#1E293B" Height="1" Margin="0,0,0,4" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0" Text="Merge Time Window" FontSize="11.5" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding MessageMergeThresholdSeconds, StringFormat='{}{0} seconds'}"
+                                                       FontWeight="SemiBold" FontSize="11.5" Foreground="{DynamicResource NetChatxCyanBrush}" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Slider Minimum="1" Maximum="60"
+                                                Value="{Binding MessageMergeThresholdSeconds, Mode=TwoWay}"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="1s" FontSize="9.5" Foreground="#475569" />
+                                            <TextBlock Grid.Column="2" Text="60s" FontSize="9.5" Foreground="#475569" />
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Quick Reaction Emojis Slot Editor -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="QUICK REACTION EMOJIS" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+                                    <TextBlock Text="Customize the 6 one-click reaction shortcuts displayed on message bubbles." Foreground="#64748B" FontSize="10" />
+
+                                    <!-- 6 Emoji Slots -->
+                                    <Grid ColumnDefinitions="*,*,*,*,*,*" Margin="0,2">
+                                        <Button Grid.Column="0" Content="{Binding QuickEmojis[0]}"
+                                                Command="{Binding SelectEmojiSlotCommand}" CommandParameter="0"
+                                                FontSize="16" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Height="36" Margin="2" CornerRadius="8"
+                                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Cursor="Hand" />
+                                        <Button Grid.Column="1" Content="{Binding QuickEmojis[1]}"
+                                                Command="{Binding SelectEmojiSlotCommand}" CommandParameter="1"
+                                                FontSize="16" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Height="36" Margin="2" CornerRadius="8"
+                                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Cursor="Hand" />
+                                        <Button Grid.Column="2" Content="{Binding QuickEmojis[2]}"
+                                                Command="{Binding SelectEmojiSlotCommand}" CommandParameter="2"
+                                                FontSize="16" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Height="36" Margin="2" CornerRadius="8"
+                                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Cursor="Hand" />
+                                        <Button Grid.Column="3" Content="{Binding QuickEmojis[3]}"
+                                                Command="{Binding SelectEmojiSlotCommand}" CommandParameter="3"
+                                                FontSize="16" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Height="36" Margin="2" CornerRadius="8"
+                                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Cursor="Hand" />
+                                        <Button Grid.Column="4" Content="{Binding QuickEmojis[4]}"
+                                                Command="{Binding SelectEmojiSlotCommand}" CommandParameter="4"
+                                                FontSize="16" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Height="36" Margin="2" CornerRadius="8"
+                                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Cursor="Hand" />
+                                        <Button Grid.Column="5" Content="{Binding QuickEmojis[5]}"
+                                                Command="{Binding SelectEmojiSlotCommand}" CommandParameter="5"
+                                                FontSize="16" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Height="36" Margin="2" CornerRadius="8"
+                                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Cursor="Hand" />
+                                    </Grid>
+
+                                    <!-- Slot Instruction & Palette -->
+                                    <Border Background="#090D16" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="8">
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="{Binding SelectedSlotLabel}" FontSize="10.5" Foreground="{DynamicResource NetChatxCyanBrush}" />
+                                            <ItemsControl ItemsSource="{Binding AvailablePaletteEmojis}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type x:String}">
+                                                        <Button Content="{Binding}"
+                                                                Command="{Binding ((vm:SettingsViewModel)DataContext).PickEmojiForSlotCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                FontSize="15" Padding="5,3" Margin="1"
+                                                                Background="Transparent" BorderThickness="0" Cursor="Hand" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Button Content="↺ Reset Quick Emojis to Default"
+                                                    Command="{Binding ResetQuickEmojisCommand}"
+                                                    Classes="inline-link" Foreground="#94A3B8" FontSize="10" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ================= TAB 3: MEDIA & PREVIEWS ================= -->
+                <TabItem Header="🖼️ Media">
+                    <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <StackPanel Spacing="12" Margin="0,0,6,0">
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="MEDIA &amp; PREVIEWS" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <!-- Inline Image Previews -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Show Inline Image Previews" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Render thumbnails and preview animated GIFs directly inside chat bubbles."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding ShowInlinePreviews, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- Auto-Download Media -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Auto-Download Media" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Automatically download images. When disabled, an on-demand download button is displayed."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding AutoDownloadMedia, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ================= TAB 4: NOTIFICATIONS ================= -->
+                <TabItem Header="🔔 Notifications">
+                    <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <StackPanel Spacing="12" Margin="0,0,6,0">
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="NOTIFICATIONS &amp; ALERTS" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <!-- Popup Notifications Switch -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="System Notifications" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Display native OS desktop notifications for new messages when in other chats or inactive."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding NotificationPopupsEnabled, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- Taskbar Icon Flashing Switch -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Flash Taskbar Icon" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Flash the window and taskbar icon when messages arrive while inactive."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding IconFlashingEnabled, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <!-- Modal Action Buttons (Footer) -->
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="Reset All Defaults"
                         Command="{Binding ResetDefaultsCommand}"
                         Background="#1E293B" Foreground="#94A3B8"
                         BorderBrush="#334155" BorderThickness="1"
-                        CornerRadius="8" Padding="12,6" FontSize="12"
+                        CornerRadius="8" Padding="12,5" FontSize="11.5"
                         Cursor="Hand" />
                 <Button Grid.Column="2" Content="Done"
                         Command="{Binding CloseCommand}"
                         Classes="accent"
-                        Padding="20,6" FontSize="12" />
+                        Padding="22,5" FontSize="11.5" />
             </Grid>
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

@@ -28,8 +28,20 @@ public sealed class DirectionToBackgroundConverter : IValueConverter
 {
     public static readonly DirectionToBackgroundConverter Instance = new();
 
-    private static readonly IBrush OutboundBrush = new SolidColorBrush(Color.Parse("#2563EB")); // Primary Blue
-    private static readonly IBrush InboundBrush = new SolidColorBrush(Color.Parse("#1E293B"));  // Obsidian Slate Glass
+    public static IBrush OutboundBrush { get; set; } = new SolidColorBrush(Color.Parse("#2563EB")); // Primary Blue
+    public static IBrush InboundBrush { get; set; } = new SolidColorBrush(Color.Parse("#1E293B"));  // Obsidian Slate Glass
+
+    public static void SetColors(string outboundHex, string inboundHex)
+    {
+        if (Color.TryParse(outboundHex, out var outColor))
+        {
+            OutboundBrush = new SolidColorBrush(outColor);
+        }
+        if (Color.TryParse(inboundHex, out var inColor))
+        {
+            InboundBrush = new SolidColorBrush(inColor);
+        }
+    }
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

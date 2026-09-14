@@ -339,13 +339,19 @@ public partial class MainChatView : UserControl
 
             if (e.Key is Key.Enter or Key.Return)
             {
-                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                bool sendOnEnter = mainVm.SendOnEnter;
+                bool isCtrlOrMeta = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+                bool isShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+                bool shouldSend = sendOnEnter ? (!isShift && !isCtrlOrMeta) : isCtrlOrMeta;
+
+                if (!shouldSend)
                 {
-                    // Shift+Enter allows newline insertion
+                    // Allow normal newline insertion
                     return;
                 }
 
-                // Enter without Shift: Check for code block trigger or send message
+                // Check for code block trigger or send message
                 textBox = sender as TextBox;
                 string currentText = textBox?.Text ?? conv.InputText;
 

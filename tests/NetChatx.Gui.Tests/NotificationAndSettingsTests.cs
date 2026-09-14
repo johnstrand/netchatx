@@ -2,9 +2,12 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media;
 using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Transport;
+using NetChatx.Gui.Converters;
+using NetChatx.Gui.Helpers;
 using NetChatx.Gui.Services;
 using NetChatx.Gui.ViewModels;
 using NetChatx.Storage;
@@ -38,6 +41,15 @@ public class NotificationAndSettingsTests : IDisposable
     {
         var client = new XmppClient(new XmppClientOptions { Jid = Jid.Parse(account), Password = "pw" }, new LoopbackTransport());
         return new MainChatViewModel(client, _dbContext, () => Task.CompletedTask, notificationService);
+    }
+
+    [Fact]
+    public void TextBox_MaxLinesAndWrapping_BehavesAsExpected()
+    {
+        var tb = new Avalonia.Controls.TextBox();
+        Assert.NotNull(Avalonia.Controls.TextBox.MaxLinesProperty);
+        tb.MaxLines = 4;
+        Assert.Equal(4, tb.MaxLines);
     }
 
     [Fact]
@@ -87,6 +99,11 @@ public class NotificationAndSettingsTests : IDisposable
         vm.MessageMergeThresholdSeconds = 25;
         Assert.Equal(25, await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(account));
 
+        // Default and changing ChatInputMaxLines
+        Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, vm.ChatInputMaxLines);
+        vm.ChatInputMaxLines = 7;
+        Assert.Equal(7, await _settingsRepo.GetChatInputMaxLinesAsync(account));
+
         // Loading from SQLite in a new SettingsViewModel retrieves the persisted values
         var vm2 = new SettingsViewModel(_settingsRepo, account);
         await vm2.LoadSettingsAsync();
@@ -94,6 +111,7 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.False(vm2.IconFlashingEnabled);
         Assert.False(vm2.EnableMessageMerging);
         Assert.Equal(25, vm2.MessageMergeThresholdSeconds);
+        Assert.Equal(7, vm2.ChatInputMaxLines);
 
         // Reset defaults
         await vm2.ResetDefaultsAsync();
@@ -101,8 +119,10 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.True(vm2.IconFlashingEnabled);
         Assert.True(vm2.EnableMessageMerging);
         Assert.Equal(SettingsRepository.DefaultMergeMessagesThresholdSeconds, vm2.MessageMergeThresholdSeconds);
+        Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, vm2.ChatInputMaxLines);
         Assert.True(await _settingsRepo.GetNotificationPopupsEnabledAsync(account));
         Assert.True(await _settingsRepo.GetIconFlashingEnabledAsync(account));
+        Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, await _settingsRepo.GetChatInputMaxLinesAsync(account));
     }
 
     [Fact]
@@ -241,4 +261,346 @@ public class NotificationAndSettingsTests : IDisposable
         mainVm.Settings.Close();
         Assert.False(mainVm.Settings.IsOpen);
     }
+
+    [Fact]
+    public async Task SettingsViewModel_FullConfigurabilityAndCallbacks_WorkCorrectly()
+    {
+        string account = "full_config@test.org";
+        bool typographyInvoked = false;
+        string lastFont = "";
+        double lastSize = 0;
+        bool sendOnEnterInvoked = false;
+        bool lastSendOnEnter = true;
+        bool use24HInvoked = false;
+        bool last24H = true;
+        bool mediaInvoked = false;
+        bool lastShowPreviews = true;
+        bool lastAutoDownload = true;
+        bool themeInvoked = false;
+        string lastTheme = "";
+        string lastAccent = "";
+        bool emojisInvoked = false;
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            onTypographyChanged: (font, size) => { typographyInvoked = true; lastFont = font; lastSize = size; },
+            onSendOnEnterChanged: send => { sendOnEnterInvoked = true; lastSendOnEnter = send; },
+            onUse24HourClockChanged: use24 => { use24HInvoked = true; last24H = use24; },
+            onMediaSettingsChanged: (previews, download) => { mediaInvoked = true; lastShowPreviews = previews; lastAutoDownload = download; },
+            onThemeChanged: (theme, accent) => { themeInvoked = true; lastTheme = theme; lastAccent = accent; },
+            onQuickEmojisChanged: emojis => { emojisInvoked = true; });
+
+        // 1. Check Initial Defaults
+        Assert.Equal(SettingsRepository.DefaultFontFamily, vm.FontFamily);
+        Assert.Equal(SettingsRepository.DefaultFontSize, vm.FontSize);
+        Assert.True(vm.SendOnEnter);
+        Assert.True(vm.Use24HourClock);
+        Assert.True(vm.ShowInlinePreviews);
+        Assert.True(vm.AutoDownloadMedia);
+        Assert.Equal(SettingsRepository.DefaultThemeMode, vm.ThemeMode);
+        Assert.Equal(SettingsRepository.DefaultAccentColor, vm.AccentColor);
+        Assert.Equal(6, vm.QuickEmojis.Count);
+
+        // 2. Tab Navigation
+        vm.SelectTab(1);
+        Assert.Equal(1, vm.SelectedTabIndex);
+
+        // 3. Theme & Accent changes
+        vm.SelectThemeMode("Light");
+        Assert.True(themeInvoked);
+        Assert.Equal("Light", lastTheme);
+        Assert.Equal("Light", await _settingsRepo.GetThemeModeAsync(account));
+
+        vm.SelectAccent("#A855F7");
+        Assert.Equal("#A855F7", lastAccent);
+        Assert.Equal("#A855F7", await _settingsRepo.GetAccentColorAsync(account));
+
+        // 4. Typography changes
+        vm.FontFamily = "Cascadia Code";
+        Assert.True(typographyInvoked);
+        Assert.Equal("Cascadia Code", lastFont);
+        Assert.Equal("Cascadia Code", await _settingsRepo.GetFontFamilyAsync(account));
+
+        vm.FontSize = 15;
+        Assert.Equal(15, lastSize);
+        Assert.Equal(15, await _settingsRepo.GetFontSizeAsync(account));
+
+        // Custom font family
+        vm.FontFamily = "Custom...";
+        vm.CustomFontFamily = "Fira Code";
+        Assert.True(vm.IsCustomFont);
+        Assert.Equal("Fira Code", vm.EffectiveFontFamily);
+        Assert.Equal("Fira Code", await _settingsRepo.GetFontFamilyAsync(account));
+
+        // 5. Input keybinding
+        vm.SendOnEnter = false;
+        Assert.True(sendOnEnterInvoked);
+        Assert.False(lastSendOnEnter);
+        Assert.False(await _settingsRepo.GetSendOnEnterAsync(account));
+
+        // 6. Clock format
+        vm.Use24HourClock = false;
+        Assert.True(use24HInvoked);
+        Assert.False(last24H);
+        Assert.False(await _settingsRepo.GetUse24HourClockAsync(account));
+
+        // 7. Media settings
+        vm.ShowInlinePreviews = false;
+        Assert.True(mediaInvoked);
+        Assert.False(lastShowPreviews);
+        Assert.False(await _settingsRepo.GetShowInlinePreviewsAsync(account));
+
+        vm.AutoDownloadMedia = false;
+        Assert.False(lastAutoDownload);
+        Assert.False(await _settingsRepo.GetAutoDownloadMediaAsync(account));
+
+        // 8. Quick Emojis slot selection and replacement
+        vm.SelectEmojiSlot(2);
+        Assert.Equal(2, vm.SelectedEmojiSlot);
+        Assert.Contains("Editing Slot 3", vm.SelectedSlotLabel);
+
+        await vm.PickEmojiForSlotAsync("🚀");
+        Assert.True(emojisInvoked);
+        Assert.Equal("🚀", vm.QuickEmojis[2]);
+        var savedEmojis = await _settingsRepo.GetQuickEmojisAsync(account);
+        Assert.Equal("🚀", savedEmojis[2]);
+
+        // Reset quick emojis
+        await vm.ResetQuickEmojisAsync();
+        Assert.Equal(SettingsRepository.DefaultQuickEmojis[2], vm.QuickEmojis[2]);
+
+        // 9. Load in a separate ViewModel instance
+        var vmLoaded = new SettingsViewModel(_settingsRepo, account);
+        await vmLoaded.LoadSettingsAsync();
+        Assert.Equal("Custom...", vmLoaded.FontFamily);
+        Assert.Equal("Fira Code", vmLoaded.CustomFontFamily);
+        Assert.Equal(15, vmLoaded.FontSize);
+        Assert.False(vmLoaded.SendOnEnter);
+        Assert.False(vmLoaded.Use24HourClock);
+        Assert.False(vmLoaded.ShowInlinePreviews);
+        Assert.False(vmLoaded.AutoDownloadMedia);
+        Assert.Equal("Light", vmLoaded.ThemeMode);
+        Assert.Equal("#A855F7", vmLoaded.AccentColor);
+
+        // 10. Reset Defaults
+        await vmLoaded.ResetDefaultsAsync();
+        Assert.Equal(SettingsRepository.DefaultFontFamily, vmLoaded.FontFamily);
+        Assert.Equal(SettingsRepository.DefaultFontSize, vmLoaded.FontSize);
+        Assert.True(vmLoaded.SendOnEnter);
+        Assert.True(vmLoaded.Use24HourClock);
+        Assert.True(vmLoaded.ShowInlinePreviews);
+        Assert.True(vmLoaded.AutoDownloadMedia);
+        Assert.Equal(SettingsRepository.DefaultThemeMode, vmLoaded.ThemeMode);
+        Assert.Equal(SettingsRepository.DefaultAccentColor, vmLoaded.AccentColor);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_TypographyAndChatSettings_LiveSynchronization()
+    {
+        var mainVm = CreateMainChatViewModel();
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation("friend@test.org", "Friend", Jid.Parse("friend@test.org"), isGroupChat: false);
+        var msg = new Storage.Models.ChatMessage
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            AccountJid = "user@test.org",
+            RemoteJid = "friend@test.org",
+            SenderJid = "friend@test.org",
+            Body = "Testing https://example.com/image.png",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = Storage.Models.MessageDirection.Inbound
+        };
+        conv.AddOrUpdateMessage(msg);
+        var bubble = conv.Messages.First();
+
+        // 1. Typography synchronization
+        mainVm.Settings.FontFamily = "Consolas";
+        mainVm.Settings.FontSize = 16;
+        Assert.Equal("Consolas", mainVm.ChatFontFamily);
+        Assert.Equal(16, mainVm.ChatFontSize);
+
+        // 2. Send keybinding and watermark synchronization
+        Assert.True(mainVm.SendOnEnter);
+        Assert.Contains("Enter to send", mainVm.MessageInputWatermark);
+
+        mainVm.Settings.SendOnEnter = false;
+        Assert.False(mainVm.SendOnEnter);
+        Assert.Contains("Ctrl+Enter to send", mainVm.MessageInputWatermark);
+
+        // 3. 24-Hour vs 12-Hour clock
+        mainVm.Settings.Use24HourClock = true;
+        Assert.True(MessageBubbleViewModel.Use24HourClock);
+
+        mainVm.Settings.Use24HourClock = false;
+        Assert.False(MessageBubbleViewModel.Use24HourClock);
+
+        // 4. Media preview toggle
+        mainVm.Settings.ShowInlinePreviews = true;
+        Assert.True(MessageBubbleViewModel.ShowInlinePreviews);
+        Assert.True(bubble.IsPreviewVisible);
+
+        mainVm.Settings.ShowInlinePreviews = false;
+        Assert.False(MessageBubbleViewModel.ShowInlinePreviews);
+        Assert.False(bubble.IsPreviewVisible);
+
+        // 5. Quick emojis synchronization
+        await mainVm.Settings.PickEmojiForSlotAsync("🔥");
+        Assert.Equal("🔥", conv.QuickEmojis[0]);
+        Assert.Equal("🔥", bubble.EmojiPicker?.QuickEmojis[0]);
+
+        // 6. ChatInputMaxLines live synchronization
+        Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, mainVm.ChatInputMaxLines);
+        mainVm.Settings.ChatInputMaxLines = 8;
+        Assert.Equal(8, mainVm.ChatInputMaxLines);
+        mainVm.Settings.ChatInputMaxLines = 2;
+        Assert.Equal(2, mainVm.ChatInputMaxLines);
+    }
+
+    [Fact]
+    public void ThemeManager_ApplyTheme_HandlesAllVariantsAndAccents()
+    {
+        // Dark theme with Cyan
+        ThemeManager.ApplyTheme(ThemeManager.ThemeDark, ThemeManager.AccentCyan);
+        Assert.Equal(ThemeManager.ThemeDark, ThemeManager.CurrentThemeMode);
+        Assert.Equal(ThemeManager.AccentCyan, ThemeManager.CurrentAccentColor);
+
+        // Light theme with Purple
+        ThemeManager.ApplyTheme(ThemeManager.ThemeLight, ThemeManager.AccentPurple);
+        Assert.Equal(ThemeManager.ThemeLight, ThemeManager.CurrentThemeMode);
+        Assert.Equal(ThemeManager.AccentPurple, ThemeManager.CurrentAccentColor);
+
+        // System theme with Emerald
+        ThemeManager.ApplyTheme(ThemeManager.ThemeSystem, ThemeManager.AccentEmerald);
+        Assert.Equal(ThemeManager.ThemeSystem, ThemeManager.CurrentThemeMode);
+        Assert.Equal(ThemeManager.AccentEmerald, ThemeManager.CurrentAccentColor);
+
+        // Amber accent
+        ThemeManager.ApplyTheme(ThemeManager.ThemeDark, ThemeManager.AccentAmber);
+        Assert.Equal(ThemeManager.AccentAmber, ThemeManager.CurrentAccentColor);
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_BubbleColors_DefaultsPersistenceAndPresets_WorkCorrectly()
+    {
+        string account = "bubble_user@test.org";
+        string? callbackOutColor = null;
+        string? callbackInColor = null;
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            onBubbleColorChanged: (outColor, inColor) =>
+            {
+                callbackOutColor = outColor;
+                callbackInColor = inColor;
+            });
+
+        // 1. Check default values and flags
+        Assert.Equal(SettingsRepository.DefaultOutboundBubbleColor, vm.OutboundBubbleColor);
+        Assert.Equal(SettingsRepository.DefaultInboundBubbleColor, vm.InboundBubbleColor);
+        Assert.True(vm.IsOutboundBlueSelected);
+        Assert.False(vm.IsOutboundVioletSelected);
+        Assert.True(vm.IsInboundSlateSelected);
+        Assert.False(vm.IsInboundCharcoalSelected);
+
+        // 2. Select presets via commands
+        vm.SelectOutboundBubbleColor("#7C3AED");
+        Assert.Equal("#7C3AED", vm.OutboundBubbleColor);
+        Assert.False(vm.IsOutboundBlueSelected);
+        Assert.True(vm.IsOutboundVioletSelected);
+        Assert.Equal("#7C3AED", callbackOutColor);
+        Assert.Equal(SettingsRepository.DefaultInboundBubbleColor, callbackInColor);
+        Assert.Equal("#7C3AED", await _settingsRepo.GetOutboundBubbleColorAsync(account));
+
+        vm.SelectInboundBubbleColor("#14332B");
+        Assert.Equal("#14332B", vm.InboundBubbleColor);
+        Assert.False(vm.IsInboundSlateSelected);
+        Assert.True(vm.IsInboundForestSelected);
+        Assert.Equal("#14332B", callbackInColor);
+        Assert.Equal("#14332B", await _settingsRepo.GetInboundBubbleColorAsync(account));
+
+        // 3. Match Accent command
+        vm.AccentColor = "#00F0FF";
+        vm.MatchAccentBubbleColor();
+        Assert.Equal("#00F0FF", vm.OutboundBubbleColor);
+        Assert.Equal("#00F0FF", callbackOutColor);
+        Assert.Equal("#00F0FF", await _settingsRepo.GetOutboundBubbleColorAsync(account));
+
+        // 4. Custom hex input and preview brushes
+        vm.OutboundBubbleColor = "#FF0055";
+        Assert.False(vm.IsOutboundBlueSelected);
+        Assert.NotNull(vm.PreviewOutboundBrush);
+        Assert.Equal(Color.Parse("#FF0055"), ((SolidColorBrush)vm.PreviewOutboundBrush).Color);
+
+        vm.InboundBubbleColor = "#002233";
+        Assert.False(vm.IsInboundSlateSelected);
+        Assert.NotNull(vm.PreviewInboundBrush);
+        Assert.Equal(Color.Parse("#002233"), ((SolidColorBrush)vm.PreviewInboundBrush).Color);
+
+        // 5. Loading in a fresh ViewModel retrieves persisted values
+        var vm2 = new SettingsViewModel(_settingsRepo, account);
+        await vm2.LoadSettingsAsync();
+        Assert.Equal("#FF0055", vm2.OutboundBubbleColor);
+        Assert.Equal("#002233", vm2.InboundBubbleColor);
+
+        // 6. Reset defaults restores default bubble colors
+        await vm2.ResetDefaultsAsync();
+        Assert.Equal(SettingsRepository.DefaultOutboundBubbleColor, vm2.OutboundBubbleColor);
+        Assert.Equal(SettingsRepository.DefaultInboundBubbleColor, vm2.InboundBubbleColor);
+        Assert.True(vm2.IsOutboundBlueSelected);
+        Assert.True(vm2.IsInboundSlateSelected);
+        Assert.Equal(SettingsRepository.DefaultOutboundBubbleColor, await _settingsRepo.GetOutboundBubbleColorAsync(account));
+        Assert.Equal(SettingsRepository.DefaultInboundBubbleColor, await _settingsRepo.GetInboundBubbleColorAsync(account));
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_BubbleColors_LiveSynchronization()
+    {
+        var mainVm = CreateMainChatViewModel();
+        await mainVm.InitializeAsync();
+
+        var conv = mainVm.GetOrCreateConversation("partner@test.org", "Partner", Jid.Parse("partner@test.org"), isGroupChat: false);
+
+        var inboundMsg = new Storage.Models.ChatMessage
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            AccountJid = "user@test.org",
+            RemoteJid = "partner@test.org",
+            SenderJid = "partner@test.org",
+            Body = "Inbound message",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = Storage.Models.MessageDirection.Inbound
+        };
+        var outboundMsg = new Storage.Models.ChatMessage
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            AccountJid = "user@test.org",
+            RemoteJid = "partner@test.org",
+            SenderJid = "user@test.org",
+            Body = "Outbound message",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = Storage.Models.MessageDirection.Outbound
+        };
+
+        conv.AddOrUpdateMessage(inboundMsg);
+        conv.AddOrUpdateMessage(outboundMsg);
+
+        var inBubble = conv.Messages.First(m => !m.IsOutbound);
+        var outBubble = conv.Messages.First(m => m.IsOutbound);
+
+        // Change outbound and inbound colors in Settings
+        mainVm.Settings.OutboundBubbleColor = "#E11D48";
+        mainVm.Settings.InboundBubbleColor = "#111827";
+
+        // Verify DirectionToBackgroundConverter brushes updated
+        Assert.Equal(Color.Parse("#E11D48"), ((SolidColorBrush)DirectionToBackgroundConverter.OutboundBrush).Color);
+        Assert.Equal(Color.Parse("#111827"), ((SolidColorBrush)DirectionToBackgroundConverter.InboundBrush).Color);
+
+        // Verify live bubble instances updated their BubbleBackground property
+        Assert.Equal(Color.Parse("#E11D48"), ((SolidColorBrush)outBubble.BubbleBackground).Color);
+        Assert.Equal(Color.Parse("#111827"), ((SolidColorBrush)inBubble.BubbleBackground).Color);
+    }
 }
+
