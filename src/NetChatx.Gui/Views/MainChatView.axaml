@@ -821,6 +821,14 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <Button Content="⚙ Preferences &amp; Notifications..."
+                                Command="{Binding OpenChatSettingsCommand}"
+                                Background="#1E293B" Foreground="#94A3B8"
+                                BorderBrush="#334155" BorderThickness="1"
+                                CornerRadius="8" Padding="12,6" FontSize="11"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Cursor="Hand" Margin="0,2,0,0" />
                     </StackPanel>
 
                     <Separator Background="#1E293B" Height="1" />
@@ -941,6 +949,18 @@
             <views:CodeBlockEditorView DataContext="{Binding CodeBlockEditor}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- ================= SETTINGS / CONFIGURATION MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding Settings.IsOpen}"
+              ZIndex="998">
+            <!-- Dark semi-transparent backdrop (click to dismiss) -->
+            <Border Background="#80000000" PointerPressed="OnSettingsBackdropPressed" />
+            <!-- Centered Modal Settings Card -->
+            <views:SettingsView DataContext="{Binding Settings}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
         </Grid>
     </Grid>
 </UserControl>

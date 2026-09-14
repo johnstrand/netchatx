@@ -17,6 +17,7 @@ using NetChatx.Protocol.Xeps.Sharing;
 using NetChatx.Storage;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
+using NetChatx.Gui.Services;
 
 namespace NetChatx.Gui.ViewModels;
 
@@ -30,6 +31,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly OmemoRepository _omemoRepo;
     private readonly SettingsRepository _settingsRepo;
     private readonly Func<Task> _onDisconnectRequested;
+    private readonly INotificationService _notificationService;
 
     private Xep0313MessageArchiveManagement? _mam;
     private Xep0384OmemoManager? _omemo;
@@ -80,6 +82,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         if (newValue is not null)
         {
+            _notificationService.StopFlashing();
+
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(newValue.RemoteJid.ToString(), StringComparison.OrdinalIgnoreCase));
             if (contact is not null)
             {
@@ -284,6 +288,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
         if (!_isInitializingSettings)
         {
             _ = _settingsRepo.SetMergeMessagesEnabledAsync(AccountJid, value);
+            if (Settings is not null && Settings.EnableMessageMerging != value)
+            {
+                Settings.EnableMessageMerging = value;
+            }
         }
         foreach (var conv in Conversations)
         {
@@ -296,6 +304,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
         if (!_isInitializingSettings)
         {
             _ = _settingsRepo.SetMergeMessagesThresholdSecondsAsync(AccountJid, value);
+            if (Settings is not null && Settings.MessageMergeThresholdSeconds != value)
+            {
+                Settings.MessageMergeThresholdSeconds = value;
+            }
         }
         foreach (var conv in Conversations)
         {
@@ -306,7 +318,22 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public void OpenChatSettings()
     {
-        IsDetailsOpen = true;
+        Settings.Open();
+    }
+
+    [ObservableProperty]
+    private SettingsViewModel _settings;
+
+    public INotificationService NotificationService => _notificationService;
+
+    public bool IsWindowActive
+    {
+        get => _notificationService.IsWindowActive;
+        set
+        {
+            _notificationService.IsWindowActive = value;
+            OnPropertyChanged();
+        }
     }
 
     [ObservableProperty]
@@ -319,11 +346,17 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public MainChatViewModel(
         XmppClient client,
         DatabaseContext dbContext,
-        Func<Task> onDisconnectRequested)
+        Func<Task> onDisconnectRequested,
+        INotificationService? notificationService = null)
     {
         _client = client;
         _dbContext = dbContext;
         _onDisconnectRequested = onDisconnectRequested;
+        _notificationService = notificationService ?? new NotificationService();
+        _notificationService.WindowActiveChanged += active =>
+        {
+            OnPropertyChanged(nameof(IsWindowActive));
+        };
 
         _messageRepo = new MessageRepository(_dbContext);
         _rosterRepo = new RosterRepository(_dbContext);
@@ -333,6 +366,32 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         _accountJid = client.Options.Jid.BareJid.ToString();
         _userBoundJid = client.BoundJid.ToString();
+
+        _settings = new SettingsViewModel(
+            _settingsRepo,
+            _accountJid,
+            onBubbleMergeChanged: (enabled, threshold) =>
+            {
+                _enableMessageMerging = enabled;
+                _messageMergeThresholdSeconds = threshold;
+                OnPropertyChanged(nameof(EnableMessageMerging));
+                OnPropertyChanged(nameof(MessageMergeThresholdSeconds));
+                foreach (var conv in Conversations)
+                {
+                    conv.EnableMessageMerging = enabled;
+                    conv.MessageMergeThresholdSeconds = threshold;
+                }
+            },
+            onPopupsChanged: enabled =>
+            {
+            },
+            onFlashingChanged: enabled =>
+            {
+                if (!enabled)
+                {
+                    _notificationService.StopFlashing();
+                }
+            });
     }
 
     public async Task InitializeAsync()
@@ -451,8 +510,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
         try
         {
             _isInitializingSettings = true;
-            EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(AccountJid);
-            MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(AccountJid);
+            await Settings.LoadSettingsAsync();
+            EnableMessageMerging = Settings.EnableMessageMerging;
+            MessageMergeThresholdSeconds = Settings.MessageMergeThresholdSeconds;
         }
         catch
         {
@@ -754,6 +814,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public async Task SelectConversationAsync(ChatConversationViewModel conv)
     {
         ActiveConversation = conv;
+        _notificationService.StopFlashing();
 
         var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(conv.RemoteJid.ToString(), StringComparison.OrdinalIgnoreCase));
         if (contact is not null)
@@ -762,6 +823,48 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         await conv.EnsureHistoryLoadedAsync();
+    }
+
+    public async Task SelectConversationByIdAsync(string conversationId)
+    {
+        if (!Jid.TryParse(conversationId, out var parsedJid)) return;
+
+        var conv = Conversations.FirstOrDefault(c => c.Id.Equals(conversationId, StringComparison.OrdinalIgnoreCase)
+                                                  || c.RemoteJid.EqualsBare(parsedJid));
+        if (conv is not null)
+        {
+            await SelectConversationAsync(conv);
+        }
+        else
+        {
+            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(conversationId, StringComparison.OrdinalIgnoreCase)
+                                                    || (Jid.TryParse(c.ContactJid, out var cj) && cj.EqualsBare(parsedJid)));
+            string title = contact?.DisplayName ?? parsedJid.BareJid.ToString();
+            var newConv = GetOrCreateConversation(parsedJid.BareJid.ToString(), title, parsedJid.BareJid, isGroupChat: false);
+            await SelectConversationAsync(newConv);
+        }
+    }
+
+    public void TriggerNotification(string remoteJid, string senderDisplayName, string previewText, bool isEncrypted)
+    {
+        bool isChatActiveAndFocused = IsWindowActive && (ActiveConversation?.Id == remoteJid || (Jid.TryParse(remoteJid, out var rj) && ActiveConversation?.RemoteJid.EqualsBare(rj) == true));
+
+        if (isChatActiveAndFocused)
+        {
+            // Do not spam OS notifications if the user is actively viewing this conversation in the foreground window
+            return;
+        }
+
+        if (Settings.NotificationPopupsEnabled)
+        {
+            string title = isEncrypted ? $"🔒 {senderDisplayName}" : senderDisplayName;
+            _notificationService.ShowSystemNotification(title, previewText);
+        }
+
+        if (Settings.IconFlashingEnabled)
+        {
+            _notificationService.FlashWindow();
+        }
     }
 
     public ChatConversationViewModel GetOrCreateConversation(string id, string title, Jid remoteJid, bool isGroupChat)
@@ -1000,6 +1103,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     contact.UnreadCount++;
                 }
             }
+
+            if (direction == MessageDirection.Inbound)
+            {
+                var senderDisplayName = contact?.DisplayName ?? (sender.IsBare ? sender.LocalPart : sender.Resource) ?? sender.ToString();
+                TriggerNotification(remote.ToString(), senderDisplayName, msg.Body, isEncrypted: false);
+            }
         });
     }
 
@@ -1090,6 +1199,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     contact.UnreadCount++;
                 }
             }
+
+            if (direction == MessageDirection.Inbound)
+            {
+                var senderDisplayName = contact?.DisplayName ?? (sender.IsBare ? sender.LocalPart : sender.Resource) ?? sender.ToString();
+                TriggerNotification(remote.ToString(), senderDisplayName, msg.Body, isEncrypted: false);
+            }
         });
     }
 
@@ -1129,6 +1244,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     contact.UnreadCount++;
                 }
             }
+
+            var senderDisplayName = contact?.DisplayName ?? dec.SenderJid.LocalPart ?? dec.SenderJid.ToString();
+            TriggerNotification(remoteJid.ToString(), senderDisplayName, dec.PlaintextBody, isEncrypted: true);
         });
     }
 
