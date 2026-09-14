@@ -1,0 +1,117 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NetChatx.Gui.ViewModels"
+             x:Class="NetChatx.Gui.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+            Width="480" MaxWidth="520" Padding="24" CornerRadius="16"
+            Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
+            BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
+        <StackPanel Spacing="18">
+            <!-- Modal Header -->
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Text="⚙ Preferences" FontWeight="Bold" FontSize="18" Foreground="#F8FAFC" />
+                    <TextBlock Text="Configure notifications and chat bubble behavior." Foreground="#64748B" FontSize="11" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}"
+                        ToolTip.Tip="Close (Esc)"
+                        Classes="icon-btn subtle" />
+            </Grid>
+
+            <!-- Section 1: Notifications -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="NOTIFICATIONS" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" LetterSpacing="0.5" />
+                
+                <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="14">
+                        <!-- Popup Notifications Switch -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="System Notifications" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                                <TextBlock Text="Display native OS desktop notifications for new messages when in other chats or inactive."
+                                           Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          IsChecked="{Binding NotificationPopupsEnabled, Mode=TwoWay}"
+                                          OnContent="" OffContent=""
+                                          VerticalAlignment="Center"
+                                          Margin="12,0,0,0" />
+                        </Grid>
+
+                        <Separator Background="#1E293B" Height="1" />
+
+                        <!-- Taskbar Icon Flashing Switch -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Flash Taskbar Icon" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                                <TextBlock Text="Flash the window and taskbar icon when messages arrive while inactive."
+                                           Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          IsChecked="{Binding IconFlashingEnabled, Mode=TwoWay}"
+                                          OnContent="" OffContent=""
+                                          VerticalAlignment="Center"
+                                          Margin="12,0,0,0" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Section 2: Chat & Bubble Merging -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="CHAT BUBBLE MERGING" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" LetterSpacing="0.5" />
+
+                <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="14">
+                        <!-- Merge Toggle -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Merge Consecutive Messages" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                                <TextBlock Text="Group consecutive messages sent within seconds into a single chat bubble."
+                                           Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          IsChecked="{Binding EnableMessageMerging, Mode=TwoWay}"
+                                          OnContent="" OffContent=""
+                                          VerticalAlignment="Center"
+                                          Margin="12,0,0,0" />
+                        </Grid>
+
+                        <!-- Merge Threshold Slider (Visible when enabled) -->
+                        <StackPanel Spacing="6" IsVisible="{Binding EnableMessageMerging}">
+                            <Separator Background="#1E293B" Height="1" Margin="0,0,0,8" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Merge Time Window" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding MessageMergeThresholdSeconds, StringFormat='{}{0} seconds'}"
+                                           FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" VerticalAlignment="Center" />
+                            </Grid>
+                            <Slider Minimum="1" Maximum="60"
+                                    Value="{Binding MessageMergeThresholdSeconds, Mode=TwoWay}"
+                                    TickFrequency="1" IsSnapToTickEnabled="True" />
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0" Text="1s" FontSize="10" Foreground="#475569" />
+                                <TextBlock Grid.Column="2" Text="60s" FontSize="10" Foreground="#475569" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Modal Action Buttons -->
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="Reset Defaults"
+                        Command="{Binding ResetDefaultsCommand}"
+                        Background="#1E293B" Foreground="#94A3B8"
+                        BorderBrush="#334155" BorderThickness="1"
+                        CornerRadius="8" Padding="12,6" FontSize="12"
+                        Cursor="Hand" />
+                <Button Grid.Column="2" Content="Done"
+                        Command="{Binding CloseCommand}"
+                        Classes="accent"
+                        Padding="20,6" FontSize="12" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

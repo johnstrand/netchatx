@@ -11,8 +11,12 @@ public sealed class SettingsRepository
     public const string KeyQuickEmojis = "quick_emojis";
     public const string KeyMergeMessagesEnabled = "merge_messages_enabled";
     public const string KeyMergeMessagesThresholdSeconds = "merge_messages_threshold_seconds";
+    public const string KeyNotificationPopupsEnabled = "notification_popups_enabled";
+    public const string KeyIconFlashingEnabled = "icon_flashing_enabled";
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
+    public const bool DefaultNotificationPopupsEnabled = true;
+    public const bool DefaultIconFlashingEnabled = true;
 
     public SettingsRepository(DatabaseContext context)
     {
@@ -102,5 +106,27 @@ public sealed class SettingsRepository
     public async Task SetMergeMessagesThresholdSecondsAsync(string accountJid, int seconds, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, seconds.ToString(), cancellationToken);
+    }
+
+    public async Task<bool> GetNotificationPopupsEnabledAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyNotificationPopupsEnabled, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultNotificationPopupsEnabled;
+    }
+
+    public async Task SetNotificationPopupsEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyNotificationPopupsEnabled, enabled.ToString(), cancellationToken);
+    }
+
+    public async Task<bool> GetIconFlashingEnabledAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyIconFlashingEnabled, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultIconFlashingEnabled;
+    }
+
+    public async Task SetIconFlashingEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyIconFlashingEnabled, enabled.ToString(), cancellationToken);
     }
 }

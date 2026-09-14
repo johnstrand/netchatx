@@ -78,12 +78,24 @@ public partial class MainChatView : UserControl
             vm.CodeBlockInjected += OnCodeBlockInjected;
             UpdateActiveConversation(vm.ActiveConversation);
             ApplySidebarState(vm.IsSidebarOpen);
+
+            if (TopLevel.GetTopLevel(this) is Window window)
+            {
+                vm.NotificationService?.AttachWindow(window);
+            }
         }
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
+
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.PropertyChanged -= OnMainViewModelPropertyChanged;
+            vm.CodeBlockInjected -= OnCodeBlockInjected;
+            vm.NotificationService?.DetachWindow();
+        }
 
         if (_messageInputBox is not null)
         {
@@ -113,12 +125,6 @@ public partial class MainChatView : UserControl
         if (_messagesScrollViewer is not null)
         {
             _messagesScrollViewer.SizeChanged -= OnMessagesScrollViewerSizeChanged;
-        }
-
-        if (DataContext is MainChatViewModel vm)
-        {
-            vm.PropertyChanged -= OnMainViewModelPropertyChanged;
-            vm.CodeBlockInjected -= OnCodeBlockInjected;
         }
 
         UpdateActiveConversation(null);
@@ -560,6 +566,14 @@ public partial class MainChatView : UserControl
             _searchInputBox?.SelectAll();
             e.Handled = true;
         }
+        else if (e.Key == Key.Escape && DataContext is MainChatViewModel vm)
+        {
+            if (vm.Settings.IsOpen)
+            {
+                vm.Settings.Close();
+                e.Handled = true;
+            }
+        }
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
@@ -605,6 +619,15 @@ public partial class MainChatView : UserControl
         if (DataContext is MainChatViewModel vm)
         {
             vm.CancelNewChatDialog();
+            e.Handled = true;
+        }
+    }
+
+    public void OnSettingsBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.Settings.Close();
             e.Handled = true;
         }
     }

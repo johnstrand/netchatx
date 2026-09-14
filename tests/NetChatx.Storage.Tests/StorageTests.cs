@@ -85,6 +85,31 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsRepository_NotificationSettings_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        string account = "notify_user@example.org";
+
+        // Defaults
+        Assert.True(await repo.GetNotificationPopupsEnabledAsync(account));
+        Assert.True(await repo.GetIconFlashingEnabledAsync(account));
+
+        // Update to false
+        await repo.SetNotificationPopupsEnabledAsync(account, false);
+        await repo.SetIconFlashingEnabledAsync(account, false);
+
+        Assert.False(await repo.GetNotificationPopupsEnabledAsync(account));
+        Assert.False(await repo.GetIconFlashingEnabledAsync(account));
+
+        // Update back to true
+        await repo.SetNotificationPopupsEnabledAsync(account, true);
+        await repo.SetIconFlashingEnabledAsync(account, true);
+
+        Assert.True(await repo.GetNotificationPopupsEnabledAsync(account));
+        Assert.True(await repo.GetIconFlashingEnabledAsync(account));
+    }
+
+    [Fact]
     public async Task AccountRepository_Crud_Succeeds()
     {
         var repo = new AccountRepository(_context);
