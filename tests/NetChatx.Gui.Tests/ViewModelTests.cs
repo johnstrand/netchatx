@@ -2642,6 +2642,182 @@ public class ViewModelTests : IDisposable
         Assert.Equal("In a meeting", vm.StatusMessage);
     }
 
+    [Fact]
+    public async Task MainChatViewModel_InitializeAsync_RestoresSavedPresenceAndActiveChat()
+    {
+        string account = "alice_restore@mock.example.com";
+        string contact1Jid = "peer1@mock.example.com";
+        string contact2Jid = "peer2@mock.example.com";
+
+        var settingsRepo = new SettingsRepository(_dbContext);
+        await settingsRepo.SetLastPresenceModeAsync(account, "dnd");
+        await settingsRepo.SetLastStatusMessageAsync(account, "In deep focus");
+        await settingsRepo.SetLastActiveChatAsync(account, contact2Jid);
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contact1Jid, Name = "Peer One", Subscription = "both" },
+            new RosterContact { AccountJid = account, ContactJid = contact2Jid, Name = "Peer Two", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        // Presence restored
+        Assert.Equal("dnd", mainVm.UserPresence);
+        Assert.Equal("In deep focus", mainVm.StatusMessage);
+
+        // Active chat restored to contact2
+        Assert.NotNull(mainVm.ActiveConversation);
+        Assert.Equal(contact2Jid, mainVm.ActiveConversation.RemoteJid.ToString());
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_ActiveConversationChanged_PersistsLastActiveChat()
+    {
+        string account = "alice_persist@mock.example.com";
+        string contact1Jid = "peer1@mock.example.com";
+        string contact2Jid = "peer2@mock.example.com";
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contact1Jid, Name = "Peer One", Subscription = "both" },
+            new RosterContact { AccountJid = account, ContactJid = contact2Jid, Name = "Peer Two", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var settingsRepo = new SettingsRepository(_dbContext);
+
+        // Switch to peer 2
+        var peer2Conv = mainVm.Conversations.First(c => c.RemoteJid.ToString().Equals(contact2Jid, StringComparison.OrdinalIgnoreCase));
+        mainVm.ActiveConversation = peer2Conv;
+
+        // Verify persisted to SQLite
+        string? savedChat = null;
+        for (int i = 0; i < 40 && savedChat != contact2Jid; i++)
+        {
+            await Task.Delay(25);
+            savedChat = await settingsRepo.GetLastActiveChatAsync(account);
+        }
+        Assert.Equal(contact2Jid, savedChat);
+
+        // Switch to peer 1
+        var peer1Conv = mainVm.Conversations.First(c => c.RemoteJid.ToString().Equals(contact1Jid, StringComparison.OrdinalIgnoreCase));
+        mainVm.ActiveConversation = peer1Conv;
+
+        string? savedChat2 = null;
+        for (int i = 0; i < 40 && savedChat2 != contact1Jid; i++)
+        {
+            await Task.Delay(25);
+            savedChat2 = await settingsRepo.GetLastActiveChatAsync(account);
+        }
+        Assert.Equal(contact1Jid, savedChat2);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_SetPresenceAsync_PersistsPresenceAndStatus()
+    {
+        string account = "alice_pres_persist@mock.example.com";
+        var settingsRepo = new SettingsRepository(_dbContext);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        mainVm.StatusMessage = "Stepped away for a moment";
+        await mainVm.SetPresenceAsync("away");
+
+        var savedMode = await settingsRepo.GetLastPresenceModeAsync(account);
+        var savedStatus = await settingsRepo.GetLastStatusMessageAsync(account);
+
+        Assert.Equal("away", savedMode);
+        Assert.Equal("Stepped away for a moment", savedStatus);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_IncomingPresence_ForeignResourceDoesNotOverwriteOwnPresence()
+    {
+        string account = "alice@mock.example.com";
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Resource = "desktop",
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        Assert.Equal("available", mainVm.UserPresence);
+
+        // Another device (e.g. mobile client) on same bare account broadcasts presence away
+        var foreignMobilePresence = new PresenceStanza(from: Jid.Parse($"{account}/mobile"), show: "away", status: "On phone");
+        await server.InjectStanzaAsync(foreignMobilePresence);
+        await Task.Delay(50);
+
+        // Our UserPresence on desktop must remain available!
+        Assert.Equal("available", mainVm.UserPresence);
+
+        // If a presence from our OWN bound resource is received (server reflection), it updates
+        var boundPresence = new PresenceStanza(from: client.BoundJid, show: "away", status: "Updated from desktop");
+        await server.InjectStanzaAsync(boundPresence);
+        for (int i = 0; i < 20 && mainVm.UserPresence != "away"; i++) await Task.Delay(25);
+
+        Assert.Equal("away", mainVm.UserPresence);
+        Assert.Equal("Updated from desktop", mainVm.StatusMessage);
+
+        await client.DisconnectAsync();
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))

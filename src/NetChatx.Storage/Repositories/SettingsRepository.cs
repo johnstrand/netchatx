@@ -24,6 +24,9 @@ public sealed class SettingsRepository
     public const string KeyOutboundBubbleColor = "outbound_bubble_color";
     public const string KeyInboundBubbleColor = "inbound_bubble_color";
     public const string KeyChatInputMaxLines = "chat_input_max_lines";
+    public const string KeyLastActiveChat = "last_active_chat";
+    public const string KeyLastPresenceMode = "last_presence_mode";
+    public const string KeyLastStatusMessage = "last_status_message";
 
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
@@ -40,6 +43,8 @@ public sealed class SettingsRepository
     public const string DefaultOutboundBubbleColor = "#2563EB";
     public const string DefaultInboundBubbleColor = "#1E293B";
     public const int DefaultChatInputMaxLines = 5;
+    public const string DefaultPresenceMode = "available";
+    public const string DefaultStatusMessage = "Online with NetChatx";
 
     public SettingsRepository(DatabaseContext context)
     {
@@ -279,5 +284,37 @@ public sealed class SettingsRepository
     {
         int clamped = Math.Clamp(maxLines, 1, 20);
         await SetSettingAsync(accountJid, KeyChatInputMaxLines, clamped.ToString(), cancellationToken);
+    }
+
+    public async Task<string?> GetLastActiveChatAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        return await GetSettingAsync(accountJid, KeyLastActiveChat, cancellationToken);
+    }
+
+    public async Task SetLastActiveChatAsync(string accountJid, string? chatJid, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyLastActiveChat, chatJid ?? string.Empty, cancellationToken);
+    }
+
+    public async Task<string> GetLastPresenceModeAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyLastPresenceMode, cancellationToken);
+        return !string.IsNullOrWhiteSpace(val) ? val : DefaultPresenceMode;
+    }
+
+    public async Task SetLastPresenceModeAsync(string accountJid, string presenceMode, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyLastPresenceMode, !string.IsNullOrWhiteSpace(presenceMode) ? presenceMode : DefaultPresenceMode, cancellationToken);
+    }
+
+    public async Task<string> GetLastStatusMessageAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyLastStatusMessage, cancellationToken);
+        return val is not null ? val : DefaultStatusMessage;
+    }
+
+    public async Task SetLastStatusMessageAsync(string accountJid, string statusMessage, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyLastStatusMessage, statusMessage ?? DefaultStatusMessage, cancellationToken);
     }
 }
