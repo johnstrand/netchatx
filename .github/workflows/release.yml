@@ -198,11 +198,18 @@ jobs:
             fi
           done
 
-      - name: Publish Release to GitHub
+      - name: Publish Release to GitHub and Create Label
         if: ${{ !inputs.dry_run }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Create repository label for this release
+          gh label create "${{ needs.calculate-and-tag-version.outputs.tag }}" \
+            --description "Release ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+            --color "0E8A16" \
+            --force
+
+          # Publish GitHub Release with all binary packages attached
           gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
             --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
             --generate-notes
