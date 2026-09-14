@@ -2469,6 +2469,179 @@ public class ViewModelTests : IDisposable
         Assert.Empty(dbMsgsAfterRetract);
     }
 
+    [Fact]
+    public async Task MainChatViewModel_IncomingPresence_UpdatesContactOnlineIndicator()
+    {
+        string account = "alice@mock.example.com";
+        string contactJid = "bob@mock.example.com";
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Bob", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var bob = mainVm.Contacts.FirstOrDefault(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(bob);
+        Assert.Equal("offline", bob.PresenceShow);
+
+        // 1. Bob comes online
+        var presOnline = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"));
+        await server.InjectStanzaAsync(presOnline);
+        for (int i = 0; i < 20 && bob.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", bob.PresenceShow);
+
+        // 2. Bob changes presence to away with status
+        var presAway = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"), show: "away", status: "Stepped out");
+        await server.InjectStanzaAsync(presAway);
+        for (int i = 0; i < 20 && bob.PresenceShow != "away"; i++) await Task.Delay(25);
+        Assert.Equal("away", bob.PresenceShow);
+        Assert.Equal("Stepped out", bob.StatusMessage);
+
+        // 3. Bob changes to dnd
+        var presDnd = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"), show: "dnd", status: "In a meeting");
+        await server.InjectStanzaAsync(presDnd);
+        for (int i = 0; i < 20 && bob.PresenceShow != "dnd"; i++) await Task.Delay(25);
+        Assert.Equal("dnd", bob.PresenceShow);
+        Assert.Equal("In a meeting", bob.StatusMessage);
+
+        // 4. Bob goes offline
+        var presOffline = new PresenceStanza(type: PresenceStanza.TypeUnavailable, from: Jid.Parse($"{contactJid}/desktop"));
+        await server.InjectStanzaAsync(presOffline);
+        for (int i = 0; i < 20 && bob.PresenceShow != "offline"; i++) await Task.Delay(25);
+        Assert.Equal("offline", bob.PresenceShow);
+        Assert.Null(bob.StatusMessage);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_MultiResourcePresence_PrioritizesCorrectly()
+    {
+        string account = "alice@mock.example.com";
+        string contactJid = "bob@mock.example.com";
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Bob", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var bob = mainVm.Contacts.First(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+
+        // Mobile comes online with priority 5, away
+        var presMobile = new PresenceStanza(from: Jid.Parse($"{contactJid}/mobile"), show: "away", priority: 5);
+        await server.InjectStanzaAsync(presMobile);
+        for (int i = 0; i < 20 && bob.PresenceShow != "away"; i++) await Task.Delay(25);
+        Assert.Equal("away", bob.PresenceShow);
+
+        // Desktop comes online with priority 10, available (higher priority)
+        var presDesktop = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"), priority: 10);
+        await server.InjectStanzaAsync(presDesktop);
+        for (int i = 0; i < 20 && bob.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", bob.PresenceShow);
+
+        // Desktop disconnects -> reverts to mobile (away)
+        var presDesktopOff = new PresenceStanza(type: PresenceStanza.TypeUnavailable, from: Jid.Parse($"{contactJid}/desktop"));
+        await server.InjectStanzaAsync(presDesktopOff);
+        for (int i = 0; i < 20 && bob.PresenceShow != "away"; i++) await Task.Delay(25);
+        Assert.Equal("away", bob.PresenceShow);
+
+        // Mobile disconnects -> offline
+        var presMobileOff = new PresenceStanza(type: PresenceStanza.TypeUnavailable, from: Jid.Parse($"{contactJid}/mobile"));
+        await server.InjectStanzaAsync(presMobileOff);
+        for (int i = 0; i < 20 && bob.PresenceShow != "offline"; i++) await Task.Delay(25);
+        Assert.Equal("offline", bob.PresenceShow);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_Disconnect_ResetsContactsToOffline()
+    {
+        string account = "alice@mock.example.com";
+        string contactJid = "bob@mock.example.com";
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Bob", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var bob = mainVm.Contacts.First(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        var presOnline = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"), status: "Working");
+        await server.InjectStanzaAsync(presOnline);
+        for (int i = 0; i < 20 && bob.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", bob.PresenceShow);
+
+        await mainVm.DisconnectAsync();
+        Assert.Equal("offline", bob.PresenceShow);
+        Assert.Null(bob.StatusMessage);
+    }
+
+    [Fact]
+    public void ContactItemViewModel_FromRosterContact_InitializesPresenceFields()
+    {
+        var roster = new RosterContact
+        {
+            AccountJid = "alice@example.com",
+            ContactJid = "carol@example.com",
+            Name = "Carol",
+            Subscription = "both",
+            PresenceShow = "dnd",
+            PresenceStatus = "In a meeting"
+        };
+
+        var vm = ContactItemViewModel.FromRosterContact(roster);
+        Assert.Equal("alice@example.com", vm.AccountJid);
+        Assert.Equal("carol@example.com", vm.ContactJid);
+        Assert.Equal("Carol", vm.DisplayName);
+        Assert.Equal("dnd", vm.PresenceShow);
+        Assert.Equal("In a meeting", vm.StatusMessage);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))

@@ -181,5 +181,8 @@
         <Style Selector="DropDownButton.icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#1E293B" />
         </Style>
+        <Style Selector="DropDownButton.icon-btn /template/ PathIcon#PART_DropDownGlyph">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
     </Application.Styles>
 </Application>
