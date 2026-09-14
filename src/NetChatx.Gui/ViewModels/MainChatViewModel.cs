@@ -48,6 +48,27 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0308LastMessageCorrection? _correction;
     private Xep0424MessageRetraction? _retraction;
     private Xep0393MessageStyling? _styling;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
+
+    private static int ShowScore(string show) => show switch
+    {
+        "chat" => 4,
+        "available" or "online" => 3,
+        "away" => 2,
+        "dnd" => 1,
+        "xa" => 0,
+        _ => -1
+    };
+
+    private void ApplyPresenceToContact(ContactItemViewModel contact)
+    {
+        if (_contactResourcePresence.TryGetValue(contact.ContactJid, out var resources) && !resources.IsEmpty)
+        {
+            var best = resources.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
+            contact.PresenceShow = best.Show;
+            contact.StatusMessage = best.Status;
+        }
+    }
 
     [ObservableProperty]
     private string _accountJid;
@@ -239,6 +260,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 Name = displayName,
                 Subscription = "none"
             };
+            ApplyPresenceToContact(newContact);
             Contacts.Add(newContact);
 
             await _rosterRepo.UpsertContactsAsync([new RosterContact
@@ -574,6 +596,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await HandleIncomingReactionAsync(args);
         };
 
+        // Wire incoming presence
+        _client.PresenceReceived += async pres =>
+        {
+            await HandleIncomingPresenceAsync(pres);
+        };
+
         // Send initial presence per RFC 6121 to signal availability and release queued offline messages
         try
         {
@@ -621,7 +649,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var cachedContacts = await _rosterRepo.GetContactsAsync(AccountJid);
         foreach (var c in cachedContacts)
         {
-            Contacts.Add(ContactItemViewModel.FromRosterContact(c));
+            var item = ContactItemViewModel.FromRosterContact(c);
+            ApplyPresenceToContact(item);
+            Contacts.Add(item);
         }
 
         // Query roster from server per RFC 6121
@@ -654,13 +684,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         var existing = Contacts.FirstOrDefault(x => x.ContactJid.Equals(cJid, StringComparison.OrdinalIgnoreCase));
                         if (existing is null)
                         {
-                            Contacts.Add(new ContactItemViewModel
+                            var newItem = new ContactItemViewModel
                             {
                                 AccountJid = AccountJid,
                                 ContactJid = cJid,
                                 Name = name,
                                 Subscription = sub
-                            });
+                            };
+                            ApplyPresenceToContact(newItem);
+                            Contacts.Add(newItem);
                         }
                         else
                         {
@@ -1086,8 +1118,111 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public async Task DisconnectAsync()
     {
+        _contactResourcePresence.Clear();
+        foreach (var c in Contacts)
+        {
+            c.PresenceShow = "offline";
+            c.StatusMessage = null;
+        }
         await _client.DisconnectAsync();
         await _onDisconnectRequested();
+    }
+
+    internal Task HandleIncomingPresenceAsync(PresenceStanza presence)
+    {
+        var fromJid = presence.From;
+        var senderBare = fromJid?.ToBareString();
+        if (string.IsNullOrEmpty(senderBare))
+        {
+            return Task.CompletedTask;
+        }
+
+        // Ignore non-presence stanzas (e.g. subscribe, subscribed, unsubscribe, error) for status updates
+        if (!string.IsNullOrEmpty(presence.Type) &&
+            !string.Equals(presence.Type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.CompletedTask;
+        }
+
+        // Check if this is our own presence being reflected back
+        if (senderBare.Equals(AccountJid, StringComparison.OrdinalIgnoreCase) ||
+            (_client.BoundJid is not null && senderBare.Equals(_client.BoundJid.ToBareString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            string selfShow;
+            if (!presence.IsAvailable || string.Equals(presence.Type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase))
+            {
+                selfShow = "offline";
+            }
+            else
+            {
+                var rawShow = presence.Show?.Trim().ToLowerInvariant();
+                selfShow = string.IsNullOrEmpty(rawShow) ? "available" : rawShow;
+            }
+
+            PostToUi(() =>
+            {
+                UserPresence = selfShow;
+                if (presence.Status is not null)
+                {
+                    StatusMessage = presence.Status;
+                }
+            });
+            return Task.CompletedTask;
+        }
+
+        var resource = fromJid?.Resource ?? string.Empty;
+        var resourceMap = _contactResourcePresence.GetOrAdd(senderBare, _ => new(StringComparer.OrdinalIgnoreCase));
+
+        string aggregateShow;
+        string? aggregateStatus;
+
+        if (!presence.IsAvailable || string.Equals(presence.Type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrEmpty(resource))
+            {
+                resourceMap.TryRemove(resource, out _);
+            }
+            else
+            {
+                resourceMap.Clear();
+            }
+
+            if (resourceMap.IsEmpty)
+            {
+                aggregateShow = "offline";
+                aggregateStatus = null;
+            }
+            else
+            {
+                var best = resourceMap.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
+                aggregateShow = best.Show;
+                aggregateStatus = best.Status;
+            }
+        }
+        else
+        {
+            var rawShow = presence.Show?.Trim().ToLowerInvariant();
+            var show = string.IsNullOrEmpty(rawShow) ? "available" : rawShow;
+            var priority = presence.Priority ?? 0;
+
+            resourceMap[resource] = (show, presence.Status, priority);
+
+            var best = resourceMap.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
+            aggregateShow = best.Show;
+            aggregateStatus = best.Status;
+        }
+
+        PostToUi(() =>
+        {
+            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(senderBare, StringComparison.OrdinalIgnoreCase));
+            if (contact is not null)
+            {
+                contact.PresenceShow = aggregateShow;
+                contact.StatusMessage = aggregateStatus;
+            }
+        });
+
+        return Task.CompletedTask;
     }
 
     private async Task HandleIncomingReactionAsync(ReactionEventArgs args)

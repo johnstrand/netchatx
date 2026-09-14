@@ -38,7 +38,9 @@ public sealed partial class ContactItemViewModel : ViewModelBase
             AccountJid = contact.AccountJid,
             ContactJid = contact.ContactJid,
             Name = contact.Name,
-            Subscription = contact.Subscription
+            Subscription = contact.Subscription,
+            PresenceShow = !string.IsNullOrWhiteSpace(contact.PresenceShow) ? contact.PresenceShow : "offline",
+            StatusMessage = contact.PresenceStatus
         };
     }
 }
