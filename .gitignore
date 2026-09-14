@@ -489,3 +489,12 @@ $RECYCLE.BIN/
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# Release and packaging artifacts
+dist/
+release-assets/
+deb-package/
+dmg-staging/
+bundle/
+icon.iconset/
+

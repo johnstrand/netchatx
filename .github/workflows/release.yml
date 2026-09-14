@@ -1,0 +1,215 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: 'Custom version override (e.g. 1.0.0). If empty, auto-bumps version based on minor/major rule.'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Test build and packaging without creating a GitHub release or git tag'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  calculate-and-tag-version:
+    name: Calculate Version & Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc_version.outputs.version }}
+      tag: ${{ steps.calc_version.outputs.tag }}
+      commit_sha: ${{ steps.save_commit.outputs.commit_sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calculate next version
+        id: calc_version
+        shell: pwsh
+        run: |
+          ./scripts/calculate-version.ps1 -VersionOverride "${{ inputs.version_override }}"
+
+      - name: Update Directory.Build.props
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.calc_version.outputs.version }}"
+          [xml]$props = Get-Content Directory.Build.props
+          $props.Project.PropertyGroup.Version = "$ver"
+          $props.Project.PropertyGroup.AssemblyVersion = "$ver.0"
+          $props.Project.PropertyGroup.FileVersion = "$ver.0"
+          $props.Project.PropertyGroup.InformationalVersion = "$ver"
+          $props.Save((Resolve-Path Directory.Build.props))
+          Write-Host "Directory.Build.props updated to version $ver"
+
+      - name: Commit, Tag and Push
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Directory.Build.props
+          git commit -m "chore(release): bump version to ${{ steps.calc_version.outputs.tag }} [skip ci]"
+          git tag -a "${{ steps.calc_version.outputs.tag }}" -m "Release ${{ steps.calc_version.outputs.tag }}"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "${{ steps.calc_version.outputs.tag }}"
+
+      - name: Save commit SHA
+        id: save_commit
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  build-windows:
+    name: Build & Package Windows (win-x64)
+    needs: calculate-and-tag-version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.calculate-and-tag-version.outputs.commit_sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+              Write-Host "Installing Inno Setup via Chocolatey..."
+              choco install innosetup --no-progress
+          }
+          if (Test-Path "C:\Program Files (x86)\Inno Setup 6") {
+              "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
+
+      - name: Publish Windows App
+        shell: pwsh
+        run: |
+          dotnet publish src/NetChatx.Gui/NetChatx.Gui.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/win-x64
+
+      - name: Package Windows Artifacts
+        shell: pwsh
+        run: |
+          ./scripts/package-windows.ps1 -Version "${{ needs.calculate-and-tag-version.outputs.version }}" -PublishDir "publish/win-x64" -OutputDir "dist"
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-windows
+          path: dist/*
+          retention-days: 7
+
+  build-linux:
+    name: Build & Package Linux (linux-x64)
+    needs: calculate-and-tag-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.calculate-and-tag-version.outputs.commit_sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish Linux App
+        run: |
+          dotnet publish src/NetChatx.Gui/NetChatx.Gui.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/linux-x64
+
+      - name: Package Linux Artifacts
+        run: |
+          chmod +x ./scripts/package-linux.sh
+          ./scripts/package-linux.sh "${{ needs.calculate-and-tag-version.outputs.version }}" "publish/linux-x64" "dist"
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-linux
+          path: dist/*
+          retention-days: 7
+
+  build-macos:
+    name: Build & Package macOS (${{ matrix.rid }})
+    needs: calculate-and-tag-version
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        rid: [osx-arm64, osx-x64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.calculate-and-tag-version.outputs.commit_sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish macOS App
+        run: |
+          dotnet publish src/NetChatx.Gui/NetChatx.Gui.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/${{ matrix.rid }}
+
+      - name: Package macOS Artifacts
+        run: |
+          chmod +x ./scripts/package-macos.sh
+          ./scripts/package-macos.sh "${{ needs.calculate-and-tag-version.outputs.version }}" "${{ matrix.rid }}" "publish/${{ matrix.rid }}" "dist"
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-macos-${{ matrix.rid }}
+          path: dist/*
+          retention-days: 7
+
+  publish-release:
+    name: Create GitHub Release
+    needs: [calculate-and-tag-version, build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List Release Assets
+        run: |
+          echo "### Release Assets for ${{ needs.calculate-and-tag-version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          for file in release-assets/*; do
+            if [ -f "$file" ]; then
+              size=$(ls -lh "$file" | awk '{print $5}')
+              filename=$(basename "$file")
+              echo "| \`$filename\` | $size |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+      - name: Publish Release to GitHub and Create Label
+        if: ${{ !inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create repository label for this release
+          gh label create "${{ needs.calculate-and-tag-version.outputs.tag }}" \
+            --description "Release ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+            --color "0E8A16" \
+            --force
+
+          # Publish GitHub Release with all binary packages attached
+          gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
+            --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+            --generate-notes
