@@ -53,14 +53,14 @@
                 <!-- JID Input -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="Jabber ID (JID)" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                    <TextBox Text="{Binding Jid}" Watermark="username@domain.tld" IsEnabled="{Binding !IsConnecting}"
+                    <TextBox x:Name="JidTextBox" Text="{Binding Jid}" Watermark="username@domain.tld" IsEnabled="{Binding !IsConnecting}"
                              Height="38" VerticalContentAlignment="Center" />
                 </StackPanel>
 
                 <!-- Password Input -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="Password" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                    <TextBox Text="{Binding Password}" PasswordChar="•" Watermark="Account password" IsEnabled="{Binding !IsConnecting}"
+                    <TextBox x:Name="PasswordTextBox" Text="{Binding Password}" PasswordChar="•" Watermark="Account password" IsEnabled="{Binding !IsConnecting}"
                              Height="38" VerticalContentAlignment="Center" />
                 </StackPanel>
 
@@ -87,8 +87,10 @@
                 </StackPanel>
 
                 <!-- Connect Button -->
-                <Button Content="Connect" HorizontalAlignment="Stretch"
+                <Button x:Name="ConnectButton" Content="Connect" HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Padding="0"
                         Height="42"
                         Command="{Binding ConnectCommand}"
                         IsEnabled="{Binding !IsConnecting}"

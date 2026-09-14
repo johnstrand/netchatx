@@ -6,6 +6,7 @@ using NetChatx.Core;
 using NetChatx.Core.Client;
 using NetChatx.Core.Transport;
 using NetChatx.Gui.Services;
+using NetChatx.Gui.Tests.Mocks;
 using NetChatx.Gui.ViewModels;
 using NetChatx.Storage;
 using NetChatx.Storage.Repositories;
@@ -37,7 +38,7 @@ public class NotificationAndSettingsTests : IDisposable
     private MainChatViewModel CreateMainChatViewModel(string account = "user@test.org", INotificationService? notificationService = null)
     {
         var client = new XmppClient(new XmppClientOptions { Jid = Jid.Parse(account), Password = "pw" }, new LoopbackTransport());
-        return new MainChatViewModel(client, _dbContext, () => Task.CompletedTask, notificationService);
+        return new MainChatViewModel(client, _dbContext, () => Task.CompletedTask, notificationService ?? new MockNotificationService());
     }
 
     [Fact]
@@ -132,7 +133,7 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public void NotificationService_SystemNotification_DispatchesAndTracks()
     {
-        var service = new NotificationService();
+        var service = new NotificationService(dispatchNative: false);
         Assert.Equal(0, service.SystemNotificationCount);
         Assert.Null(service.LastNotificationTitle);
         Assert.Null(service.LastNotificationMessage);
@@ -144,9 +145,39 @@ public class NotificationAndSettingsTests : IDisposable
     }
 
     [Fact]
+    public void MockNotificationService_MethodsAndProperties_WorkCorrectly()
+    {
+        var mock = new MockNotificationService();
+        Assert.True(mock.IsWindowActive);
+        Assert.False(mock.IsFlashing);
+        Assert.Equal(0, mock.SystemNotificationCount);
+        Assert.Null(mock.LastNotificationTitle);
+        Assert.Null(mock.LastNotificationMessage);
+
+        bool activeChangedFired = false;
+        mock.WindowActiveChanged += active => activeChangedFired = true;
+        mock.IsWindowActive = false;
+        Assert.True(activeChangedFired);
+        Assert.False(mock.IsWindowActive);
+
+        mock.FlashWindow();
+        Assert.True(mock.IsFlashing);
+        mock.StopFlashing();
+        Assert.False(mock.IsFlashing);
+
+        mock.ShowSystemNotification("Test", "Mock message");
+        Assert.Equal(1, mock.SystemNotificationCount);
+        Assert.Equal("Test", mock.LastNotificationTitle);
+        Assert.Equal("Mock message", mock.LastNotificationMessage);
+
+        mock.AttachWindow(null);
+        mock.DetachWindow();
+    }
+
+    [Fact]
     public async Task MainChatViewModel_Notifications_TriggerWhenInactiveOrDifferentChat()
     {
-        var notifService = new NotificationService();
+        var notifService = new MockNotificationService();
         var mainVm = CreateMainChatViewModel(notificationService: notifService);
         await mainVm.InitializeAsync();
 

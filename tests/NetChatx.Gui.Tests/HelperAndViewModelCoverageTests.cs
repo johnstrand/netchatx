@@ -8,9 +8,12 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Media;
+using Avalonia.Input;
+using Avalonia.Layout;
 using NetChatx.Gui.Helpers;
 using NetChatx.Gui.Helpers.Markdown;
 using NetChatx.Gui.ViewModels;
+using NetChatx.Gui.Views;
 using NetChatx.Storage;
 using NetChatx.Storage.Models;
 using NetChatx.Storage.Repositories;
@@ -362,5 +365,88 @@ public class HelperAndViewModelCoverageTests
 
         var partySearch = EmojiData.SearchEmojis("celebration");
         Assert.Contains("🎉", partySearch);
+    }
+
+    private static void EnsureAppInitialized()
+    {
+        if (Application.Current is null)
+        {
+            Program.BuildAvaloniaApp()
+                .SetupWithoutStarting();
+        }
+    }
+
+    [Fact]
+    public void LoginView_ConnectButton_AlignmentIsCentered()
+    {
+        EnsureAppInitialized();
+
+        Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+        {
+            var loginView = new LoginView();
+            var connectBtn = loginView.FindControl<Button>("ConnectButton");
+            Assert.NotNull(connectBtn);
+            Assert.Equal(HorizontalAlignment.Center, connectBtn.HorizontalContentAlignment);
+            Assert.Equal(VerticalAlignment.Center, connectBtn.VerticalContentAlignment);
+            Assert.Equal(new Thickness(0), connectBtn.Padding);
+        });
+    }
+
+    [Fact]
+    public void LoginView_EnterInUsernameField_HandledAndFocusesPassword()
+    {
+        EnsureAppInitialized();
+
+        Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+        {
+            var loginView = new LoginView();
+            Assert.NotNull(loginView.JidTextBoxControl);
+            Assert.NotNull(loginView.PasswordTextBoxControl);
+
+            // Key that is not Enter should not be handled
+            var nonEnterArgs = new KeyEventArgs { Key = Key.Tab, RoutedEvent = InputElement.KeyDownEvent };
+            loginView.OnJidKeyDown(loginView.JidTextBoxControl, nonEnterArgs);
+            Assert.False(nonEnterArgs.Handled);
+
+            // Enter key should be handled
+            var enterArgs = new KeyEventArgs { Key = Key.Enter, RoutedEvent = InputElement.KeyDownEvent };
+            loginView.OnJidKeyDown(loginView.JidTextBoxControl, enterArgs);
+            Assert.True(enterArgs.Handled);
+        });
+    }
+
+    [Fact]
+    public void LoginView_EnterInPasswordField_TriggersConnect()
+    {
+        EnsureAppInitialized();
+
+        bool loginInvoked = false;
+        var vm = new LoginViewModel(profile =>
+        {
+            loginInvoked = true;
+            return Task.FromResult(true);
+        })
+        {
+            Jid = "alice@xmpp.org",
+            Password = "secretpassword"
+        };
+
+        Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+        {
+            var loginView = new LoginView { DataContext = vm };
+            Assert.NotNull(loginView.PasswordTextBoxControl);
+
+            // Non-enter key should not trigger connect
+            var nonEnterArgs = new KeyEventArgs { Key = Key.Space, RoutedEvent = InputElement.KeyDownEvent };
+            loginView.OnPasswordKeyDown(loginView.PasswordTextBoxControl, nonEnterArgs);
+            Assert.False(nonEnterArgs.Handled);
+            Assert.False(loginInvoked);
+
+            // Enter key should trigger connect
+            var enterArgs = new KeyEventArgs { Key = Key.Enter, RoutedEvent = InputElement.KeyDownEvent };
+            loginView.OnPasswordKeyDown(loginView.PasswordTextBoxControl, enterArgs);
+            Assert.True(enterArgs.Handled);
+            Assert.True(loginInvoked);
+        });
     }
 }
