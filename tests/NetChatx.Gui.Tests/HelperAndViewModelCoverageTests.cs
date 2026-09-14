@@ -453,6 +453,17 @@ public class HelperAndViewModelCoverageTests
             AppVersionHelper.SetVersionOverrideForTesting("v2.0.0");
             Assert.Equal("v2.0.0", AppVersionHelper.Version);
             Assert.Equal("NetChatx v2.0.0", AppVersionHelper.DisplayString);
+
+            AppVersionHelper.SetVersionOverrideForTesting("0.3.0.0");
+            Assert.Equal("v0.3.0", AppVersionHelper.Version);
+            Assert.Equal("NetChatx v0.3.0", AppVersionHelper.DisplayString);
+
+            AppVersionHelper.SetVersionOverrideForTesting("v0.3.0.0");
+            Assert.Equal("v0.3.0", AppVersionHelper.Version);
+
+            AppVersionHelper.SetVersionOverrideForTesting("0.0.0.0");
+            Assert.Equal("v0.0.0", AppVersionHelper.Version);
+            Assert.Equal("NetChatx v0.0.0", AppVersionHelper.DisplayString);
         }
         finally
         {

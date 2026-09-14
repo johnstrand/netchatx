@@ -24,9 +24,20 @@ public static class AppVersionHelper
         {
             if (_versionOverride is not null)
             {
-                return _versionOverride.StartsWith('v') || _versionOverride.StartsWith('V')
-                    ? _versionOverride
-                    : $"v{_versionOverride}";
+                var overrideVal = _versionOverride.Trim();
+                var hasV = overrideVal.StartsWith('v') || overrideVal.StartsWith('V');
+                var v = hasV ? overrideVal[1..] : overrideVal;
+
+                if (v == "0.0.0.0")
+                {
+                    v = "0.0.0";
+                }
+                else if (System.Version.TryParse(v, out var parsed) && parsed.Revision == 0 && v.Split('.').Length == 4)
+                {
+                    v = $"{parsed.Major}.{parsed.Minor}.{Math.Max(0, parsed.Build)}";
+                }
+
+                return $"v{v}";
             }
 
             if (_cachedVersion is not null)
@@ -44,26 +55,30 @@ public static class AppVersionHelper
             }
 
             // 2. Fall back to AssemblyFileVersion or AssemblyVersion
-            if (string.IsNullOrWhiteSpace(rawVersion) || rawVersion == "0.0.0")
+            if (string.IsNullOrWhiteSpace(rawVersion) || rawVersion == "0.0.0" || rawVersion == "0.0.0.0")
             {
                 var fileAttr = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>();
-                if (!string.IsNullOrWhiteSpace(fileAttr?.Version))
+                if (!string.IsNullOrWhiteSpace(fileAttr?.Version) && fileAttr.Version.Trim() != "0.0.0.0" && fileAttr.Version.Trim() != "0.0.0")
                 {
                     rawVersion = fileAttr.Version.Trim();
                 }
                 else
                 {
                     var asmVersion = assembly.GetName().Version;
-                    if (asmVersion is not null)
+                    if (asmVersion is not null && asmVersion.ToString() != "0.0.0.0")
                     {
                         rawVersion = $"{asmVersion.Major}.{asmVersion.Minor}.{Math.Max(0, asmVersion.Build)}";
                     }
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(rawVersion))
+            if (string.IsNullOrWhiteSpace(rawVersion) || rawVersion == "0.0.0.0")
             {
                 rawVersion = "0.0.0";
+            }
+            else if (System.Version.TryParse(rawVersion, out var parsedVer) && parsedVer.Revision == 0 && rawVersion.Split('.').Length == 4)
+            {
+                rawVersion = $"{parsedVer.Major}.{parsedVer.Minor}.{Math.Max(0, parsedVer.Build)}";
             }
 
             _cachedVersion = rawVersion.StartsWith('v') || rawVersion.StartsWith('V')
