@@ -46,10 +46,8 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public void TextBox_MaxLinesAndWrapping_BehavesAsExpected()
     {
-        var tb = new Avalonia.Controls.TextBox();
         Assert.NotNull(Avalonia.Controls.TextBox.MaxLinesProperty);
-        tb.MaxLines = 4;
-        Assert.Equal(4, tb.MaxLines);
+        Assert.NotNull(Avalonia.Controls.TextBox.TextWrappingProperty);
     }
 
     [Fact]

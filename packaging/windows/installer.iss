@@ -13,6 +13,10 @@
   #define OutputDir "dist"
 #endif
 
+#ifndef SetupIcon
+  #define SetupIcon "..\..\src\NetChatx.Gui\Assets\netchatx-logo.ico"
+#endif
+
 [Setup]
 AppId={{D37E84B1-0268-4C9C-A20D-261BAE24523F}
 AppName={#MyAppName}
@@ -25,7 +29,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=NetChatx-v{#MyAppVersion}-win-x64-installer
-SetupIconFile=..\..\src\NetChatx.Gui\Assets\netchatx-logo.ico
+SetupIconFile={#SetupIcon}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

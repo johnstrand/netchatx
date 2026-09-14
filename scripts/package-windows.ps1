@@ -11,6 +11,9 @@ if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 }
 
+$PublishDir = (Resolve-Path $PublishDir).Path
+$OutputDir = (Resolve-Path $OutputDir).Path
+
 $zipName = "NetChatx-v${Version}-win-x64.zip"
 $zipPath = Join-Path $OutputDir $zipName
 Write-Host "Creating Windows portable ZIP: $zipPath..."
@@ -25,8 +28,13 @@ if (Get-Command iscc -ErrorAction SilentlyContinue) {
 }
 
 if ($isccPath) {
+    $issPath = (Resolve-Path "packaging\windows\installer.iss").Path
+    $iconPath = (Resolve-Path "src\NetChatx.Gui\Assets\netchatx-logo.ico").Path
     Write-Host "Compiling Inno Setup installer using $isccPath..."
-    & $isccPath "/DMyAppVersion=$Version" "/DSourceDir=$PublishDir" "/DOutputDir=$OutputDir" "packaging\windows\installer.iss"
+    Write-Host "  SourceDir: $PublishDir"
+    Write-Host "  OutputDir: $OutputDir"
+    Write-Host "  SetupIcon: $iconPath"
+    & $isccPath "/DMyAppVersion=$Version" "/DSourceDir=$PublishDir" "/DOutputDir=$OutputDir" "/DSetupIcon=$iconPath" "$issPath"
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
     }
