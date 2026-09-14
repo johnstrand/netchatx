@@ -70,6 +70,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
     }
 
+    public string AppVersion => Helpers.AppVersionHelper.Version;
+
     [ObservableProperty]
     private string _accountJid;
 
