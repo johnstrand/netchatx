@@ -29,6 +29,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<IReadOnlyList<string>>? _onQuickEmojisChanged;
     private readonly Action<string, string>? _onBubbleColorChanged;
     private readonly Action<int>? _onChatInputMaxLinesChanged;
+    private readonly Action<string>? _onCloseActionChanged;
     private bool _isInitializing;
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
@@ -47,6 +48,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         "Dark",
         "Light",
         "System"
+    ];
+
+    public static readonly IReadOnlyList<string> CloseActionOptions =
+    [
+        "Ask",
+        "Minimize",
+        "Exit"
     ];
 
     public static readonly IReadOnlyList<string> CuratedAccents =
@@ -108,6 +116,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private double _fontSize = SettingsRepository.DefaultFontSize;
 
+    // --- System & Window Behavior ---
+    [ObservableProperty]
+    private string _closeAction = SettingsRepository.DefaultCloseAction;
+
     // --- Keyboard & Input ---
     [ObservableProperty]
     private bool _sendOnEnter = SettingsRepository.DefaultSendOnEnter;
@@ -157,6 +169,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     public IReadOnlyList<string> AvailableFontFamilies => CuratedFontFamilies;
     public IReadOnlyList<string> AvailableThemeModes => ThemeModes;
+    public IReadOnlyList<string> AvailableCloseActionOptions => CloseActionOptions;
     public IReadOnlyList<string> AvailableAccents => CuratedAccents;
     public IReadOnlyList<string> AvailablePaletteEmojis => PaletteEmojis;
     public IReadOnlyList<string> AvailableOutboundBubbleColors => CuratedOutboundBubbleColors;
@@ -192,6 +205,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<IReadOnlyList<string>>? onQuickEmojisChanged = null,
         Action<string, string>? onBubbleColorChanged = null,
         Action<int>? onChatInputMaxLinesChanged = null,
+        Action<string>? onCloseActionChanged = null,
         IStartupService? startupService = null)
     {
         _settingsRepo = settingsRepo;
@@ -208,6 +222,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onQuickEmojisChanged = onQuickEmojisChanged;
         _onBubbleColorChanged = onBubbleColorChanged;
         _onChatInputMaxLinesChanged = onChatInputMaxLinesChanged;
+        _onCloseActionChanged = onCloseActionChanged;
     }
 
     public async Task LoadSettingsAsync()
@@ -245,6 +260,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             OutboundBubbleColor = await _settingsRepo.GetOutboundBubbleColorAsync(_accountJid);
             InboundBubbleColor = await _settingsRepo.GetInboundBubbleColorAsync(_accountJid);
             ChatInputMaxLines = await _settingsRepo.GetChatInputMaxLinesAsync(_accountJid);
+            CloseAction = await _settingsRepo.GetCloseActionAsync(_accountJid);
 
             var emojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
             QuickEmojis.Clear();
@@ -360,6 +376,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetChatInputMaxLinesAsync(_accountJid, value);
             _onChatInputMaxLinesChanged?.Invoke(value);
+        }
+    }
+
+    partial void OnCloseActionChanged(string value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetCloseActionAsync(_accountJid, value);
+            _onCloseActionChanged?.Invoke(value);
         }
     }
 
@@ -627,6 +652,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         OutboundBubbleColor = SettingsRepository.DefaultOutboundBubbleColor;
         InboundBubbleColor = SettingsRepository.DefaultInboundBubbleColor;
         ChatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
+        CloseAction = SettingsRepository.DefaultCloseAction;
 
         QuickEmojis.Clear();
         foreach (var emoji in SettingsRepository.DefaultQuickEmojis)
@@ -652,6 +678,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetAccentColorAsync(_accountJid, AccentColor);
         await _settingsRepo.SetOutboundBubbleColorAsync(_accountJid, OutboundBubbleColor);
         await _settingsRepo.SetInboundBubbleColorAsync(_accountJid, InboundBubbleColor);
+        await _settingsRepo.SetCloseActionAsync(_accountJid, CloseAction);
         await _settingsRepo.SetQuickEmojisAsync(_accountJid, QuickEmojis);
 
         ThemeManager.ApplyTheme(ThemeMode, AccentColor);
@@ -668,6 +695,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onThemeChanged?.Invoke(ThemeMode, AccentColor);
         _onQuickEmojisChanged?.Invoke(QuickEmojis.ToList());
         _onBubbleColorChanged?.Invoke(OutboundBubbleColor, InboundBubbleColor);
+        _onCloseActionChanged?.Invoke(CloseAction);
     }
 }
 

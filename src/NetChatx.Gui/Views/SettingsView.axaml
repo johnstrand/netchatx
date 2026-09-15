@@ -563,6 +563,22 @@
                                                       VerticalAlignment="Center"
                                                       Margin="10,0,0,0" />
                                     </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- On Window Close Action -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="On Window Close Button" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Action to take when clicking the main window close button."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding AvailableCloseActionOptions}"
+                                                  SelectedItem="{Binding CloseAction, Mode=TwoWay}"
+                                                  Width="140" FontSize="11.5" VerticalAlignment="Center"
+                                                  Margin="10,0,0,0" />
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

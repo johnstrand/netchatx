@@ -984,5 +984,60 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
         </Grid>
+
+        <!-- ================= CLOSE PROMPT CHOICE MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding IsClosePromptOpen}"
+              ZIndex="1001">
+            <!-- Dark semi-transparent backdrop -->
+            <Border Background="#80000000" />
+            <!-- Centered Card -->
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="420" Padding="24" CornerRadius="16"
+                    Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
+                    BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
+                <StackPanel Spacing="16">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Close NetChatx?" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" />
+                            <TextBlock Text="Choose what should happen when you close the window." Foreground="#64748B" FontSize="11" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="✕" Command="{Binding CancelClosePromptCommand}"
+                                ToolTip.Tip="Cancel (Esc)"
+                                Classes="icon-btn subtle" />
+                    </Grid>
+
+                    <TextBlock Text="Would you like to keep NetChatx running in the system tray in the background, or exit the application completely?"
+                               Foreground="#CBD5E1" FontSize="12" TextWrapping="Wrap" />
+
+                    <!-- Remember my choice CheckBox -->
+                    <CheckBox IsChecked="{Binding RememberCloseChoice, Mode=TwoWay}"
+                              Content="Remember my choice in the future"
+                              FontSize="11.5" Foreground="#94A3B8" />
+
+                    <!-- Action Buttons -->
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <Button Grid.Column="0" Content="Cancel"
+                                Command="{Binding CancelClosePromptCommand}"
+                                Background="#1E293B" Foreground="#94A3B8"
+                                BorderBrush="#334155" BorderThickness="1"
+                                CornerRadius="8" Padding="12,6" FontSize="11.5" Cursor="Hand" />
+
+                        <Button Grid.Column="1" Content="Exit Application"
+                                Command="{Binding ChooseExitAppCommand}"
+                                Background="#1E293B" Foreground="#F43F5E"
+                                BorderBrush="#334155" BorderThickness="1"
+                                CornerRadius="8" Padding="14,6" FontSize="11.5" Cursor="Hand"
+                                Margin="8,0,0,0" />
+
+                        <Button Grid.Column="2" Content="Minimize to Tray"
+                                Command="{Binding ChooseMinimizeToTrayCommand}"
+                                Classes="accent"
+                                Padding="16,6" FontSize="11.5"
+                                Margin="8,0,0,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

@@ -28,6 +28,7 @@ public sealed class SettingsRepository
     public const string KeyLastActiveChat = "last_active_chat";
     public const string KeyLastPresenceMode = "last_presence_mode";
     public const string KeyLastStatusMessage = "last_status_message";
+    public const string KeyCloseAction = "close_action";
 
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
@@ -47,6 +48,7 @@ public sealed class SettingsRepository
     public const int DefaultChatInputMaxLines = 5;
     public const string DefaultPresenceMode = "available";
     public const string DefaultStatusMessage = "Online with NetChatx";
+    public const string DefaultCloseAction = "Ask";
 
     public SettingsRepository(DatabaseContext context)
     {
@@ -329,5 +331,16 @@ public sealed class SettingsRepository
     public async Task SetLastStatusMessageAsync(string accountJid, string statusMessage, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyLastStatusMessage, statusMessage ?? DefaultStatusMessage, cancellationToken);
+    }
+
+    public async Task<string> GetCloseActionAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyCloseAction, cancellationToken);
+        return !string.IsNullOrWhiteSpace(val) ? val : DefaultCloseAction;
+    }
+
+    public async Task SetCloseActionAsync(string accountJid, string closeAction, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyCloseAction, !string.IsNullOrWhiteSpace(closeAction) ? closeAction : DefaultCloseAction, cancellationToken);
     }
 }
