@@ -659,5 +659,134 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.Equal("away", updatedMode);
         Assert.Equal("Out for lunch", updatedStatus);
     }
+
+    [Fact]
+    public async Task SettingsRepository_CloseAction_PersistenceAndDefaults()
+    {
+        string account = "close_user@test.org";
+
+        var defaultAction = await _settingsRepo.GetCloseActionAsync(account);
+        Assert.Equal(SettingsRepository.DefaultCloseAction, defaultAction);
+
+        await _settingsRepo.SetCloseActionAsync(account, "Minimize");
+        Assert.Equal("Minimize", await _settingsRepo.GetCloseActionAsync(account));
+
+        await _settingsRepo.SetCloseActionAsync(account, "Exit");
+        Assert.Equal("Exit", await _settingsRepo.GetCloseActionAsync(account));
+
+        await _settingsRepo.SetCloseActionAsync(account, "Ask");
+        Assert.Equal("Ask", await _settingsRepo.GetCloseActionAsync(account));
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_CloseAction_OptionsPersistenceAndCallbacks()
+    {
+        string account = "close_vm_user@test.org";
+        string? callbackAction = null;
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            onCloseActionChanged: action => callbackAction = action);
+
+        Assert.Equal("Ask", vm.CloseAction);
+        Assert.Contains("Ask", vm.AvailableCloseActionOptions);
+        Assert.Contains("Minimize", vm.AvailableCloseActionOptions);
+        Assert.Contains("Exit", vm.AvailableCloseActionOptions);
+
+        vm.CloseAction = "Minimize";
+        Assert.Equal("Minimize", callbackAction);
+        Assert.Equal("Minimize", await _settingsRepo.GetCloseActionAsync(account));
+
+        var vm2 = new SettingsViewModel(_settingsRepo, account);
+        await vm2.LoadSettingsAsync();
+        Assert.Equal("Minimize", vm2.CloseAction);
+
+        await vm2.ResetDefaultsAsync();
+        Assert.Equal("Ask", vm2.CloseAction);
+        Assert.Equal("Ask", await _settingsRepo.GetCloseActionAsync(account));
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_WindowClosingAndPromptChoice_BehavesCorrectly()
+    {
+        var mainVm = CreateMainChatViewModel();
+        await mainVm.InitializeAsync();
+
+        bool hideInvoked = false;
+        bool exitInvoked = false;
+        bool eventHideInvoked = false;
+        bool eventExitInvoked = false;
+
+        mainVm.RequestHideWindow += () => eventHideInvoked = true;
+        mainVm.RequestExitApp += () => eventExitInvoked = true;
+
+        // 1. Initial default close action is "Ask"
+        Assert.Equal("Ask", mainVm.CloseAction);
+
+        bool allowClose = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
+        Assert.False(allowClose);
+        Assert.False(hideInvoked);
+        Assert.False(exitInvoked);
+        Assert.True(mainVm.IsClosePromptOpen);
+        Assert.False(mainVm.RememberCloseChoice);
+
+        // Cancel prompt
+        mainVm.CancelClosePrompt();
+        Assert.False(mainVm.IsClosePromptOpen);
+
+        // 2. Open prompt again and choose "Minimize to Tray" WITHOUT remember choice
+        mainVm.HandleWindowClosing(() => { }, () => { });
+        Assert.True(mainVm.IsClosePromptOpen);
+        mainVm.RememberCloseChoice = false;
+        await mainVm.ChooseMinimizeToTrayAsync();
+
+        Assert.False(mainVm.IsClosePromptOpen);
+        Assert.True(eventHideInvoked);
+        Assert.Equal("Ask", mainVm.CloseAction); // Unchanged since remember was false
+        eventHideInvoked = false;
+
+        // 3. Open prompt and choose "Minimize to Tray" WITH remember choice
+        mainVm.HandleWindowClosing(() => { }, () => { });
+        Assert.True(mainVm.IsClosePromptOpen);
+        mainVm.RememberCloseChoice = true;
+        await mainVm.ChooseMinimizeToTrayAsync();
+
+        Assert.False(mainVm.IsClosePromptOpen);
+        Assert.True(eventHideInvoked);
+        Assert.Equal("Minimize", mainVm.CloseAction);
+        Assert.Equal("Minimize", mainVm.Settings.CloseAction);
+        Assert.Equal("Minimize", await _settingsRepo.GetCloseActionAsync("user@test.org"));
+        eventHideInvoked = false;
+
+        // 4. Since CloseAction is now "Minimize", HandleWindowClosing immediately minimizes without prompt
+        bool allowCloseMin = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
+        Assert.False(allowCloseMin);
+        Assert.True(hideInvoked);
+        Assert.False(exitInvoked);
+        Assert.False(mainVm.IsClosePromptOpen);
+        hideInvoked = false;
+
+        // 5. Change CloseAction to "Exit" in Settings
+        mainVm.Settings.CloseAction = "Exit";
+        Assert.Equal("Exit", mainVm.CloseAction);
+
+        bool allowCloseExit = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
+        Assert.True(allowCloseExit);
+        Assert.False(hideInvoked);
+        Assert.False(exitInvoked);
+        Assert.False(mainVm.IsClosePromptOpen);
+
+        // 6. Test ChooseExitAppAsync from dialog
+        mainVm.Settings.CloseAction = "Ask";
+        mainVm.HandleWindowClosing(() => { }, () => { });
+        mainVm.RememberCloseChoice = true;
+        await mainVm.ChooseExitAppAsync();
+
+        Assert.False(mainVm.IsClosePromptOpen);
+        Assert.True(eventExitInvoked);
+        Assert.Equal("Exit", mainVm.CloseAction);
+        Assert.Equal("Exit", await _settingsRepo.GetCloseActionAsync("user@test.org"));
+    }
 }
 
