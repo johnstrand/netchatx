@@ -507,6 +507,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
             onChatInputMaxLinesChanged: maxLines =>
             {
                 ChatInputMaxLines = maxLines;
+            },
+            onCloseActionChanged: closeAction =>
+            {
+                CloseAction = closeAction;
             });
     }
 
@@ -660,6 +664,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             ChatFontSize = Settings.FontSize;
             SendOnEnter = Settings.SendOnEnter;
             ChatInputMaxLines = Settings.ChatInputMaxLines;
+            CloseAction = Settings.CloseAction;
             MessageBubbleViewModel.Use24HourClock = Settings.Use24HourClock;
             MessageBubbleViewModel.ShowInlinePreviews = Settings.ShowInlinePreviews;
             MessageBubbleViewModel.AutoDownloadMedia = Settings.AutoDownloadMedia;
@@ -1632,6 +1637,17 @@ public sealed partial class MainChatViewModel : ViewModelBase
     }
 
     public event Action? CodeBlockInjected;
+    public event Action? RequestHideWindow;
+    public event Action? RequestExitApp;
+
+    [ObservableProperty]
+    private string _closeAction = SettingsRepository.DefaultCloseAction;
+
+    [ObservableProperty]
+    private bool _isClosePromptOpen;
+
+    [ObservableProperty]
+    private bool _rememberCloseChoice;
 
     [RelayCommand]
     public void OpenCodeBlockEditor()
@@ -1651,6 +1667,57 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 CodeBlockInjected?.Invoke();
             });
         });
+    }
+
+    public bool HandleWindowClosing(Action hideWindow, Action exitApp)
+    {
+        if (CloseAction == "Minimize")
+        {
+            hideWindow();
+            return false;
+        }
+        else if (CloseAction == "Exit")
+        {
+            return true;
+        }
+        else
+        {
+            RememberCloseChoice = false;
+            IsClosePromptOpen = true;
+            return false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task ChooseMinimizeToTrayAsync()
+    {
+        if (RememberCloseChoice)
+        {
+            CloseAction = "Minimize";
+            await _settingsRepo.SetCloseActionAsync(AccountJid, "Minimize");
+            Settings.CloseAction = "Minimize";
+        }
+        IsClosePromptOpen = false;
+        RequestHideWindow?.Invoke();
+    }
+
+    [RelayCommand]
+    public async Task ChooseExitAppAsync()
+    {
+        if (RememberCloseChoice)
+        {
+            CloseAction = "Exit";
+            await _settingsRepo.SetCloseActionAsync(AccountJid, "Exit");
+            Settings.CloseAction = "Exit";
+        }
+        IsClosePromptOpen = false;
+        RequestExitApp?.Invoke();
+    }
+
+    [RelayCommand]
+    public void CancelClosePrompt()
+    {
+        IsClosePromptOpen = false;
     }
 
     private static void PostToUi(Action action)

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Avalonia.Media;
 using NetChatx.Gui.Converters;
 using NetChatx.Gui.Helpers;
+using NetChatx.Gui.Services;
 using NetChatx.Storage.Repositories;
 
 namespace NetChatx.Gui.ViewModels;
@@ -15,6 +16,7 @@ namespace NetChatx.Gui.ViewModels;
 public sealed partial class SettingsViewModel : ViewModelBase
 {
     private readonly SettingsRepository _settingsRepo;
+    private readonly IStartupService _startupService;
     private readonly string _accountJid;
     private readonly Action<bool, int>? _onBubbleMergeChanged;
     private readonly Action<bool>? _onPopupsChanged;
@@ -27,6 +29,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<IReadOnlyList<string>>? _onQuickEmojisChanged;
     private readonly Action<string, string>? _onBubbleColorChanged;
     private readonly Action<int>? _onChatInputMaxLinesChanged;
+    private readonly Action<string>? _onCloseActionChanged;
     private bool _isInitializing;
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
@@ -45,6 +48,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         "Dark",
         "Light",
         "System"
+    ];
+
+    public static readonly IReadOnlyList<string> CloseActionOptions =
+    [
+        "Ask",
+        "Minimize",
+        "Exit"
     ];
 
     public static readonly IReadOnlyList<string> CuratedAccents =
@@ -106,6 +116,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private double _fontSize = SettingsRepository.DefaultFontSize;
 
+    // --- System & Window Behavior ---
+    [ObservableProperty]
+    private string _closeAction = SettingsRepository.DefaultCloseAction;
+
     // --- Keyboard & Input ---
     [ObservableProperty]
     private bool _sendOnEnter = SettingsRepository.DefaultSendOnEnter;
@@ -143,15 +157,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _inboundBubbleColor = SettingsRepository.DefaultInboundBubbleColor;
 
-    // --- Notifications ---
+    // --- Notifications & Startup ---
     [ObservableProperty]
     private bool _notificationPopupsEnabled = SettingsRepository.DefaultNotificationPopupsEnabled;
 
     [ObservableProperty]
     private bool _iconFlashingEnabled = SettingsRepository.DefaultIconFlashingEnabled;
 
+    [ObservableProperty]
+    private bool _launchOnStartup = SettingsRepository.DefaultLaunchOnStartup;
+
     public IReadOnlyList<string> AvailableFontFamilies => CuratedFontFamilies;
     public IReadOnlyList<string> AvailableThemeModes => ThemeModes;
+    public IReadOnlyList<string> AvailableCloseActionOptions => CloseActionOptions;
     public IReadOnlyList<string> AvailableAccents => CuratedAccents;
     public IReadOnlyList<string> AvailablePaletteEmojis => PaletteEmojis;
     public IReadOnlyList<string> AvailableOutboundBubbleColors => CuratedOutboundBubbleColors;
@@ -186,9 +204,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<string, string>? onThemeChanged = null,
         Action<IReadOnlyList<string>>? onQuickEmojisChanged = null,
         Action<string, string>? onBubbleColorChanged = null,
-        Action<int>? onChatInputMaxLinesChanged = null)
+        Action<int>? onChatInputMaxLinesChanged = null,
+        Action<string>? onCloseActionChanged = null,
+        IStartupService? startupService = null)
     {
         _settingsRepo = settingsRepo;
+        _startupService = startupService ?? new StartupService();
         _accountJid = accountJid;
         _onBubbleMergeChanged = onBubbleMergeChanged;
         _onPopupsChanged = onPopupsChanged;
@@ -201,6 +222,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onQuickEmojisChanged = onQuickEmojisChanged;
         _onBubbleColorChanged = onBubbleColorChanged;
         _onChatInputMaxLinesChanged = onChatInputMaxLinesChanged;
+        _onCloseActionChanged = onCloseActionChanged;
     }
 
     public async Task LoadSettingsAsync()
@@ -210,6 +232,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             NotificationPopupsEnabled = await _settingsRepo.GetNotificationPopupsEnabledAsync(_accountJid);
             IconFlashingEnabled = await _settingsRepo.GetIconFlashingEnabledAsync(_accountJid);
+            LaunchOnStartup = await _settingsRepo.GetLaunchOnStartupAsync(_accountJid);
             EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
             MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
 
@@ -237,6 +260,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             OutboundBubbleColor = await _settingsRepo.GetOutboundBubbleColorAsync(_accountJid);
             InboundBubbleColor = await _settingsRepo.GetInboundBubbleColorAsync(_accountJid);
             ChatInputMaxLines = await _settingsRepo.GetChatInputMaxLinesAsync(_accountJid);
+            CloseAction = await _settingsRepo.GetCloseActionAsync(_accountJid);
 
             var emojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
             QuickEmojis.Clear();
@@ -274,6 +298,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetIconFlashingEnabledAsync(_accountJid, value);
             _onFlashingChanged?.Invoke(value);
+        }
+    }
+
+    partial void OnLaunchOnStartupChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetLaunchOnStartupAsync(_accountJid, value);
+            _startupService.SetStartupEnabled(value);
         }
     }
 
@@ -343,6 +376,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetChatInputMaxLinesAsync(_accountJid, value);
             _onChatInputMaxLinesChanged?.Invoke(value);
+        }
+    }
+
+    partial void OnCloseActionChanged(string value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetCloseActionAsync(_accountJid, value);
+            _onCloseActionChanged?.Invoke(value);
         }
     }
 
@@ -594,6 +636,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         NotificationPopupsEnabled = SettingsRepository.DefaultNotificationPopupsEnabled;
         IconFlashingEnabled = SettingsRepository.DefaultIconFlashingEnabled;
+        LaunchOnStartup = SettingsRepository.DefaultLaunchOnStartup;
         EnableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
         MessageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
         FontFamily = SettingsRepository.DefaultFontFamily;
@@ -609,6 +652,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         OutboundBubbleColor = SettingsRepository.DefaultOutboundBubbleColor;
         InboundBubbleColor = SettingsRepository.DefaultInboundBubbleColor;
         ChatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
+        CloseAction = SettingsRepository.DefaultCloseAction;
 
         QuickEmojis.Clear();
         foreach (var emoji in SettingsRepository.DefaultQuickEmojis)
@@ -619,6 +663,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         await _settingsRepo.SetNotificationPopupsEnabledAsync(_accountJid, NotificationPopupsEnabled);
         await _settingsRepo.SetIconFlashingEnabledAsync(_accountJid, IconFlashingEnabled);
+        await _settingsRepo.SetLaunchOnStartupAsync(_accountJid, LaunchOnStartup);
+        _startupService.SetStartupEnabled(LaunchOnStartup);
         await _settingsRepo.SetMergeMessagesEnabledAsync(_accountJid, EnableMessageMerging);
         await _settingsRepo.SetMergeMessagesThresholdSecondsAsync(_accountJid, MessageMergeThresholdSeconds);
         await _settingsRepo.SetFontFamilyAsync(_accountJid, FontFamily);
@@ -632,6 +678,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetAccentColorAsync(_accountJid, AccentColor);
         await _settingsRepo.SetOutboundBubbleColorAsync(_accountJid, OutboundBubbleColor);
         await _settingsRepo.SetInboundBubbleColorAsync(_accountJid, InboundBubbleColor);
+        await _settingsRepo.SetCloseActionAsync(_accountJid, CloseAction);
         await _settingsRepo.SetQuickEmojisAsync(_accountJid, QuickEmojis);
 
         ThemeManager.ApplyTheme(ThemeMode, AccentColor);
@@ -648,6 +695,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onThemeChanged?.Invoke(ThemeMode, AccentColor);
         _onQuickEmojisChanged?.Invoke(QuickEmojis.ToList());
         _onBubbleColorChanged?.Invoke(OutboundBubbleColor, InboundBubbleColor);
+        _onCloseActionChanged?.Invoke(CloseAction);
     }
 }
 
