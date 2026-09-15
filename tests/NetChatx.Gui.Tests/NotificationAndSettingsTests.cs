@@ -633,6 +633,76 @@ public class NotificationAndSettingsTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsViewModel_LaunchOnStartup_TogglesAndPersistsWithStartupService()
+    {
+        string account = "autostart_user@test.org";
+        var mockStartupService = new MockStartupService();
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            startupService: mockStartupService);
+
+        // 1. Initial state (default false)
+        Assert.False(vm.LaunchOnStartup);
+        Assert.False(mockStartupService.IsStartupEnabled());
+
+        // 2. Toggle LaunchOnStartup to true
+        vm.LaunchOnStartup = true;
+        Assert.True(mockStartupService.IsStartupEnabled());
+        Assert.True(await _settingsRepo.GetLaunchOnStartupAsync(account));
+
+        // 3. Load in new ViewModel instance
+        var mockStartupService2 = new MockStartupService();
+        var vm2 = new SettingsViewModel(_settingsRepo, account, startupService: mockStartupService2);
+        await vm2.LoadSettingsAsync();
+
+        Assert.True(vm2.LaunchOnStartup);
+
+        // 4. Toggle back to false
+        vm2.LaunchOnStartup = false;
+        Assert.False(mockStartupService2.IsStartupEnabled());
+        Assert.False(await _settingsRepo.GetLaunchOnStartupAsync(account));
+    }
+
+    [Fact]
+    public void StartupService_FileOperations_WorkCorrectlyWithCustomPath()
+    {
+        string tempFile = Path.Combine(Path.GetTempPath(), $"netchatx_autostart_test_{Guid.NewGuid():N}.desktop");
+        string tempExe = "/usr/bin/netchatx";
+
+        try
+        {
+            var service = new StartupService(customExePath: tempExe, customAutostartPath: tempFile);
+
+            // Initially not enabled
+            Assert.False(service.IsStartupEnabled());
+
+            // Enable startup creates file
+            bool enabledResult = service.SetStartupEnabled(true);
+            Assert.True(enabledResult);
+            Assert.True(service.IsStartupEnabled());
+            Assert.True(File.Exists(tempFile));
+
+            string content = File.ReadAllText(tempFile);
+            Assert.Contains("/usr/bin/netchatx", content);
+
+            // Disable startup removes file
+            bool disabledResult = service.SetStartupEnabled(false);
+            Assert.True(disabledResult);
+            Assert.False(service.IsStartupEnabled());
+            Assert.False(File.Exists(tempFile));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                try { File.Delete(tempFile); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public async Task SettingsRepository_LastActiveChatAndPresenceMode_PersistenceAndDefaults()
     {
         string account = "session_user@test.org";

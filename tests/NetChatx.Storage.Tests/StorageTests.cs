@@ -116,6 +116,7 @@ public class StorageTests : IDisposable
         string account = "config_user@example.org";
 
         // Verify default values
+        Assert.Equal(SettingsRepository.DefaultLaunchOnStartup, await repo.GetLaunchOnStartupAsync(account));
         Assert.Equal(SettingsRepository.DefaultFontFamily, await repo.GetFontFamilyAsync(account));
         Assert.Equal(SettingsRepository.DefaultFontSize, await repo.GetFontSizeAsync(account));
         Assert.Equal(SettingsRepository.DefaultSendOnEnter, await repo.GetSendOnEnterAsync(account));
@@ -129,6 +130,7 @@ public class StorageTests : IDisposable
         Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, await repo.GetChatInputMaxLinesAsync(account));
 
         // Update all values
+        await repo.SetLaunchOnStartupAsync(account, true);
         await repo.SetFontFamilyAsync(account, "Cascadia Code");
         await repo.SetFontSizeAsync(account, 16.5);
         await repo.SetSendOnEnterAsync(account, false);
@@ -142,6 +144,7 @@ public class StorageTests : IDisposable
         await repo.SetChatInputMaxLinesAsync(account, 8);
 
         // Verify updated values persist
+        Assert.True(await repo.GetLaunchOnStartupAsync(account));
         Assert.Equal("Cascadia Code", await repo.GetFontFamilyAsync(account));
         Assert.Equal(16.5, await repo.GetFontSizeAsync(account));
         Assert.False(await repo.GetSendOnEnterAsync(account));

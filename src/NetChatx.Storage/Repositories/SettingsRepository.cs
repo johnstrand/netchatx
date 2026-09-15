@@ -13,6 +13,7 @@ public sealed class SettingsRepository
     public const string KeyMergeMessagesThresholdSeconds = "merge_messages_threshold_seconds";
     public const string KeyNotificationPopupsEnabled = "notification_popups_enabled";
     public const string KeyIconFlashingEnabled = "icon_flashing_enabled";
+    public const string KeyLaunchOnStartup = "launch_on_startup";
     public const string KeyFontFamily = "font_family";
     public const string KeyFontSize = "font_size";
     public const string KeySendOnEnter = "send_on_enter";
@@ -32,6 +33,7 @@ public sealed class SettingsRepository
     public const int DefaultMergeMessagesThresholdSeconds = 10;
     public const bool DefaultNotificationPopupsEnabled = true;
     public const bool DefaultIconFlashingEnabled = true;
+    public const bool DefaultLaunchOnStartup = false;
     public const string DefaultFontFamily = "Inter";
     public const double DefaultFontSize = 13.0;
     public const bool DefaultSendOnEnter = true;
@@ -156,6 +158,17 @@ public sealed class SettingsRepository
     public async Task SetIconFlashingEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyIconFlashingEnabled, enabled.ToString(), cancellationToken);
+    }
+
+    public async Task<bool> GetLaunchOnStartupAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyLaunchOnStartup, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultLaunchOnStartup;
+    }
+
+    public async Task SetLaunchOnStartupAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyLaunchOnStartup, enabled.ToString(), cancellationToken);
     }
 
     public async Task<string> GetFontFamilyAsync(string accountJid, CancellationToken cancellationToken = default)
