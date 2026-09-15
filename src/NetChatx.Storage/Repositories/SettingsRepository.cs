@@ -1,7 +1,13 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 
 namespace NetChatx.Storage.Repositories;
+
+[JsonSerializable(typeof(List<string>))]
+internal partial class SettingsJsonContext : JsonSerializerContext
+{
+}
 
 public sealed class SettingsRepository
 {
@@ -93,7 +99,7 @@ public sealed class SettingsRepository
 
         try
         {
-            var list = JsonSerializer.Deserialize<List<string>>(json);
+            var list = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.ListString);
             if (list is not null && list.Count > 0)
             {
                 return list.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct().ToList();
@@ -110,7 +116,7 @@ public sealed class SettingsRepository
     public async Task SetQuickEmojisAsync(string accountJid, IEnumerable<string> emojis, CancellationToken cancellationToken = default)
     {
         var cleanList = emojis.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct().ToList();
-        var json = JsonSerializer.Serialize(cleanList);
+        var json = JsonSerializer.Serialize(cleanList, SettingsJsonContext.Default.ListString);
         await SetSettingAsync(accountJid, KeyQuickEmojis, json, cancellationToken);
     }
 
