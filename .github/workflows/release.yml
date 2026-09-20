@@ -25,6 +25,7 @@ jobs:
     outputs:
       version: ${{ steps.calc_version.outputs.version }}
       tag: ${{ steps.calc_version.outputs.tag }}
+      previous_tag: ${{ steps.calc_version.outputs.previous_tag }}
       commit_sha: ${{ steps.save_commit.outputs.commit_sha }}
     steps:
       - name: Checkout repository
@@ -216,6 +217,14 @@ jobs:
             --force
 
           # Publish GitHub Release with all binary packages attached
-          gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
-            --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
-            --generate-notes
+          PREV_TAG="${{ needs.calculate-and-tag-version.outputs.previous_tag }}"
+          if [ -n "$PREV_TAG" ]; then
+            gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
+              --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+              --generate-notes \
+              --notes-start-tag "$PREV_TAG"
+          else
+            gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
+              --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+              --generate-notes
+          fi

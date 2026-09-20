@@ -5,14 +5,18 @@ param (
 
 $ErrorActionPreference = "Stop"
 
+# 1. Try to find the latest git tag matching v*.*.* or v*.*
+$latestTag = $(git tag -l "v*" --sort=-v:refname 2>$null | Select-Object -First 1)
+$previousTag = ""
+if ($latestTag) {
+    $previousTag = $latestTag.Trim()
+}
+
 if ($VersionOverride -ne "") {
     $cleanVersion = $VersionOverride.Trim().TrimStart('v')
     Write-Host "Using version override: $cleanVersion"
     $newVersion = $cleanVersion
 } else {
-    # 1. Try to find the latest git tag matching v*.*.* or v*.*
-    $latestTag = $(git tag -l "v*" --sort=-v:refname 2>$null | Select-Object -First 1)
-
     $baseVersion = ""
     if ($latestTag) {
         $baseVersion = $latestTag.Trim().TrimStart('v')
@@ -48,6 +52,11 @@ if ($VersionOverride -ne "") {
 }
 
 $newTag = "v$newVersion"
+if ($previousTag) {
+    Write-Host "Found Previous Tag: $previousTag"
+} else {
+    Write-Host "No prior git tag found."
+}
 Write-Host "Calculated Next Version: $newVersion"
 Write-Host "Calculated Next Tag: $newTag"
 
@@ -55,9 +64,11 @@ Write-Host "Calculated Next Tag: $newTag"
 if ($env:GITHUB_OUTPUT) {
     "version=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
     "tag=$newTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+    "previous_tag=$previousTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 }
 
 return [PSCustomObject]@{
-    Version = $newVersion
-    Tag     = $newTag
+    Version     = $newVersion
+    Tag         = $newTag
+    PreviousTag = $previousTag
 }
