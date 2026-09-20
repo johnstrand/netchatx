@@ -123,6 +123,21 @@ public sealed class XmppElement
 
     public void WriteTo(XmlWriter writer)
     {
+        WriteStartElement(writer);
+        WriteAttributes(writer);
+
+        if (!string.IsNullOrEmpty(Value))
+        {
+            writer.WriteString(Value);
+        }
+
+        WriteChildren(writer);
+
+        writer.WriteEndElement();
+    }
+
+    private void WriteStartElement(XmlWriter writer)
+    {
         string? prefix = Prefix;
         string name = Name;
         string? ns = Namespace ?? GetAttr("xmlns");
@@ -139,59 +154,63 @@ public sealed class XmppElement
         {
             writer.WriteStartElement(name);
         }
+    }
 
-        foreach (var kv in _attributes)
+    private void WriteAttributes(XmlWriter writer)
+    {
+        foreach (var (key, value) in _attributes)
         {
-            if (kv.Key == "xmlns")
+            if (key == "xmlns")
             {
                 continue;
             }
 
-            if (kv.Key.StartsWith("xmlns:", StringComparison.Ordinal))
-            {
-                var pref = kv.Key.Substring(6);
-                writer.WriteAttributeString("xmlns", pref, null, kv.Value);
-            }
-            else
-            {
-                int colonIdx = kv.Key.IndexOf(':');
-                if (colonIdx > 0)
-                {
-                    string pref = kv.Key.Substring(0, colonIdx);
-                    string local = kv.Key.Substring(colonIdx + 1);
-                    string? attrNs = pref switch
-                    {
-                        "xml" => "http://www.w3.org/XML/1998/namespace",
-                        "stream" => "http://etherx.jabber.org/streams",
-                        _ => _attributes.TryGetValue($"xmlns:{pref}", out var dNs) ? dNs : null
-                    };
-                    try
-                    {
-                        writer.WriteAttributeString(pref, local, attrNs, kv.Value);
-                    }
-                    catch
-                    {
-                        writer.WriteAttributeString(local, kv.Value);
-                    }
-                }
-                else
-                {
-                    writer.WriteAttributeString(kv.Key, kv.Value);
-                }
-            }
+            WriteAttribute(writer, key, value);
         }
+    }
 
-        if (!string.IsNullOrEmpty(Value))
+    private void WriteAttribute(XmlWriter writer, string key, string value)
+    {
+        if (key.StartsWith("xmlns:", StringComparison.Ordinal))
         {
-            writer.WriteString(Value);
+            string pref = key.Substring(6);
+            writer.WriteAttributeString("xmlns", pref, null, value);
+            return;
         }
 
+        int colonIdx = key.IndexOf(':');
+        if (colonIdx > 0)
+        {
+            string pref = key.Substring(0, colonIdx);
+            string local = key.Substring(colonIdx + 1);
+            string? attrNs = pref switch
+            {
+                "xml" => "http://www.w3.org/XML/1998/namespace",
+                "stream" => "http://etherx.jabber.org/streams",
+                _ => _attributes.TryGetValue($"xmlns:{pref}", out var dNs) ? dNs : null
+            };
+
+            try
+            {
+                writer.WriteAttributeString(pref, local, attrNs, value);
+            }
+            catch
+            {
+                writer.WriteAttributeString(local, value);
+            }
+        }
+        else
+        {
+            writer.WriteAttributeString(key, value);
+        }
+    }
+
+    private void WriteChildren(XmlWriter writer)
+    {
         foreach (var child in _children)
         {
             child.WriteTo(writer);
         }
-
-        writer.WriteEndElement();
     }
 
     private static readonly XmlParserContext DefaultContext;

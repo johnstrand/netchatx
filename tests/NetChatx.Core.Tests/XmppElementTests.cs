@@ -45,4 +45,41 @@ public class XmppElementTests
         string outputXml = elem.ToXmlString();
         Assert.Contains("xml:lang=\"en\"", outputXml);
     }
+
+    [Fact]
+    public void WriteTo_WithPrefixAndNamespace_SerializesCorrectly()
+    {
+        var elem = new XmppElement("stream", "http://etherx.jabber.org/streams", "stream")
+            .Attr("version", "1.0");
+
+        string xml = elem.ToXmlString();
+        Assert.StartsWith("<stream:stream", xml);
+        Assert.Contains("xmlns:stream=\"http://etherx.jabber.org/streams\"", xml);
+        Assert.Contains("version=\"1.0\"", xml);
+    }
+
+    [Fact]
+    public void WriteTo_WithCustomXmlnsPrefixAttribute_SerializesCorrectly()
+    {
+        var elem = new XmppElement("message")
+            .Attr("xmlns:custom", "urn:custom:ns")
+            .Attr("custom:attr", "val");
+
+        string xml = elem.ToXmlString();
+        Assert.Contains("xmlns:custom=\"urn:custom:ns\"", xml);
+        Assert.Contains("custom:attr=\"val\"", xml);
+    }
+
+    [Fact]
+    public void WriteTo_WithNestedChildrenAndValues_SerializesHierarchy()
+    {
+        var parent = new XmppElement("presence")
+            .Attr("type", "subscribe")
+            .Child(new XmppElement("status").Text("Online"))
+            .Child(new XmppElement("priority").Text("10"));
+
+        string xml = parent.ToXmlString();
+        Assert.Contains("<status>Online</status>", xml);
+        Assert.Contains("<priority>10</priority>", xml);
+    }
 }
