@@ -269,15 +269,20 @@ public static class ClipboardImageHelper
         return null;
     }
 
-    public static async Task<byte[]?> FetchImageBytesAsync(string url, CancellationToken ct = default)
+    public static async Task<byte[]?> FetchImageBytesAsync(string url, bool allowHttp = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
 
         try
         {
-            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
+                return await HttpClient.GetByteArrayAsync(url, ct);
+            }
+
+            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!allowHttp) return null;
                 return await HttpClient.GetByteArrayAsync(url, ct);
             }
 
@@ -288,19 +293,6 @@ public static class ClipboardImageHelper
                 {
                     return Convert.FromBase64String(url[(commaIdx + 1)..]);
                 }
-            }
-
-            if (Uri.TryCreate(url, UriKind.Absolute, out var fileUri) && fileUri.IsFile)
-            {
-                if (File.Exists(fileUri.LocalPath))
-                {
-                    return await File.ReadAllBytesAsync(fileUri.LocalPath, ct);
-                }
-            }
-
-            if (File.Exists(url))
-            {
-                return await File.ReadAllBytesAsync(url, ct);
             }
         }
         catch
