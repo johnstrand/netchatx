@@ -163,6 +163,28 @@ public class NotificationAndSettingsTests : IDisposable
     }
 
     [Fact]
+    public void NotificationService_ShowSystemNotification_HandlesSpecialCharactersAndQuotesSafely()
+    {
+        var service = new NotificationService(dispatchNative: true);
+        string payloadTitle = "Alice; rm -rf /; $(whoami) \"' `";
+        string payloadMessage = "Hello \"quoted\" & 'single' $VAR `calc` ; echo test";
+
+        // Enable native notifications temporarily for the test invocation
+        bool prevEnable = NotificationService.EnableNativeNotifications;
+        NotificationService.EnableNativeNotifications = true;
+        try
+        {
+            service.ShowSystemNotification(payloadTitle, payloadMessage);
+            Assert.Equal(payloadTitle, service.LastNotificationTitle);
+            Assert.Equal(payloadMessage, service.LastNotificationMessage);
+        }
+        finally
+        {
+            NotificationService.EnableNativeNotifications = prevEnable;
+        }
+    }
+
+    [Fact]
     public void MockNotificationService_MethodsAndProperties_WorkCorrectly()
     {
         var mock = new MockNotificationService();

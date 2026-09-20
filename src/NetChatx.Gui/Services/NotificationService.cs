@@ -261,10 +261,13 @@ try {{
             var psi = new ProcessStartInfo
             {
                 FileName = "notify-send",
-                Arguments = $"-a \"NetChatx\" \"{EscapeCommandLine(title)}\" \"{EscapeCommandLine(message)}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false
             };
+            psi.ArgumentList.Add("-a");
+            psi.ArgumentList.Add("NetChatx");
+            psi.ArgumentList.Add(title ?? string.Empty);
+            psi.ArgumentList.Add(message ?? string.Empty);
 
             Task.Run(() =>
             {
@@ -275,13 +278,13 @@ try {{
                 }
                 catch
                 {
-                    _ = SendDbusNotificationAsync(title, message);
+                    _ = SendDbusNotificationAsync(title ?? string.Empty, message ?? string.Empty);
                 }
             });
         }
         catch
         {
-            _ = SendDbusNotificationAsync(title, message);
+            _ = SendDbusNotificationAsync(title ?? string.Empty, message ?? string.Empty);
         }
     }
 
@@ -365,11 +368,6 @@ try {{
     private static string EscapeAppleScript(string text)
     {
         return text.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    }
-
-    private static string EscapeCommandLine(string text)
-    {
-        return text.Replace("\"", "\\\"");
     }
 
     public Window? GetWindow()
