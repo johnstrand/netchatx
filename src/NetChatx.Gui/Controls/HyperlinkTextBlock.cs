@@ -106,7 +106,7 @@ public class HyperlinkTextBlock : TextBlock
 
     public void UpdateInlines()
     {
-        string? text = _rawText ?? Text;
+        var text = _rawText ?? Text;
         if (string.IsNullOrEmpty(text))
         {
             Inlines?.Clear();
@@ -147,7 +147,7 @@ public class HyperlinkTextBlock : TextBlock
 
         // When Markdown is disabled or text does not contain markdown/links
         var segments = LinkParser.Parse(text);
-        bool hasLinks = false;
+        var hasLinks = false;
         for (int i = 0; i < segments.Count; i++)
         {
             if (segments[i].IsLink)

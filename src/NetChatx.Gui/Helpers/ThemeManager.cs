@@ -42,7 +42,7 @@ public static class ThemeManager
     {
         if (Application.Current is null) return;
 
-        string norm = (hexColor ?? string.Empty).Trim().ToUpperInvariant();
+        var norm = (hexColor ?? string.Empty).Trim().ToUpperInvariant();
         if (norm.StartsWith("#FF") && norm.Length == 9)
         {
             norm = "#" + norm[3..];

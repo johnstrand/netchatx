@@ -61,7 +61,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_ReplyWorkflow_TracksReplyingToMessageAndClearsOnSend()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         var remote = Jid.Parse("peer@example.com");
 
         var transport = new LoopbackTransport();
@@ -117,7 +117,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_Search_EmptyQueryResetsState()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         var client = new XmppClient(new XmppClientOptions { Jid = Jid.Parse(account), Password = "pw" }, new LoopbackTransport());
         var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
 
@@ -132,7 +132,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_Search_ReturnsHeaderAndCount()
     {
-        string account = "user@example.com";
+        var account = "user@example.com";
         await _messageRepo.SaveMessageAsync(new ChatMessage
         {
             AccountJid = account,
@@ -189,7 +189,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_SelectSearchResultAsync_SwitchesActiveConversation()
     {
-        string account = "user@example.com";
+        var account = "user@example.com";
         var client = new XmppClient(new XmppClientOptions { Jid = Jid.Parse(account), Password = "pw" }, new LoopbackTransport());
         var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
 
@@ -212,7 +212,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_NewChatDialog_ValidationAndSuccessFlow()
     {
-        string account = "admin@example.com";
+        var account = "admin@example.com";
         var client = new XmppClient(new XmppClientOptions { Jid = Jid.Parse(account), Password = "pw" }, new LoopbackTransport());
         var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
 
@@ -260,7 +260,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_ButtonIcons_ReflectSyncAndLoadState()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         var remote = Jid.Parse("peer@example.com");
 
         var conv = new ChatConversationViewModel(
@@ -347,7 +347,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_GetSenderDisplayName_HandlesOneOnOneAndGroupChat()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         var peerJid = Jid.Parse("alice.cooper@example.com");
 
         // 1-on-1 conversation with friendly contact title
@@ -404,7 +404,7 @@ public class ChatEnhancementsTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_OnTitleChanged_UpdatesInboundBubbleSenderDisplayNames()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         var peerJid = Jid.Parse("bob@example.com");
 
         var conv = new ChatConversationViewModel(

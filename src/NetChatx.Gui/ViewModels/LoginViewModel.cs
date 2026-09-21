@@ -72,7 +72,7 @@ public sealed partial class LoginViewModel : ViewModelBase
             return;
         }
 
-        int port = 5222;
+        var port = 5222;
         if (!string.IsNullOrWhiteSpace(Port) && !int.TryParse(Port.Trim(), out port))
         {
             ErrorMessage = "Port must be a valid number.";
@@ -94,7 +94,7 @@ public sealed partial class LoginViewModel : ViewModelBase
                 IsActive = true
             };
 
-            bool success = await _onLoginCallback(profile);
+            var success = await _onLoginCallback(profile);
             if (!success && ErrorMessage is null)
             {
                 ErrorMessage = "Failed to connect. Please check credentials or network.";

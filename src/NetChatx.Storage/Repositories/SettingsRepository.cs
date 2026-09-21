@@ -303,7 +303,7 @@ public sealed class SettingsRepository
 
     public async Task SetChatInputMaxLinesAsync(string accountJid, int maxLines, CancellationToken cancellationToken = default)
     {
-        int clamped = Math.Clamp(maxLines, 1, 20);
+        var clamped = Math.Clamp(maxLines, 1, 20);
         await SetSettingAsync(accountJid, KeyChatInputMaxLines, clamped.ToString(), cancellationToken);
     }
 

@@ -67,8 +67,8 @@ public sealed class Jid : IEquatable<Jid>, IComparable<Jid>
         string domain;
         string? resource = null;
 
-        int atIndex = span.IndexOf('@');
-        int slashIndex = span.IndexOf('/');
+        var atIndex = span.IndexOf('@');
+        var slashIndex = span.IndexOf('/');
 
         // If '@' is after '/', it is part of the resource, not a localpart separator
         if (atIndex >= 0 && slashIndex >= 0 && atIndex > slashIndex)
@@ -76,7 +76,7 @@ public sealed class Jid : IEquatable<Jid>, IComparable<Jid>
             atIndex = -1;
         }
 
-        ReadOnlySpan<char> remaining = span;
+        var remaining = span;
 
         if (atIndex >= 0)
         {

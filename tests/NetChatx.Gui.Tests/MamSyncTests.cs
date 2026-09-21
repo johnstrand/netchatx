@@ -61,7 +61,7 @@ public class MamSyncTests : IDisposable
                 throw new InvalidOperationException("Simulated network failure");
             }
 
-            int pageIdx = 0;
+            var pageIdx = 0;
             if (after != null && int.TryParse(after, out int parsedAfter))
             {
                 pageIdx = parsedAfter + 1;
@@ -85,7 +85,7 @@ public class MamSyncTests : IDisposable
             }
 
             var pageItems = _pages[pageIdx];
-            bool isLast = pageIdx == _pages.Count - 1;
+            var isLast = pageIdx == _pages.Count - 1;
 
             return Task.FromResult(new MamQueryResult
             {
@@ -101,7 +101,7 @@ public class MamSyncTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SyncArchive_PagesThroughAllMessagesAndRetriesOnFailure()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("friend@test.org");
 
         // Seed initial message bubble so startTimestamp is set, testing RSM 'after' pagination
@@ -118,14 +118,14 @@ public class MamSyncTests : IDisposable
 
         // Prepare 12 pages of messages (more than old maxPages=10 limit)
         var pages = new List<List<MamMessageItem>>();
-        int totalMsgCount = 0;
+        var totalMsgCount = 0;
         for (int p = 0; p < 12; p++)
         {
             var page = new List<MamMessageItem>();
             for (int m = 0; m < 5; m++)
             {
                 totalMsgCount++;
-                string id = $"archive_msg_{p}_{m}";
+                var id = $"archive_msg_{p}_{m}";
                 page.Add(new MamMessageItem
                 {
                     ArchiveId = id,
@@ -166,7 +166,7 @@ public class MamSyncTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SyncArchive_ContinuousPagination_Works()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var transport = new LoopbackTransport();

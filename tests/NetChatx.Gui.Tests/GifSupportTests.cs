@@ -159,7 +159,7 @@ public class GifSupportTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendMessageAsync_WithPendingGif_SendsAndAttachesOob()
     {
-        string account = "alice@example.com";
+        var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
 
         var transport = new LoopbackTransport();

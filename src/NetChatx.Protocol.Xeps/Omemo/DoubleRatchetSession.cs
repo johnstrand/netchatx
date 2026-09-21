@@ -58,10 +58,10 @@ public sealed class DoubleRatchetSession
         var (nextChainKey, messageKey) = KdfCk(SendingChainKey);
         SendingChainKey = nextChainKey;
 
-        byte[] iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
-        byte[] key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
+        var iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
+        var key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
 
-        uint num = Ns++;
+        var num = Ns++;
         return (key, iv, DHPair.PublicKey, num);
     }
 
@@ -92,17 +92,17 @@ public sealed class DoubleRatchetSession
         ReceivingChainKey = nextChainKey;
         Nr++;
 
-        byte[] iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
-        byte[] key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
+        var iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
+        var key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
 
         return (key, iv);
     }
 
     private static (byte[] RootKey, byte[] ChainKey) KdfRk(byte[] rk, byte[] dhOut)
     {
-        byte[] derived = OmemoCrypto.DeriveKey(dhOut, rk, RootKdfInfo, 64);
-        byte[] newRoot = new byte[32];
-        byte[] newChain = new byte[32];
+        var derived = OmemoCrypto.DeriveKey(dhOut, rk, RootKdfInfo, 64);
+        var newRoot = new byte[32];
+        var newChain = new byte[32];
         Buffer.BlockCopy(derived, 0, newRoot, 0, 32);
         Buffer.BlockCopy(derived, 32, newChain, 0, 32);
         return (newRoot, newChain);
@@ -110,9 +110,9 @@ public sealed class DoubleRatchetSession
 
     private static (byte[] NextChainKey, byte[] MessageKey) KdfCk(byte[] ck)
     {
-        byte[] derived = OmemoCrypto.DeriveKey(ck, "NetChatxChainSalt"u8.ToArray(), ChainKdfInfo, 64);
-        byte[] nextChain = new byte[32];
-        byte[] messageKey = new byte[32];
+        var derived = OmemoCrypto.DeriveKey(ck, "NetChatxChainSalt"u8.ToArray(), ChainKdfInfo, 64);
+        var nextChain = new byte[32];
+        var messageKey = new byte[32];
         Buffer.BlockCopy(derived, 0, nextChain, 0, 32);
         Buffer.BlockCopy(derived, 32, messageKey, 0, 32);
         return (nextChain, messageKey);

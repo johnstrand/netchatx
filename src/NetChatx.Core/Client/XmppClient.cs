@@ -77,7 +77,7 @@ public sealed class XmppClient : IAsyncDisposable
         _sessionCts = new CancellationTokenSource();
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionCts.Token);
 
-        string host = _options.Host ?? _options.Jid.Domain;
+        var host = _options.Host ?? _options.Jid.Domain;
         await _transport.ConnectAsync(host, _options.Port, linkedCts.Token);
 
         State = XmppClientState.Connected;
@@ -118,7 +118,7 @@ public sealed class XmppClient : IAsyncDisposable
                 var response = await ReadNextElementAsync(cancellationToken);
                 if (response.Name == "proceed")
                 {
-                    string targetHost = _options.Host ?? _options.Jid.Domain;
+                    var targetHost = _options.Host ?? _options.Jid.Domain;
                     await _transport.UpgradeToTlsAsync(targetHost, cancellationToken);
 
                     // Re-open stream over TLS
@@ -153,8 +153,8 @@ public sealed class XmppClient : IAsyncDisposable
         else
             throw new NotSupportedException($"No supported SASL mechanism found in: {string.Join(", ", mechanisms)}");
 
-        string username = _options.Jid.LocalPart ?? _options.Jid.Domain;
-        string? initialPayload = saslMech.CreateInitialResponse(username, _options.Password);
+        var username = _options.Jid.LocalPart ?? _options.Jid.Domain;
+        var initialPayload = saslMech.CreateInitialResponse(username, _options.Password);
 
         var authElem = new XmppElement("auth", "urn:ietf:params:xml:ns:xmpp-sasl")
             .Attr("mechanism", saslMech.Name);
@@ -169,7 +169,7 @@ public sealed class XmppClient : IAsyncDisposable
             var saslResp = await ReadNextElementAsync(cancellationToken);
             if (saslResp.Name == "challenge")
             {
-                string? challengeResp = saslMech.HandleChallenge(saslResp.Value ?? "", _options.Password);
+                var challengeResp = saslMech.HandleChallenge(saslResp.Value ?? "", _options.Password);
                 var respElem = new XmppElement("response", "urn:ietf:params:xml:ns:xmpp-sasl")
                 {
                     Value = challengeResp ?? ""
@@ -207,7 +207,7 @@ public sealed class XmppClient : IAsyncDisposable
         if (bindElem is null)
             throw new InvalidOperationException("Server did not advertise xmpp-bind feature.");
 
-        string bindIqId = Guid.NewGuid().ToString("N");
+        var bindIqId = Guid.NewGuid().ToString("N");
         var bindIq = new IqStanza(IqStanza.TypeSet, id: bindIqId);
         var bindReq = new XmppElement("bind", "urn:ietf:params:xml:ns:xmpp-bind");
         if (!string.IsNullOrEmpty(_options.Resource))
@@ -231,7 +231,7 @@ public sealed class XmppClient : IAsyncDisposable
         var sessionElem = features.Element("session", "urn:ietf:params:xml:ns:xmpp-session");
         if (sessionElem is not null && !sessionElem.HasAttr("optional"))
         {
-            string sessionIqId = Guid.NewGuid().ToString("N");
+            var sessionIqId = Guid.NewGuid().ToString("N");
             var sessionIq = new IqStanza(IqStanza.TypeSet, id: sessionIqId);
             sessionIq.RawElement.Child(new XmppElement("session", "urn:ietf:params:xml:ns:xmpp-session"));
             await SendElementRawAsync(sessionIq.RawElement, cancellationToken);
@@ -248,8 +248,8 @@ public sealed class XmppClient : IAsyncDisposable
 
     private async Task SendStreamHeaderAsync(CancellationToken cancellationToken)
     {
-        string header = $"<?xml version='1.0'?><stream:stream to='{_options.Jid.Domain}' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>";
-        byte[] bytes = Encoding.UTF8.GetBytes(header);
+        var header = $"<?xml version='1.0'?><stream:stream to='{_options.Jid.Domain}' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>";
+        var bytes = Encoding.UTF8.GetBytes(header);
         await _sendLock.WaitAsync(cancellationToken);
         try
         {
@@ -266,7 +266,7 @@ public sealed class XmppClient : IAsyncDisposable
     {
         foreach (var filter in _outgoingFilters)
         {
-            bool proceed = await filter.OnOutgoingElementAsync(this, element, cancellationToken);
+            var proceed = await filter.OnOutgoingElementAsync(this, element, cancellationToken);
             if (!proceed) return;
         }
 
@@ -304,8 +304,8 @@ public sealed class XmppClient : IAsyncDisposable
 
     private async Task SendElementRawAsync(XmppElement element, CancellationToken cancellationToken)
     {
-        string xml = element.ToXmlString();
-        byte[] bytes = Encoding.UTF8.GetBytes(xml);
+        var xml = element.ToXmlString();
+        var bytes = Encoding.UTF8.GetBytes(xml);
         await _sendLock.WaitAsync(cancellationToken);
         try
         {
@@ -330,7 +330,7 @@ public sealed class XmppClient : IAsyncDisposable
                 }
 
                 // Run incoming filters
-                bool pass = true;
+                var pass = true;
                 foreach (var filter in _incomingFilters)
                 {
                     if (!await filter.OnIncomingElementAsync(this, elem, cancellationToken))
@@ -404,7 +404,7 @@ public sealed class XmppClient : IAsyncDisposable
             try
             {
                 // Send </stream:stream>
-                byte[] closeTag = "</stream:stream>"u8.ToArray();
+                var closeTag = "</stream:stream>"u8.ToArray();
                 await _transport.Output.WriteAsync(closeTag);
                 await _transport.Output.FlushAsync();
             }

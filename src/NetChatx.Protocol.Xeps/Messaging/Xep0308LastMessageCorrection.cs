@@ -32,7 +32,7 @@ public sealed class Xep0308LastMessageCorrection : XepFeatureBase
             var replaceElem = element.Element("replace", NsCorrection);
             if (replaceElem is not null)
             {
-                string? originalId = replaceElem.GetAttr("id");
+                var originalId = replaceElem.GetAttr("id");
                 if (!string.IsNullOrEmpty(originalId))
                 {
                     var msg = new MessageStanza(element);

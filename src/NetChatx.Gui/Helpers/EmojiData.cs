@@ -111,7 +111,7 @@ public static class EmojiData
             return Categories.SelectMany(c => c.Emojis).ToList();
         }
 
-        string trimmed = query.Trim();
+        var trimmed = query.Trim();
         var results = new List<string>();
 
         // Exact emoji match

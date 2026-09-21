@@ -8,7 +8,7 @@ public class XmppElementTests
     [Fact]
     public void ParseAndEmit_SimpleStanza_PreservesStructure()
     {
-        string xml = "<message to='alice@example.com' from='bob@example.com' type='chat'><body xmlns='jabber:client'>Hello World!</body></message>";
+        var xml = "<message to='alice@example.com' from='bob@example.com' type='chat'><body xmlns='jabber:client'>Hello World!</body></message>";
         var elem = XmppElement.Parse(xml);
 
         Assert.Equal("message", elem.Name);
@@ -29,7 +29,7 @@ public class XmppElementTests
             .Attr("type", "get")
             .Child(new XmppElement("query", "jabber:iq:roster"));
 
-        string xml = iq.ToXmlString();
+        var xml = iq.ToXmlString();
         Assert.Contains("id=\"req-1\"", xml);
         Assert.Contains("type=\"get\"", xml);
         Assert.Contains("xmlns=\"jabber:iq:roster\"", xml);
@@ -38,11 +38,11 @@ public class XmppElementTests
     [Fact]
     public void ParseAndEmit_WithXmlLangAttribute_SerializesCorrectlyWithoutException()
     {
-        string xml = "<message to='alice@example.com' from='bob@example.com' type='chat' xml:lang='en'><body>Hello with lang!</body></message>";
+        var xml = "<message to='alice@example.com' from='bob@example.com' type='chat' xml:lang='en'><body>Hello with lang!</body></message>";
         var elem = XmppElement.Parse(xml);
 
         Assert.Equal("en", elem.GetAttr("xml:lang"));
-        string outputXml = elem.ToXmlString();
+        var outputXml = elem.ToXmlString();
         Assert.Contains("xml:lang=\"en\"", outputXml);
     }
 
@@ -52,7 +52,7 @@ public class XmppElementTests
         var elem = new XmppElement("stream", "http://etherx.jabber.org/streams", "stream")
             .Attr("version", "1.0");
 
-        string xml = elem.ToXmlString();
+        var xml = elem.ToXmlString();
         Assert.StartsWith("<stream:stream", xml);
         Assert.Contains("xmlns:stream=\"http://etherx.jabber.org/streams\"", xml);
         Assert.Contains("version=\"1.0\"", xml);
@@ -65,7 +65,7 @@ public class XmppElementTests
             .Attr("xmlns:custom", "urn:custom:ns")
             .Attr("custom:attr", "val");
 
-        string xml = elem.ToXmlString();
+        var xml = elem.ToXmlString();
         Assert.Contains("xmlns:custom=\"urn:custom:ns\"", xml);
         Assert.Contains("custom:attr=\"val\"", xml);
     }
@@ -78,7 +78,7 @@ public class XmppElementTests
             .Child(new XmppElement("status").Text("Online"))
             .Child(new XmppElement("priority").Text("10"));
 
-        string xml = parent.ToXmlString();
+        var xml = parent.ToXmlString();
         Assert.Contains("<status>Online</status>", xml);
         Assert.Contains("<priority>10</priority>", xml);
     }

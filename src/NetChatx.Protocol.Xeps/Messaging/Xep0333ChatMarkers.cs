@@ -51,13 +51,13 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
     {
         if (element.Name == "message")
         {
-            string? fromStr = element.GetAttr("from");
+            var fromStr = element.GetAttr("from");
             Jid.TryParse(fromStr, out var fromJid);
 
             var displayed = element.Element("displayed", NsChatMarkers) ?? element.Element("displayed", NsChatMarkersLegacy);
             if (displayed is not null)
             {
-                string? id = displayed.GetAttr("id");
+                var id = displayed.GetAttr("id");
                 if (!string.IsNullOrEmpty(id))
                 {
                     MarkerReceived?.Invoke(id, fromJid, ChatMarkerType.Displayed);
@@ -67,7 +67,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
             var received = element.Element("received", NsChatMarkers) ?? element.Element("received", NsChatMarkersLegacy);
             if (received is not null)
             {
-                string? id = received.GetAttr("id");
+                var id = received.GetAttr("id");
                 if (!string.IsNullOrEmpty(id))
                 {
                     MarkerReceived?.Invoke(id, fromJid, ChatMarkerType.Received);
@@ -77,7 +77,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
             var acknowledged = element.Element("acknowledged", NsChatMarkers) ?? element.Element("acknowledged", NsChatMarkersLegacy);
             if (acknowledged is not null)
             {
-                string? id = acknowledged.GetAttr("id");
+                var id = acknowledged.GetAttr("id");
                 if (!string.IsNullOrEmpty(id))
                 {
                     MarkerReceived?.Invoke(id, fromJid, ChatMarkerType.Acknowledged);

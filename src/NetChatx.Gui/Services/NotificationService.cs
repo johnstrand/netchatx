@@ -124,7 +124,7 @@ public sealed class NotificationService : INotificationService
             var handle = GetWindowHandle();
             if (handle != IntPtr.Zero)
             {
-                IntPtr hIcon = SendMessage(handle, WM_GETICON, (IntPtr)1, IntPtr.Zero);
+                var hIcon = SendMessage(handle, WM_GETICON, (IntPtr)1, IntPtr.Zero);
                 if (hIcon == IntPtr.Zero)
                 {
                     hIcon = SendMessage(handle, WM_GETICON, (IntPtr)0, IntPtr.Zero);
@@ -162,7 +162,7 @@ public sealed class NotificationService : INotificationService
                     }
                 }
 
-                bool modified = Shell_NotifyIconW(NIM_MODIFY, ref nid);
+                var modified = Shell_NotifyIconW(NIM_MODIFY, ref nid);
                 if (!modified && !_trayIconAdded)
                 {
                     Shell_NotifyIconW(NIM_ADD, ref nid);
@@ -186,13 +186,13 @@ public sealed class NotificationService : INotificationService
     {
         Task.Run(() =>
         {
-            string tempFile = Path.Combine(Path.GetTempPath(), $"netchatx_toast_{Guid.NewGuid():N}.ps1");
+            var tempFile = Path.Combine(Path.GetTempPath(), $"netchatx_toast_{Guid.NewGuid():N}.ps1");
             try
             {
-                string safeTitle = (title ?? string.Empty).Replace("'", "''");
-                string safeMessage = (message ?? string.Empty).Replace("'", "''");
+                var safeTitle = (title ?? string.Empty).Replace("'", "''");
+                var safeMessage = (message ?? string.Empty).Replace("'", "''");
 
-                string script = $@"
+                var script = $@"
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 $template = @'
@@ -334,9 +334,9 @@ try {{
 
         try
         {
-            string safeTitle = EscapeAppleScript(title);
-            string safeMessage = EscapeAppleScript(message);
-            string script = $"display notification \"{safeMessage}\" with title \"NetChatx\" subtitle \"{safeTitle}\" sound name \"default\"";
+            var safeTitle = EscapeAppleScript(title);
+            var safeMessage = EscapeAppleScript(message);
+            var script = $"display notification \"{safeMessage}\" with title \"NetChatx\" subtitle \"{safeTitle}\" sound name \"default\"";
 
             var psi = new ProcessStartInfo
             {

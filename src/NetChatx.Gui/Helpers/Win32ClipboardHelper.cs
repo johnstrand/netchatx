@@ -41,7 +41,7 @@ internal static class Win32ClipboardHelper
         try
         {
             // 1. Try registered PNG format (used by Windows 10/11 Snipping Tool, browsers)
-            uint pngFormat = RegisterClipboardFormat("PNG");
+            var pngFormat = RegisterClipboardFormat("PNG");
             if (pngFormat != 0 && IsClipboardFormatAvailable(pngFormat))
             {
                 var hData = GetClipboardData(pngFormat);
@@ -52,10 +52,10 @@ internal static class Win32ClipboardHelper
                     {
                         try
                         {
-                            int size = (int)GlobalSize(hData);
+                            var size = (int)GlobalSize(hData);
                             if (size > 0)
                             {
-                                byte[] bytes = new byte[size];
+                                var bytes = new byte[size];
                                 Marshal.Copy(ptr, bytes, 0, size);
                                 return bytes;
                             }
@@ -79,10 +79,10 @@ internal static class Win32ClipboardHelper
                     {
                         try
                         {
-                            int dibSize = (int)GlobalSize(hData);
+                            var dibSize = (int)GlobalSize(hData);
                             if (dibSize > 40)
                             {
-                                byte[] dibData = new byte[dibSize];
+                                var dibData = new byte[dibSize];
                                 Marshal.Copy(ptr, dibData, 0, dibSize);
                                 return ConvertDibToPngBytes(dibData);
                             }
@@ -114,14 +114,14 @@ internal static class Win32ClipboardHelper
 
         try
         {
-            uint gifFormat = RegisterClipboardFormat("GIF");
+            var gifFormat = RegisterClipboardFormat("GIF");
             if (gifFormat != 0 && IsClipboardFormatAvailable(gifFormat))
             {
                 var bytes = ReadClipboardBytes(gifFormat);
                 if (bytes is not null && bytes.Length > 0 && GifDecoder.IsGif(bytes)) return bytes;
             }
 
-            uint imageGifFormat = RegisterClipboardFormat("image/gif");
+            var imageGifFormat = RegisterClipboardFormat("image/gif");
             if (imageGifFormat != 0 && IsClipboardFormatAvailable(imageGifFormat))
             {
                 var bytes = ReadClipboardBytes(imageGifFormat);
@@ -147,14 +147,14 @@ internal static class Win32ClipboardHelper
 
         try
         {
-            uint htmlFormat = RegisterClipboardFormat("HTML Format");
+            var htmlFormat = RegisterClipboardFormat("HTML Format");
             if (htmlFormat != 0 && IsClipboardFormatAvailable(htmlFormat))
             {
                 var bytes = ReadClipboardBytes(htmlFormat);
                 if (bytes is not null && bytes.Length > 0)
                 {
-                    int nullIndex = Array.IndexOf(bytes, (byte)0);
-                    int length = nullIndex >= 0 ? nullIndex : bytes.Length;
+                    var nullIndex = Array.IndexOf(bytes, (byte)0);
+                    var length = nullIndex >= 0 ? nullIndex : bytes.Length;
                     return System.Text.Encoding.UTF8.GetString(bytes, 0, length);
                 }
             }
@@ -181,10 +181,10 @@ internal static class Win32ClipboardHelper
 
         try
         {
-            int size = (int)GlobalSize(hData);
+            var size = (int)GlobalSize(hData);
             if (size > 0)
             {
-                byte[] bytes = new byte[size];
+                var bytes = new byte[size];
                 Marshal.Copy(ptr, bytes, 0, size);
                 return bytes;
             }
@@ -201,25 +201,25 @@ internal static class Win32ClipboardHelper
     {
         try
         {
-            int headerSize = BitConverter.ToInt32(dibData, 0);
-            short bpp = BitConverter.ToInt16(dibData, 14);
-            int compression = BitConverter.ToInt32(dibData, 16);
-            int clrUsed = BitConverter.ToInt32(dibData, 32);
+            var headerSize = BitConverter.ToInt32(dibData, 0);
+            var bpp = BitConverter.ToInt16(dibData, 14);
+            var compression = BitConverter.ToInt32(dibData, 16);
+            var clrUsed = BitConverter.ToInt32(dibData, 32);
 
-            int paletteColors = clrUsed;
+            var paletteColors = clrUsed;
             if (paletteColors == 0 && bpp <= 8)
             {
                 paletteColors = 1 << bpp;
             }
 
-            int paletteSize = paletteColors * 4;
+            var paletteSize = paletteColors * 4;
             if (compression == 3 /* BI_BITFIELDS */ && headerSize == 40)
             {
                 paletteSize = 12; // 3 color masks
             }
 
-            int offBits = 14 + headerSize + paletteSize;
-            int fileSize = 14 + dibData.Length;
+            var offBits = 14 + headerSize + paletteSize;
+            var fileSize = 14 + dibData.Length;
 
             using var ms = new MemoryStream(fileSize);
             using var bw = new BinaryWriter(ms);

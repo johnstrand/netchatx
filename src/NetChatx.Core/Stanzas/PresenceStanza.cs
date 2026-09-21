@@ -66,7 +66,7 @@ public sealed class PresenceStanza : Stanza
     {
         get
         {
-            string? val = RawElement.Element("priority")?.Value;
+            var val = RawElement.Element("priority")?.Value;
             return int.TryParse(val, out int p) ? p : null;
         }
         set

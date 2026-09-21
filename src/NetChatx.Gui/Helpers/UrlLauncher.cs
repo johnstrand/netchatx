@@ -13,7 +13,7 @@ public static class UrlLauncher
     {
         if (string.IsNullOrWhiteSpace(url)) return false;
 
-        string target = url.Trim();
+        var target = url.Trim();
         if (target.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
         {
             target = "https://" + target;
@@ -32,7 +32,7 @@ public static class UrlLauncher
             return false;
         }
 
-        string uriString = uri.AbsoluteUri;
+        var uriString = uri.AbsoluteUri;
 
         try
         {
@@ -49,7 +49,7 @@ public static class UrlLauncher
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    string escaped = uriString.Replace("&", "^&");
+                    var escaped = uriString.Replace("&", "^&");
                     Process.Start(new ProcessStartInfo("cmd", $"/c start \"\" \"{escaped}\"")
                     {
                         CreateNoWindow = true,

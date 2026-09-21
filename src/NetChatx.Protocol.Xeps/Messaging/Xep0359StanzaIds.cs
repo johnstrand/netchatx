@@ -15,12 +15,12 @@ public sealed class Xep0359StanzaIds : XepFeatureBase
     {
         if (element.Name == "message")
         {
-            string id = element.GetAttr("id") ?? Guid.NewGuid().ToString();
+            var id = element.GetAttr("id") ?? Guid.NewGuid().ToString();
 
             // 1. Attach <stanza-id by="..." id="..." xmlns="urn:xmpp:sid:0" /> per XEP-0359 §4
             if (element.Element("stanza-id", NsSid) is null && client.BoundJid is not null)
             {
-                string byJid = client.BoundJid.BareJid.ToString();
+                var byJid = client.BoundJid.BareJid.ToString();
                 if (!string.IsNullOrEmpty(byJid))
                 {
                     element.Child(new XmppElement("stanza-id", NsSid)

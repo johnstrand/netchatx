@@ -57,8 +57,8 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
         var putElem = slotElem.Element("put");
         var getElem = slotElem.Element("get");
 
-        string? putUrl = putElem?.GetAttr("url");
-        string? getUrl = getElem?.GetAttr("url");
+        var putUrl = putElem?.GetAttr("url");
+        var getUrl = getElem?.GetAttr("url");
 
         if (string.IsNullOrEmpty(putUrl) || string.IsNullOrEmpty(getUrl))
         {
@@ -75,8 +75,8 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
         {
             foreach (var h in putElem.Elements("header"))
             {
-                string? name = h.GetAttr("name");
-                string? val = h.Value;
+                var name = h.GetAttr("name");
+                var val = h.Value;
                 if (!string.IsNullOrEmpty(name) && val is not null)
                 {
                     slot.Headers[name] = val;
@@ -183,7 +183,7 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
             {
                 foreach (var item in queryItems.Elements("item"))
                 {
-                    string? jidStr = item.GetAttr("jid");
+                    var jidStr = item.GetAttr("jid");
                     if (!string.IsNullOrEmpty(jidStr) && Jid.TryParse(jidStr, out var itemJid))
                     {
                         var subInfoIq = IqStanza.CreateGet(itemJid);

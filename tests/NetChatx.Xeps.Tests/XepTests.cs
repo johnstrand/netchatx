@@ -543,7 +543,7 @@ public class XepTests
             .Child(new XmppElement("body") { Value = "New corrected body" })
             .Child(new XmppElement("replace", Xep0308LastMessageCorrection.NsCorrection).Attr("id", "msg_to_replace_42"));
 
-        bool pass = await correction.OnIncomingElementAsync(client, incomingCorrection);
+        var pass = await correction.OnIncomingElementAsync(client, incomingCorrection);
         Assert.False(pass); // Consumed by filter
         Assert.NotNull(clientReceivedStanza);
         Assert.Equal("New corrected body", clientReceivedStanza.Body);
@@ -609,7 +609,7 @@ public class XepTests
             .Attr("to", "alice@mock.example.com")
             .Child(new XmppElement("retract", Xep0424MessageRetraction.NsRetraction1).Attr("id", "target_retract_55"));
 
-        bool pass = await retraction.OnIncomingElementAsync(client, incomingRetraction);
+        var pass = await retraction.OnIncomingElementAsync(client, incomingRetraction);
         Assert.False(pass); // Consumed by filter
         Assert.Equal("target_retract_55", retractedTargetId);
         Assert.Equal("bob@mock.example.com/mobile", retractedSenderJid?.ToString());
@@ -623,7 +623,7 @@ public class XepTests
         msg.Id = "06c46d61-65dc-4724-a994-55ee57fea07b";
         msg.RawElement.Element("origin-id", "urn:xmpp:sid:0")!.Attr("id", msg.Id);
 
-        string xml = msg.ToXmlString(indent: true);
+        var xml = msg.ToXmlString(indent: true);
         var parsed = XmppElement.Parse(xml);
 
         Assert.Equal("richard@squishythoughts.com", parsed.GetAttr("to"));

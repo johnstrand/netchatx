@@ -54,10 +54,10 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsViewModel_DefaultsAndPersistence_WorkCorrectly()
     {
-        string account = "user@test.org";
-        bool bubbleMergeInvoked = false;
-        bool popupsInvoked = false;
-        bool flashingInvoked = false;
+        var account = "user@test.org";
+        var bubbleMergeInvoked = false;
+        var popupsInvoked = false;
+        var flashingInvoked = false;
 
         var vm = new SettingsViewModel(
             _settingsRepo,
@@ -166,11 +166,11 @@ public class NotificationAndSettingsTests : IDisposable
     public void NotificationService_ShowSystemNotification_HandlesSpecialCharactersAndQuotesSafely()
     {
         var service = new NotificationService(dispatchNative: true);
-        string payloadTitle = "Alice; rm -rf /; $(whoami) \"' `";
-        string payloadMessage = "Hello \"quoted\" & 'single' $VAR `calc` ; echo test";
+        var payloadTitle = "Alice; rm -rf /; $(whoami) \"' `";
+        var payloadMessage = "Hello \"quoted\" & 'single' $VAR `calc` ; echo test";
 
         // Enable native notifications temporarily for the test invocation
-        bool prevEnable = NotificationService.EnableNativeNotifications;
+        var prevEnable = NotificationService.EnableNativeNotifications;
         NotificationService.EnableNativeNotifications = true;
         try
         {
@@ -194,7 +194,7 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.Null(mock.LastNotificationTitle);
         Assert.Null(mock.LastNotificationMessage);
 
-        bool activeChangedFired = false;
+        var activeChangedFired = false;
         mock.WindowActiveChanged += active => activeChangedFired = true;
         mock.IsWindowActive = false;
         Assert.True(activeChangedFired);
@@ -316,21 +316,21 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsViewModel_FullConfigurabilityAndCallbacks_WorkCorrectly()
     {
-        string account = "full_config@test.org";
-        bool typographyInvoked = false;
-        string lastFont = "";
+        var account = "full_config@test.org";
+        var typographyInvoked = false;
+        var lastFont = "";
         double lastSize = 0;
-        bool sendOnEnterInvoked = false;
-        bool lastSendOnEnter = true;
-        bool use24HInvoked = false;
-        bool last24H = true;
-        bool mediaInvoked = false;
-        bool lastShowPreviews = true;
-        bool lastAutoDownload = true;
-        bool themeInvoked = false;
-        string lastTheme = "";
-        string lastAccent = "";
-        bool emojisInvoked = false;
+        var sendOnEnterInvoked = false;
+        var lastSendOnEnter = true;
+        var use24HInvoked = false;
+        var last24H = true;
+        var mediaInvoked = false;
+        var lastShowPreviews = true;
+        var lastAutoDownload = true;
+        var themeInvoked = false;
+        var lastTheme = "";
+        var lastAccent = "";
+        var emojisInvoked = false;
 
         var vm = new SettingsViewModel(
             _settingsRepo,
@@ -535,7 +535,7 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsViewModel_BubbleColors_DefaultsPersistenceAndPresets_WorkCorrectly()
     {
-        string account = "bubble_user@test.org";
+        var account = "bubble_user@test.org";
         string? callbackOutColor = null;
         string? callbackInColor = null;
 
@@ -657,7 +657,7 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsViewModel_LaunchOnStartup_TogglesAndPersistsWithStartupService()
     {
-        string account = "autostart_user@test.org";
+        var account = "autostart_user@test.org";
         var mockStartupService = new MockStartupService();
 
         var vm = new SettingsViewModel(
@@ -690,8 +690,8 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public void StartupService_FileOperations_WorkCorrectlyWithCustomPath()
     {
-        string tempFile = Path.Combine(Path.GetTempPath(), $"netchatx_autostart_test_{Guid.NewGuid():N}.desktop");
-        string tempExe = "/usr/bin/netchatx";
+        var tempFile = Path.Combine(Path.GetTempPath(), $"netchatx_autostart_test_{Guid.NewGuid():N}.desktop");
+        var tempExe = "/usr/bin/netchatx";
 
         try
         {
@@ -701,16 +701,16 @@ public class NotificationAndSettingsTests : IDisposable
             Assert.False(service.IsStartupEnabled());
 
             // Enable startup creates file
-            bool enabledResult = service.SetStartupEnabled(true);
+            var enabledResult = service.SetStartupEnabled(true);
             Assert.True(enabledResult);
             Assert.True(service.IsStartupEnabled());
             Assert.True(File.Exists(tempFile));
 
-            string content = File.ReadAllText(tempFile);
+            var content = File.ReadAllText(tempFile);
             Assert.Contains("/usr/bin/netchatx", content);
 
             // Disable startup removes file
-            bool disabledResult = service.SetStartupEnabled(false);
+            var disabledResult = service.SetStartupEnabled(false);
             Assert.True(disabledResult);
             Assert.False(service.IsStartupEnabled());
             Assert.False(File.Exists(tempFile));
@@ -727,7 +727,7 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsRepository_LastActiveChatAndPresenceMode_PersistenceAndDefaults()
     {
-        string account = "session_user@test.org";
+        var account = "session_user@test.org";
 
         // Defaults
         var defaultChat = await _settingsRepo.GetLastActiveChatAsync(account);
@@ -755,7 +755,7 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsRepository_CloseAction_PersistenceAndDefaults()
     {
-        string account = "close_user@test.org";
+        var account = "close_user@test.org";
 
         var defaultAction = await _settingsRepo.GetCloseActionAsync(account);
         Assert.Equal(SettingsRepository.DefaultCloseAction, defaultAction);
@@ -773,7 +773,7 @@ public class NotificationAndSettingsTests : IDisposable
     [Fact]
     public async Task SettingsViewModel_CloseAction_OptionsPersistenceAndCallbacks()
     {
-        string account = "close_vm_user@test.org";
+        var account = "close_vm_user@test.org";
         string? callbackAction = null;
 
         var vm = new SettingsViewModel(
@@ -805,10 +805,10 @@ public class NotificationAndSettingsTests : IDisposable
         var mainVm = CreateMainChatViewModel();
         await mainVm.InitializeAsync();
 
-        bool hideInvoked = false;
-        bool exitInvoked = false;
-        bool eventHideInvoked = false;
-        bool eventExitInvoked = false;
+        var hideInvoked = false;
+        var exitInvoked = false;
+        var eventHideInvoked = false;
+        var eventExitInvoked = false;
 
         mainVm.RequestHideWindow += () => eventHideInvoked = true;
         mainVm.RequestExitApp += () => eventExitInvoked = true;
@@ -816,7 +816,7 @@ public class NotificationAndSettingsTests : IDisposable
         // 1. Initial default close action is "Ask"
         Assert.Equal("Ask", mainVm.CloseAction);
 
-        bool allowClose = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
+        var allowClose = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
         Assert.False(allowClose);
         Assert.False(hideInvoked);
         Assert.False(exitInvoked);
@@ -852,7 +852,7 @@ public class NotificationAndSettingsTests : IDisposable
         eventHideInvoked = false;
 
         // 4. Since CloseAction is now "Minimize", HandleWindowClosing immediately minimizes without prompt
-        bool allowCloseMin = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
+        var allowCloseMin = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
         Assert.False(allowCloseMin);
         Assert.True(hideInvoked);
         Assert.False(exitInvoked);
@@ -863,7 +863,7 @@ public class NotificationAndSettingsTests : IDisposable
         mainVm.Settings.CloseAction = "Exit";
         Assert.Equal("Exit", mainVm.CloseAction);
 
-        bool allowCloseExit = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
+        var allowCloseExit = mainVm.HandleWindowClosing(() => hideInvoked = true, () => exitInvoked = true);
         Assert.True(allowCloseExit);
         Assert.False(hideInvoked);
         Assert.False(exitInvoked);

@@ -33,13 +33,13 @@ public static class OmemoCrypto
     public static byte[] EncryptAesGcm(byte[] key, byte[] iv, byte[] plaintext, byte[]? associatedData = null)
     {
         using var aesGcm = new AesGcm(key, 16);
-        byte[] ciphertext = new byte[plaintext.Length];
-        byte[] tag = new byte[16];
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[16];
 
         aesGcm.Encrypt(iv, plaintext, ciphertext, tag, associatedData);
 
         // Append tag to ciphertext
-        byte[] result = new byte[ciphertext.Length + tag.Length];
+        var result = new byte[ciphertext.Length + tag.Length];
         Buffer.BlockCopy(ciphertext, 0, result, 0, ciphertext.Length);
         Buffer.BlockCopy(tag, 0, result, ciphertext.Length, tag.Length);
         return result;
@@ -50,15 +50,15 @@ public static class OmemoCrypto
         if (ciphertextWithTag.Length < 16)
             throw new CryptographicException("Ciphertext is too short for AES-GCM tag.");
 
-        int cipherLength = ciphertextWithTag.Length - 16;
-        byte[] ciphertext = new byte[cipherLength];
-        byte[] tag = new byte[16];
+        var cipherLength = ciphertextWithTag.Length - 16;
+        var ciphertext = new byte[cipherLength];
+        var tag = new byte[16];
 
         Buffer.BlockCopy(ciphertextWithTag, 0, ciphertext, 0, cipherLength);
         Buffer.BlockCopy(ciphertextWithTag, cipherLength, tag, 0, 16);
 
         using var aesGcm = new AesGcm(key, 16);
-        byte[] decrypted = new byte[cipherLength];
+        var decrypted = new byte[cipherLength];
         aesGcm.Decrypt(iv, ciphertext, tag, decrypted, associatedData);
         return decrypted;
     }

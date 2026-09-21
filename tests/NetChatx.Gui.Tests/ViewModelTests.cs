@@ -37,7 +37,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_ToggleReaction_UpdatesUIAndDatabase()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var msg = new ChatMessage
@@ -82,7 +82,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_RemoteAndCarbonReactions_SyncsCorrectly()
     {
-        string account = "me@test.org";
+        var account = "me@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var msg = new ChatMessage
@@ -145,7 +145,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task EmojiPickerViewModel_QuickEmojisAndCustomization_Works()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var settingsRepo = new SettingsRepository(_dbContext);
         string? reactedEmoji = null;
 
@@ -293,7 +293,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_LoadHistoryAndPaging_Succeeds()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         var remoteJid = Jid.Parse("charlie@example.com");
 
         var baseTime = DateTimeOffset.UtcNow.AddHours(-2);
@@ -332,8 +332,8 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task OmemoDeviceItemViewModel_ToggleTrust_UpdatesDatabase()
     {
-        string account = "me@example.com";
-        string remote = "deviceuser@example.com";
+        var account = "me@example.com";
+        var remote = "deviceuser@example.com";
         uint devId = 12345;
 
         await _omemoRepo.SaveSessionAsync(new OmemoSessionRecord
@@ -378,7 +378,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_Search_ReturnsMatchedMessages()
     {
-        string account = "me@example.com";
+        var account = "me@example.com";
         await _messageRepo.SaveMessageAsync(new ChatMessage
         {
             AccountJid = account,
@@ -423,7 +423,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendMessageAsync_SavesToDatabaseAndAddsBubble()
     {
-        string account = "user@chat.net";
+        var account = "user@chat.net";
         var remote = Jid.Parse("dest@chat.net");
 
         var options = new XmppClientOptions
@@ -470,7 +470,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_SetPresence_UpdatesUserPresence()
     {
-        string account = "presence@test.com";
+        var account = "presence@test.com";
         var options = new XmppClientOptions
         {
             Jid = Jid.Parse(account),
@@ -498,7 +498,7 @@ public class ViewModelTests : IDisposable
     [InlineData("")]
     public async Task MainChatViewModel_SetPresenceAsync_HandlesVariousShowValuesAndStatusMessages(string showValue)
     {
-        string account = "presence_shows@test.com";
+        var account = "presence_shows@test.com";
         var options = new XmppClientOptions
         {
             Jid = Jid.Parse(account),
@@ -521,7 +521,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_SetPresenceAsync_HandlesTransportExceptionGracefully()
     {
-        string account = "presence_error@test.com";
+        var account = "presence_error@test.com";
         var options = new XmppClientOptions
         {
             Jid = Jid.Parse(account),
@@ -586,7 +586,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_DeduplicationAndDateHeaders_WorkCorrectly()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
         var now = DateTimeOffset.UtcNow;
 
@@ -649,7 +649,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_LoadsBothOlderAndNewer_WithoutDuplicates()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         // Simulate August 12th cached message in SQLite
@@ -741,7 +741,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_ScrollToBottomRequested_TriggeredOnHistoryLoadSendAndReceive()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var transport = new LoopbackTransport();
@@ -760,7 +760,7 @@ public class ViewModelTests : IDisposable
             _messageRepo,
             client: client);
 
-        int scrollRequests = 0;
+        var scrollRequests = 0;
         conv.ScrollToBottomRequested += () => scrollRequests++;
 
         // 1. Initial history load triggers scroll
@@ -826,7 +826,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendImageAsync_CreatesMessageWithImageUrl()
     {
-        string account = "alice@example.com";
+        var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
 
         var transport = new LoopbackTransport();
@@ -862,7 +862,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_StageImageAttachment_SetsPendingPropertiesAndClears()
     {
-        string account = "alice@example.com";
+        var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
         var conv = new ChatConversationViewModel(
             account,
@@ -893,7 +893,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendMessageAsync_WithPendingImageAndCaption_SendsCombinedMessage()
     {
-        string account = "alice@example.com";
+        var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
 
         var transport = new LoopbackTransport();
@@ -932,7 +932,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendMessageAsync_ProducesCompleteXmppMessageXml()
     {
-        string account = "john@squishythoughts.com";
+        var account = "john@squishythoughts.com";
         var remote = Jid.Parse("richard@squishythoughts.com");
 
         var transport = new LoopbackTransport();
@@ -987,7 +987,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public void MessageBubbleViewModel_FromChatMessage_ExtractsOobImageUrl()
     {
-        string rawXml =
+        var rawXml =
             "<message from=\"john@squishythoughts.com/Conversations.7Rzy\" id=\"63f358a1-25dc-4b33-9e28-3e80c8252712\" to=\"richard@squishythoughts.com\" xml:lang=\"en\" type=\"chat\" xmlns=\"jabber:client\">\n" +
             "  <request xmlns=\"urn:xmpp:receipts\" />\n" +
             "  <markable xmlns=\"urn:xmpp:chat-markers:0\" />\n" +
@@ -1021,7 +1021,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendMessageAsync_EmptyWithoutImage_DoesNotSend()
     {
-        string account = "alice@example.com";
+        var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
 
         var transport = new LoopbackTransport();
@@ -1131,7 +1131,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_AutomaticReception_InboundAndOutboundCarbons_UpdatesConversation()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("peer@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -1211,7 +1211,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_ReplyToMessage_FormatsSingleAndMultiLineQuoteInInputText()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var conv = new ChatConversationViewModel(
@@ -1246,14 +1246,14 @@ public class ViewModelTests : IDisposable
         };
 
         conv.ReplyToMessage(multiLineBubble);
-        string expectedMultiLine = "> Alice: Line 1\n> Line 2\n> Line 3\n\n";
+        var expectedMultiLine = "> Alice: Line 1\n> Line 2\n> Line 3\n\n";
         Assert.Equal(expectedMultiLine, conv.InputText.Replace("\r\n", "\n"));
     }
 
     [Fact]
     public async Task MessageBubbleViewModel_ReplyAndCopyText_TriggersCallbacksAndExecutesSafely()
     {
-        bool replyTriggered = false;
+        var replyTriggered = false;
         MessageBubbleViewModel? target = null;
 
         var bubble = new MessageBubbleViewModel
@@ -1322,7 +1322,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_SendMessage_CapturesRawXml()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("dest@test.org");
 
         var transport = new LoopbackTransport();
@@ -1359,8 +1359,8 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MessageRepository_MarkAsRead_UpdatesIsReadColumn()
     {
-        string account = "user@test.org";
-        string remote = "peer@test.org";
+        var account = "user@test.org";
+        var remote = "peer@test.org";
 
         var msg1 = new ChatMessage
         {
@@ -1389,7 +1389,7 @@ public class ViewModelTests : IDisposable
         await _messageRepo.SaveMessagesAsync([msg1, msg2]);
 
         // Mark single message as read
-        bool updated = await _messageRepo.MarkMessageAsReadAsync(account, "s1");
+        var updated = await _messageRepo.MarkMessageAsReadAsync(account, "s1");
         Assert.True(updated);
 
         var history = await _messageRepo.GetMessagesAsync(account, remote);
@@ -1408,7 +1408,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_ReceiptOrMarkerReceived_UpdatesMessageReadStatusAndIcon()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -1437,7 +1437,7 @@ public class ViewModelTests : IDisposable
         Assert.False(bubble.IsRead);
         Assert.Equal("✓", bubble.ReceiptIcon); // Single checkmark before receipt
 
-        string stanzaId = bubble.StanzaId ?? bubble.Id;
+        var stanzaId = bubble.StanzaId ?? bubble.Id;
 
         // Simulate incoming XEP-0333 <displayed/> chat marker from Bob
         var markerElem = new NetChatx.Core.Xml.XmppElement("message")
@@ -1461,7 +1461,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_DeliveryReceipt_DoesNotMarkMessageAsRead()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -1489,7 +1489,7 @@ public class ViewModelTests : IDisposable
         Assert.False(bubble.IsRead);
         Assert.Equal("✓", bubble.ReceiptIcon);
 
-        string stanzaId = bubble.StanzaId ?? bubble.Id;
+        var stanzaId = bubble.StanzaId ?? bubble.Id;
 
         // Simulate incoming XEP-0184 delivery receipt from Bob
         var receiptElem = new NetChatx.Core.Xml.XmppElement("message")
@@ -1513,7 +1513,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_ChatMarkerReceived_DoesNotMarkMessageAsRead()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -1541,7 +1541,7 @@ public class ViewModelTests : IDisposable
         Assert.False(bubble.IsRead);
         Assert.Equal("✓", bubble.ReceiptIcon);
 
-        string stanzaId = bubble.StanzaId ?? bubble.Id;
+        var stanzaId = bubble.StanzaId ?? bubble.Id;
 
         // Simulate incoming XEP-0333 <received/> chat marker from Bob
         var markerElem = new NetChatx.Core.Xml.XmppElement("message")
@@ -1565,7 +1565,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_ChatMarkerAcknowledged_MarksMessageAsReadAndDoubleCheckmark()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -1593,7 +1593,7 @@ public class ViewModelTests : IDisposable
         Assert.False(bubble.IsRead);
         Assert.Equal("✓", bubble.ReceiptIcon);
 
-        string stanzaId = bubble.StanzaId ?? bubble.Id;
+        var stanzaId = bubble.StanzaId ?? bubble.Id;
 
         // Simulate incoming XEP-0333 <acknowledged/> chat marker from Bob
         var markerElem = new NetChatx.Core.Xml.XmppElement("message")
@@ -1617,7 +1617,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_CarbonSentMessage_IsNotPrematurelyMarkedAsRead()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -1669,7 +1669,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_HandleRemoteChatState_UpdatesIsRemoteComposing()
     {
-        string account = "alice@example.com";
+        var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
 
         var conv = new ChatConversationViewModel(
@@ -1704,7 +1704,7 @@ public class ViewModelTests : IDisposable
         await using var server = new MockXmppServer(transport);
         server.Start();
 
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var client = new XmppClient(new XmppClientOptions
@@ -1733,7 +1733,7 @@ public class ViewModelTests : IDisposable
             var queryElem = iq.RawElement.Element("query", "urn:xmpp:mam:2");
             if (queryElem is not null)
             {
-                string? qid = queryElem.GetAttr("queryid");
+                var qid = queryElem.GetAttr("queryid");
                 var resultElem = new XmppElement("result", "urn:xmpp:mam:2")
                     .Attr("id", "arch_msg_001");
                 if (!string.IsNullOrEmpty(qid))
@@ -1776,9 +1776,9 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_InitializeAsync_LoadsContactSummariesAndSendsPresence()
     {
-        string account = "alice@mock.example.com";
-        string contact1Jid = "peer1@mock.example.com";
-        string contact2Jid = "peer2@mock.example.com";
+        var account = "alice@mock.example.com";
+        var contact1Jid = "peer1@mock.example.com";
+        var contact2Jid = "peer2@mock.example.com";
 
         // Seed contacts in roster
         var rosterRepo = new RosterRepository(_dbContext);
@@ -1844,9 +1844,9 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_ActiveConversationChanged_LoadsHistoryAndClearsUnread()
     {
-        string account = "alice@mock.example.com";
-        string contact1Jid = "peer1@mock.example.com";
-        string contact2Jid = "peer2@mock.example.com";
+        var account = "alice@mock.example.com";
+        var contact1Jid = "peer1@mock.example.com";
+        var contact2Jid = "peer2@mock.example.com";
 
         var rosterRepo = new RosterRepository(_dbContext);
         await rosterRepo.UpsertContactsAsync([
@@ -1902,8 +1902,8 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_IncomingOfflineMessage_PreservesDelayTimestamp()
     {
-        string account = "alice@mock.example.com";
-        string sender = "bob@mock.example.com";
+        var account = "alice@mock.example.com";
+        var sender = "bob@mock.example.com";
 
         var transport = new LoopbackTransport();
         await using var server = new MockXmppServer(transport);
@@ -1922,7 +1922,7 @@ public class ViewModelTests : IDisposable
 
         // Simulate server delivering offline queued message with delay stamp from 2 hours ago
         var historicalTime = DateTimeOffset.UtcNow.AddHours(-2);
-        string stampStr = historicalTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var stampStr = historicalTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
         var offlineMsg = new XmppElement("message")
             .Attr("from", sender)
@@ -1952,7 +1952,7 @@ public class ViewModelTests : IDisposable
         await using var server = new MockXmppServer(transport);
         server.Start();
 
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var client = new XmppClient(new XmppClientOptions
@@ -1986,7 +1986,7 @@ public class ViewModelTests : IDisposable
             var queryElem = iq.RawElement.Element("query", "urn:xmpp:mam:2");
             if (queryElem is not null)
             {
-                string? qid = queryElem.GetAttr("queryid");
+                var qid = queryElem.GetAttr("queryid");
                 var resultElem = new XmppElement("result", "urn:xmpp:mam:2")
                     .Attr("id", "arch_msg_lang_01");
                 if (!string.IsNullOrEmpty(qid))
@@ -2112,8 +2112,8 @@ public class ViewModelTests : IDisposable
         Assert.False(bubbleIn.IsOutbound);
         Assert.False(bubbleIn.IsEdited);
 
-        bool editCalled = false;
-        bool deleteCalled = false;
+        var editCalled = false;
+        var deleteCalled = false;
         bubbleOut.EditRequested = b => editCalled = true;
         bubbleOut.DeleteRequested = b => deleteCalled = true;
 
@@ -2194,7 +2194,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_EditSentMessage_SendsXep0308StanzaAndUpdatesUiAndDatabase()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -2277,7 +2277,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_DeleteOutboundMessage_SendsXep0424StanzaAndRemovesFromUiAndDatabase()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -2354,7 +2354,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task ChatConversationViewModel_HandleIncomingCorrectionAndRetraction_UpdatesUi()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var conv = new ChatConversationViewModel(
@@ -2396,7 +2396,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_IncomingCorrectionAndRetractionStanzas_HandledProperly()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var remote = Jid.Parse("bob@mock.example.com");
 
         var transport = new LoopbackTransport();
@@ -2472,8 +2472,8 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_IncomingPresence_UpdatesContactOnlineIndicator()
     {
-        string account = "alice@mock.example.com";
-        string contactJid = "bob@mock.example.com";
+        var account = "alice@mock.example.com";
+        var contactJid = "bob@mock.example.com";
 
         var rosterRepo = new RosterRepository(_dbContext);
         await rosterRepo.UpsertContactsAsync([
@@ -2532,8 +2532,8 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_MultiResourcePresence_PrioritizesCorrectly()
     {
-        string account = "alice@mock.example.com";
-        string contactJid = "bob@mock.example.com";
+        var account = "alice@mock.example.com";
+        var contactJid = "bob@mock.example.com";
 
         var rosterRepo = new RosterRepository(_dbContext);
         await rosterRepo.UpsertContactsAsync([
@@ -2587,8 +2587,8 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_Disconnect_ResetsContactsToOffline()
     {
-        string account = "alice@mock.example.com";
-        string contactJid = "bob@mock.example.com";
+        var account = "alice@mock.example.com";
+        var contactJid = "bob@mock.example.com";
 
         var rosterRepo = new RosterRepository(_dbContext);
         await rosterRepo.UpsertContactsAsync([
@@ -2645,9 +2645,9 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_InitializeAsync_RestoresSavedPresenceAndActiveChat()
     {
-        string account = "alice_restore@mock.example.com";
-        string contact1Jid = "peer1@mock.example.com";
-        string contact2Jid = "peer2@mock.example.com";
+        var account = "alice_restore@mock.example.com";
+        var contact1Jid = "peer1@mock.example.com";
+        var contact2Jid = "peer2@mock.example.com";
 
         var settingsRepo = new SettingsRepository(_dbContext);
         await settingsRepo.SetLastPresenceModeAsync(account, "dnd");
@@ -2689,9 +2689,9 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_ActiveConversationChanged_PersistsLastActiveChat()
     {
-        string account = "alice_persist@mock.example.com";
-        string contact1Jid = "peer1@mock.example.com";
-        string contact2Jid = "peer2@mock.example.com";
+        var account = "alice_persist@mock.example.com";
+        var contact1Jid = "peer1@mock.example.com";
+        var contact2Jid = "peer2@mock.example.com";
 
         var rosterRepo = new RosterRepository(_dbContext);
         await rosterRepo.UpsertContactsAsync([
@@ -2747,7 +2747,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_SetPresenceAsync_PersistsPresenceAndStatus()
     {
-        string account = "alice_pres_persist@mock.example.com";
+        var account = "alice_pres_persist@mock.example.com";
         var settingsRepo = new SettingsRepository(_dbContext);
 
         var transport = new LoopbackTransport();
@@ -2780,7 +2780,7 @@ public class ViewModelTests : IDisposable
     [Fact]
     public async Task MainChatViewModel_IncomingPresence_ForeignResourceDoesNotOverwriteOwnPresence()
     {
-        string account = "alice@mock.example.com";
+        var account = "alice@mock.example.com";
         var transport = new LoopbackTransport();
         await using var server = new MockXmppServer(transport);
         server.Start();

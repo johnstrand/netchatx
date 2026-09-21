@@ -85,7 +85,7 @@ public sealed class PresenceToBrushConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        string? show = value?.ToString()?.ToLowerInvariant();
+        var show = value?.ToString()?.ToLowerInvariant();
         return show switch
         {
             "available" or "online" or "chat" => GreenBrush,

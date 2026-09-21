@@ -72,7 +72,7 @@ public sealed class DatabaseContext
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
         using var reader = new StreamReader(stream);
-        string schemaSql = reader.ReadToEnd();
+        var schemaSql = reader.ReadToEnd();
 
         using var cmd = connection.CreateCommand();
         cmd.CommandText = schemaSql;
@@ -84,7 +84,7 @@ public sealed class DatabaseContext
         using var checkColCmd = connection.CreateCommand();
         checkColCmd.CommandText = "PRAGMA table_info(messages);";
         using var reader = checkColCmd.ExecuteReader();
-        bool hasRawXml = false;
+        var hasRawXml = false;
         while (reader.Read())
         {
             if (string.Equals(reader.GetString(1), "raw_xml", StringComparison.OrdinalIgnoreCase))

@@ -32,13 +32,13 @@ public sealed class ScramSaslMechanism : ISaslMechanism
 
     public string? CreateInitialResponse(string username, string password)
     {
-        byte[] nonceBytes = RandomNumberGenerator.GetBytes(18);
+        var nonceBytes = RandomNumberGenerator.GetBytes(18);
         _clientNonce = Convert.ToBase64String(nonceBytes);
 
-        string escapedUser = username.Replace("=", "=3D").Replace(",", "=2C");
+        var escapedUser = username.Replace("=", "=3D").Replace(",", "=2C");
         _clientFirstMessageBare = $"n={escapedUser},r={_clientNonce}";
 
-        string clientFirstMessage = $"n,,{_clientFirstMessageBare}";
+        var clientFirstMessage = $"n,,{_clientFirstMessageBare}";
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(clientFirstMessage));
     }
 
@@ -47,8 +47,8 @@ public sealed class ScramSaslMechanism : ISaslMechanism
         if (_clientNonce is null || _clientFirstMessageBare is null)
             throw new InvalidOperationException("Initial response was not generated.");
 
-        byte[] challengeBytes = Convert.FromBase64String(challengeBase64);
-        string serverFirstMessage = Encoding.UTF8.GetString(challengeBytes);
+        var challengeBytes = Convert.FromBase64String(challengeBase64);
+        var serverFirstMessage = Encoding.UTF8.GetString(challengeBytes);
 
         var parts = ParseAttributes(serverFirstMessage);
         if (!parts.TryGetValue("r", out string? fullNonce) ||
@@ -64,40 +64,40 @@ public sealed class ScramSaslMechanism : ISaslMechanism
             throw new CryptographicException("Server nonce does not match client nonce.");
         }
 
-        byte[] salt = Convert.FromBase64String(saltB64);
-        byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
+        var salt = Convert.FromBase64String(saltB64);
+        var passwordBytes = Encoding.UTF8.GetBytes(password);
 
         // SaltedPassword = Hi(Normalize(password), salt, i)
-        byte[] saltedPassword = Rfc2898DeriveBytes.Pbkdf2(passwordBytes, salt, iterations, _hashAlgorithm, _hashLength);
+        var saltedPassword = Rfc2898DeriveBytes.Pbkdf2(passwordBytes, salt, iterations, _hashAlgorithm, _hashLength);
 
         // ClientKey = HMAC(SaltedPassword, "Client Key")
-        byte[] clientKey = ComputeHmac(saltedPassword, "Client Key"u8);
+        var clientKey = ComputeHmac(saltedPassword, "Client Key"u8);
 
         // StoredKey = H(ClientKey)
-        byte[] storedKey = ComputeHash(clientKey);
+        var storedKey = ComputeHash(clientKey);
 
         // AuthMessage = client-first-message-bare + "," + server-first-message + "," + client-final-message-without-proof
-        string clientFinalWithoutProof = $"c=biws,r={fullNonce}";
-        string authMessage = $"{_clientFirstMessageBare},{serverFirstMessage},{clientFinalWithoutProof}";
-        byte[] authMessageBytes = Encoding.UTF8.GetBytes(authMessage);
+        var clientFinalWithoutProof = $"c=biws,r={fullNonce}";
+        var authMessage = $"{_clientFirstMessageBare},{serverFirstMessage},{clientFinalWithoutProof}";
+        var authMessageBytes = Encoding.UTF8.GetBytes(authMessage);
 
         // ClientSignature = HMAC(StoredKey, AuthMessage)
-        byte[] clientSignature = ComputeHmac(storedKey, authMessageBytes);
+        var clientSignature = ComputeHmac(storedKey, authMessageBytes);
 
         // ClientProof = ClientKey XOR ClientSignature
-        byte[] clientProof = new byte[clientKey.Length];
+        var clientProof = new byte[clientKey.Length];
         for (int i = 0; i < clientKey.Length; i++)
         {
             clientProof[i] = (byte)(clientKey[i] ^ clientSignature[i]);
         }
 
         // ServerKey = HMAC(SaltedPassword, "Server Key")
-        byte[] serverKey = ComputeHmac(saltedPassword, "Server Key"u8);
+        var serverKey = ComputeHmac(saltedPassword, "Server Key"u8);
 
         // ServerSignature = HMAC(ServerKey, AuthMessage)
         _expectedServerSignature = ComputeHmac(serverKey, authMessageBytes);
 
-        string clientFinalMessage = $"{clientFinalWithoutProof},p={Convert.ToBase64String(clientProof)}";
+        var clientFinalMessage = $"{clientFinalWithoutProof},p={Convert.ToBase64String(clientProof)}";
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(clientFinalMessage));
     }
 
@@ -106,14 +106,14 @@ public sealed class ScramSaslMechanism : ISaslMechanism
         if (string.IsNullOrEmpty(successBase64) || _expectedServerSignature is null)
             return false;
 
-        byte[] successBytes = Convert.FromBase64String(successBase64);
-        string successStr = Encoding.UTF8.GetString(successBytes);
+        var successBytes = Convert.FromBase64String(successBase64);
+        var successStr = Encoding.UTF8.GetString(successBytes);
 
         var parts = ParseAttributes(successStr);
         if (!parts.TryGetValue("v", out string? serverSigB64))
             return false;
 
-        byte[] serverSig = Convert.FromBase64String(serverSigB64);
+        var serverSig = Convert.FromBase64String(serverSigB64);
         return CryptographicOperations.FixedTimeEquals(serverSig, _expectedServerSignature);
     }
 
@@ -149,7 +149,7 @@ public sealed class ScramSaslMechanism : ISaslMechanism
         var entries = message.Split(',');
         foreach (var entry in entries)
         {
-            int eq = entry.IndexOf('=');
+            var eq = entry.IndexOf('=');
             if (eq > 0)
             {
                 dict[entry[..eq]] = entry[(eq + 1)..];

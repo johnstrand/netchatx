@@ -87,8 +87,8 @@ public sealed class XmppElement
     {
         foreach (var child in _children)
         {
-            bool nameMatch = name is null || string.Equals(child.Name, name, StringComparison.Ordinal);
-            bool nsMatch = ns is null || string.Equals(child.Namespace ?? child.GetAttr("xmlns"), ns, StringComparison.Ordinal);
+            var nameMatch = name is null || string.Equals(child.Name, name, StringComparison.Ordinal);
+            var nsMatch = ns is null || string.Equals(child.Namespace ?? child.GetAttr("xmlns"), ns, StringComparison.Ordinal);
             if (nameMatch && nsMatch)
             {
                 yield return child;
@@ -138,9 +138,9 @@ public sealed class XmppElement
 
     private void WriteStartElement(XmlWriter writer)
     {
-        string? prefix = Prefix;
-        string name = Name;
-        string? ns = Namespace ?? GetAttr("xmlns");
+        var prefix = Prefix;
+        var name = Name;
+        var ns = Namespace ?? GetAttr("xmlns");
 
         if (!string.IsNullOrEmpty(prefix) && !string.IsNullOrEmpty(ns))
         {
@@ -173,17 +173,17 @@ public sealed class XmppElement
     {
         if (key.StartsWith("xmlns:", StringComparison.Ordinal))
         {
-            string pref = key.Substring(6);
+            var pref = key.Substring(6);
             writer.WriteAttributeString("xmlns", pref, null, value);
             return;
         }
 
-        int colonIdx = key.IndexOf(':');
+        var colonIdx = key.IndexOf(':');
         if (colonIdx > 0)
         {
-            string pref = key.Substring(0, colonIdx);
-            string local = key.Substring(colonIdx + 1);
-            string? attrNs = pref switch
+            var pref = key.Substring(0, colonIdx);
+            var local = key.Substring(colonIdx + 1);
+            var attrNs = pref switch
             {
                 "xml" => "http://www.w3.org/XML/1998/namespace",
                 "stream" => "http://etherx.jabber.org/streams",
@@ -268,7 +268,7 @@ public sealed class XmppElement
         }
 
         var textBuilder = new StringBuilder();
-        int initialDepth = reader.Depth;
+        var initialDepth = reader.Depth;
 
         while (reader.Read())
         {

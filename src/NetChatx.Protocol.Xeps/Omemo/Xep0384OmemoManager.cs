@@ -40,17 +40,17 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
 
     public string GetFingerprint(byte[]? publicKey = null)
     {
-        byte[] key = publicKey ?? IdentityKey.PublicKey;
-        byte[] hash = SHA256.HashData(key);
+        var key = publicKey ?? IdentityKey.PublicKey;
+        var hash = SHA256.HashData(key);
         return BitConverter.ToString(hash).Replace("-", " ");
     }
 
     public DoubleRatchetSession GetOrCreateSession(Jid remoteJid, int remoteDeviceId, byte[]? remotePublicKey = null, bool isInitiator = true)
     {
-        string key = $"{remoteJid.BareJid}:{remoteDeviceId}";
+        var key = $"{remoteJid.BareJid}:{remoteDeviceId}";
         return _sessions.GetOrAdd(key, _ =>
         {
-            byte[] rootKey = new byte[32];
+            var rootKey = new byte[32];
             var localDHPair = isInitiator ? OmemoCrypto.GenerateX25519KeyPair() : IdentityKey;
             return new DoubleRatchetSession(rootKey, localDHPair, remotePublicKey, isInitiator);
         });
@@ -67,18 +67,18 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
             .Child(new XmppElement("content")
                 .Child(new XmppElement("body", "jabber:client") { Value = plaintext }));
 
-        byte[] envelopeBytes = Encoding.UTF8.GetBytes(envelope.ToXmlString());
+        var envelopeBytes = Encoding.UTF8.GetBytes(envelope.ToXmlString());
 
         // 2. Generate random message encryption key + IV
-        byte[] payloadKey = RandomNumberGenerator.GetBytes(16);
-        byte[] payloadIv = RandomNumberGenerator.GetBytes(12);
+        var payloadKey = RandomNumberGenerator.GetBytes(16);
+        var payloadIv = RandomNumberGenerator.GetBytes(12);
 
         // 3. Encrypt envelope with AES-GCM
-        byte[] encryptedPayload = OmemoCrypto.EncryptAesGcm(payloadKey, payloadIv, envelopeBytes);
+        var encryptedPayload = OmemoCrypto.EncryptAesGcm(payloadKey, payloadIv, envelopeBytes);
 
         // 4. Encrypt payloadKey with Double Ratchet session
         var (ratchetKey, ratchetIv, dhPub, msgNum) = session.RatchetEncrypt();
-        byte[] encryptedPayloadKey = OmemoCrypto.EncryptAesGcm(ratchetKey, ratchetIv, payloadKey);
+        var encryptedPayloadKey = OmemoCrypto.EncryptAesGcm(ratchetKey, ratchetIv, payloadKey);
 
         // 5. Construct OMEMO XML stanza
         var encryptedElem = new XmppElement("encrypted", NsOmemo2);
@@ -131,12 +131,12 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
                 try
                 {
                     var header = encElem.Element("header");
-                    string? sidStr = header?.GetAttr("sid");
-                    string? payloadB64 = encElem.Element("payload")?.Value;
+                    var sidStr = header?.GetAttr("sid");
+                    var payloadB64 = encElem.Element("payload")?.Value;
 
                     if (int.TryParse(sidStr, out int senderDeviceId) && !string.IsNullOrEmpty(payloadB64))
                     {
-                        string? fromStr = element.GetAttr("from");
+                        var fromStr = element.GetAttr("from");
                         if (!string.IsNullOrEmpty(fromStr) && Jid.TryParse(fromStr, out var fromJid))
                         {
                             // Find our key in header
@@ -146,20 +146,20 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
                                 {
                                     if (k.GetAttr("rid") == LocalDeviceId.ToString())
                                     {
-                                        byte[] encPayloadKey = Convert.FromBase64String(k.Value ?? "");
-                                        byte[] payloadIv = Convert.FromBase64String(header.Element("iv")?.Value ?? "");
-                                        byte[] dhPub = Convert.FromBase64String(header.Element("dh")?.Value ?? "");
+                                        var encPayloadKey = Convert.FromBase64String(k.Value ?? "");
+                                        var payloadIv = Convert.FromBase64String(header.Element("iv")?.Value ?? "");
+                                        var dhPub = Convert.FromBase64String(header.Element("dh")?.Value ?? "");
 
                                         var session = GetOrCreateSession(fromJid.BareJid, senderDeviceId, dhPub, isInitiator: false);
                                         var (rKey, rIv) = session.RatchetDecrypt(dhPub, 0);
 
-                                        byte[] payloadKey = OmemoCrypto.DecryptAesGcm(rKey, rIv, encPayloadKey);
-                                        byte[] encPayload = Convert.FromBase64String(payloadB64);
-                                        byte[] envelopeBytes = OmemoCrypto.DecryptAesGcm(payloadKey, payloadIv, encPayload);
+                                        var payloadKey = OmemoCrypto.DecryptAesGcm(rKey, rIv, encPayloadKey);
+                                        var encPayload = Convert.FromBase64String(payloadB64);
+                                        var envelopeBytes = OmemoCrypto.DecryptAesGcm(payloadKey, payloadIv, encPayload);
 
-                                        string envelopeXml = Encoding.UTF8.GetString(envelopeBytes);
+                                        var envelopeXml = Encoding.UTF8.GetString(envelopeBytes);
                                         var envelope = XmppElement.Parse(envelopeXml);
-                                        string? body = envelope.Element("content")?.Element("body")?.Value;
+                                        var body = envelope.Element("content")?.Element("body")?.Value;
 
                                         if (!string.IsNullOrEmpty(body))
                                         {

@@ -32,7 +32,7 @@ public class CodeBlockEditorTests
             Code = "Console.WriteLine(\"Hello, World!\");"
         };
 
-        string markdown = vm.GenerateMarkdown();
+        var markdown = vm.GenerateMarkdown();
 
         Assert.Equal("```\nConsole.WriteLine(\"Hello, World!\");\n```", markdown);
     }
@@ -44,7 +44,7 @@ public class CodeBlockEditorTests
         vm.SetLanguageFromHint("csharp");
         vm.Code = "int x = 42;";
 
-        string markdown = vm.GenerateMarkdown();
+        var markdown = vm.GenerateMarkdown();
 
         Assert.Equal("```csharp\nint x = 42;\n```", markdown);
     }
@@ -56,7 +56,7 @@ public class CodeBlockEditorTests
         vm.SetLanguageFromHint("python");
         vm.Code = "print(\"hello\")";
 
-        string markdown = vm.GenerateMarkdown();
+        var markdown = vm.GenerateMarkdown();
 
         Assert.Equal("```python\nprint(\"hello\")\n```", markdown);
     }
@@ -69,7 +69,7 @@ public class CodeBlockEditorTests
         vm.CustomLanguageIdentifier = "zig";
         vm.Code = "pub fn main() void {}";
 
-        string markdown = vm.GenerateMarkdown();
+        var markdown = vm.GenerateMarkdown();
 
         Assert.Equal("```zig\npub fn main() void {}\n```", markdown);
     }
@@ -82,7 +82,7 @@ public class CodeBlockEditorTests
             Code = "line1\nline2\r\n\n"
         };
 
-        string markdown = vm.GenerateMarkdown();
+        var markdown = vm.GenerateMarkdown();
 
         Assert.Equal("```\nline1\nline2\n```", markdown);
     }
@@ -166,7 +166,7 @@ public class CodeBlockEditorTests
     public void CancelCommand_ClosesWithoutInvokingCallback()
     {
         var vm = new CodeBlockEditorViewModel();
-        bool callbackInvoked = false;
+        var callbackInvoked = false;
 
         vm.Open("some code", null, _ => callbackInvoked = true);
         vm.CancelCommand.Execute(null);
@@ -197,7 +197,7 @@ public class CodeBlockEditorTests
 
     private static ChatConversationViewModel CreateTestConversation(string inputText = "")
     {
-        string dbPath = Path.Combine(Path.GetTempPath(), $"test_cb_{Guid.NewGuid():N}.db");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_cb_{Guid.NewGuid():N}.db");
         var db = new DatabaseContext(dbPath);
         var repo = new MessageRepository(db);
 
@@ -245,7 +245,7 @@ public class CodeBlockEditorTests
 
     private static MainChatViewModel CreateTestMainChatViewModel()
     {
-        string dbPath = Path.Combine(Path.GetTempPath(), $"test_cb_main_{Guid.NewGuid():N}.db");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_cb_main_{Guid.NewGuid():N}.db");
         var db = new DatabaseContext(dbPath);
         var options = new XmppClientOptions { Jid = Jid.Parse("user@test.org"), Password = "pw" };
         var client = new XmppClient(options, new LoopbackTransport());

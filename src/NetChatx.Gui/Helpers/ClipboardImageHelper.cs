@@ -104,8 +104,8 @@ public static class ClipboardImageHelper
                             if (IsImageFile(localPath) && File.Exists(localPath))
                             {
                                 var bytes = await File.ReadAllBytesAsync(localPath);
-                                bool isGif = GifDecoder.IsGif(bytes) || localPath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
-                                string mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(localPath));
+                                var isGif = GifDecoder.IsGif(bytes) || localPath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
+                                var mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(localPath));
                                 return new ClipboardImageResult(bytes, Path.GetFileName(localPath), mime, isGif);
                             }
                         }
@@ -116,8 +116,8 @@ public static class ClipboardImageHelper
                         if (IsImageFile(localPath) && File.Exists(localPath))
                         {
                             var bytes = await File.ReadAllBytesAsync(localPath);
-                            bool isGif = GifDecoder.IsGif(bytes) || localPath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
-                            string mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(localPath));
+                            var isGif = GifDecoder.IsGif(bytes) || localPath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
+                            var mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(localPath));
                             return new ClipboardImageResult(bytes, Path.GetFileName(localPath), mime, isGif);
                         }
                     }
@@ -128,8 +128,8 @@ public static class ClipboardImageHelper
                             if (IsImageFile(path) && File.Exists(path))
                             {
                                 var bytes = await File.ReadAllBytesAsync(path);
-                                bool isGif = GifDecoder.IsGif(bytes) || path.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
-                                string mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(path));
+                                var isGif = GifDecoder.IsGif(bytes) || path.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
+                                var mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(path));
                                 return new ClipboardImageResult(bytes, Path.GetFileName(path), mime, isGif);
                             }
                         }
@@ -139,8 +139,8 @@ public static class ClipboardImageHelper
                         if (IsImageFile(singlePath) && File.Exists(singlePath))
                         {
                             var bytes = await File.ReadAllBytesAsync(singlePath);
-                            bool isGif = GifDecoder.IsGif(bytes) || singlePath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
-                            string mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(singlePath));
+                            var isGif = GifDecoder.IsGif(bytes) || singlePath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
+                            var mime = isGif ? "image/gif" : GetMimeType(Path.GetExtension(singlePath));
                             return new ClipboardImageResult(bytes, Path.GetFileName(singlePath), mime, isGif);
                         }
                     }
@@ -151,16 +151,16 @@ public static class ClipboardImageHelper
             var text = await clipboard.GetTextAsync();
             if (!string.IsNullOrWhiteSpace(text))
             {
-                string trimmed = text.Trim();
+                var trimmed = text.Trim();
                 if (IsImageUrl(trimmed))
                 {
                     var fetchedBytes = await FetchImageBytesAsync(trimmed);
                     if (fetchedBytes is not null && fetchedBytes.Length > 0)
                     {
-                        bool isGif = GifDecoder.IsGif(fetchedBytes) || trimmed.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("giphy.com", StringComparison.OrdinalIgnoreCase);
-                        string ext = isGif ? "gif" : "png";
-                        string mime = isGif ? "image/gif" : "image/png";
-                        string fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
+                        var isGif = GifDecoder.IsGif(fetchedBytes) || trimmed.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("giphy.com", StringComparison.OrdinalIgnoreCase);
+                        var ext = isGif ? "gif" : "png";
+                        var mime = isGif ? "image/gif" : "image/png";
+                        var fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
                         return new ClipboardImageResult(fetchedBytes, fileName, mime, isGif);
                     }
                 }
@@ -195,10 +195,10 @@ public static class ClipboardImageHelper
 
                     if (bytes is not null && bytes.Length > 0)
                     {
-                        bool isGif = GifDecoder.IsGif(bytes) || fmt.Contains("gif", StringComparison.OrdinalIgnoreCase);
-                        string ext = isGif ? "gif" : "png";
-                        string mime = isGif ? "image/gif" : "image/png";
-                        string fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
+                        var isGif = GifDecoder.IsGif(bytes) || fmt.Contains("gif", StringComparison.OrdinalIgnoreCase);
+                        var ext = isGif ? "gif" : "png";
+                        var mime = isGif ? "image/gif" : "image/png";
+                        var fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
                         return new ClipboardImageResult(bytes, fileName, mime, isGif);
                     }
                 }
@@ -210,10 +210,10 @@ public static class ClipboardImageHelper
                 var win32Bytes = Win32ClipboardHelper.GetImageBytesFromClipboard();
                 if (win32Bytes is not null && win32Bytes.Length > 0)
                 {
-                    bool isGif = GifDecoder.IsGif(win32Bytes);
-                    string ext = isGif ? "gif" : "png";
-                    string mime = isGif ? "image/gif" : "image/png";
-                    string fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
+                    var isGif = GifDecoder.IsGif(win32Bytes);
+                    var ext = isGif ? "gif" : "png";
+                    var mime = isGif ? "image/gif" : "image/png";
+                    var fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
                     return new ClipboardImageResult(win32Bytes, fileName, mime, isGif);
                 }
             }
@@ -237,7 +237,7 @@ public static class ClipboardImageHelper
 
         if (match.Success)
         {
-            string url = match.Groups[1].Success ? match.Groups[1].Value
+            var url = match.Groups[1].Success ? match.Groups[1].Value
                        : match.Groups[2].Success ? match.Groups[2].Value
                        : match.Groups[3].Value;
 
@@ -249,20 +249,20 @@ public static class ClipboardImageHelper
 
     private static async Task<ClipboardImageResult?> ProcessHtmlImageAsync(string html)
     {
-        string? srcUrl = ExtractImageSourceFromHtml(html);
+        var srcUrl = ExtractImageSourceFromHtml(html);
         if (string.IsNullOrWhiteSpace(srcUrl)) return null;
 
         var bytes = await FetchImageBytesAsync(srcUrl);
         if (bytes is not null && bytes.Length > 0)
         {
-            bool isGif = GifDecoder.IsGif(bytes) ||
+            var isGif = GifDecoder.IsGif(bytes) ||
                          srcUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
                          srcUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
                          srcUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase);
 
-            string ext = isGif ? "gif" : "png";
-            string mime = isGif ? "image/gif" : "image/png";
-            string fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
+            var ext = isGif ? "gif" : "png";
+            var mime = isGif ? "image/gif" : "image/png";
+            var fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
             return new ClipboardImageResult(bytes, fileName, mime, isGif);
         }
 
@@ -288,7 +288,7 @@ public static class ClipboardImageHelper
 
             if (url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             {
-                int commaIdx = url.IndexOf(',');
+                var commaIdx = url.IndexOf(',');
                 if (commaIdx > 0)
                 {
                     return Convert.FromBase64String(url[(commaIdx + 1)..]);

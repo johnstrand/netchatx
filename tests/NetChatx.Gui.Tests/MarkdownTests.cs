@@ -98,7 +98,7 @@ public class MarkdownTests
     [Fact]
     public void MarkdownParser_CodeBlock_ExtractsLanguageAndCode()
     {
-        string text = "```csharp\npublic void SayHello()\n{\n    Console.WriteLine(\"Hi\");\n}\n```";
+        var text = "```csharp\npublic void SayHello()\n{\n    Console.WriteLine(\"Hi\");\n}\n```";
         var doc = MarkdownParser.Parse(text);
 
         Assert.Single(doc.Blocks);
@@ -110,7 +110,7 @@ public class MarkdownTests
     [Fact]
     public void MarkdownParser_Blockquote_ParsedProperly()
     {
-        string text = "> Line 1 of quote\n> Line 2 with *bold* text";
+        var text = "> Line 1 of quote\n> Line 2 with *bold* text";
         var doc = MarkdownParser.Parse(text);
 
         Assert.Single(doc.Blocks);
@@ -125,7 +125,7 @@ public class MarkdownTests
     [Fact]
     public void MarkdownParser_Headers_ParsedProperly()
     {
-        string text = "# Top Header\n## Sub Header\nRegular paragraph";
+        var text = "# Top Header\n## Sub Header\nRegular paragraph";
         var doc = MarkdownParser.Parse(text);
 
         Assert.Equal(3, doc.Blocks.Count);
@@ -144,7 +144,7 @@ public class MarkdownTests
     [Fact]
     public void MarkdownParser_UnorderedAndOrderedLists_ParsedProperly()
     {
-        string text = "- First item\n- Second item\n\n1. Step one\n2. Step two";
+        var text = "- First item\n- Second item\n\n1. Step one\n2. Step two";
         var doc = MarkdownParser.Parse(text);
 
         Assert.Equal(2, doc.Blocks.Count);

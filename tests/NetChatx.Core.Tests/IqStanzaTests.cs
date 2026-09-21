@@ -12,7 +12,7 @@ public class IqStanzaTests
     {
         var fromJid = Jid.Parse("user@example.com/res");
         var toJid = Jid.Parse("server.example.com");
-        string id = "iq-123";
+        var id = "iq-123";
 
         var request = new IqStanza(IqStanza.TypeGet, to: toJid, from: fromJid, id: id);
         var result = request.CreateResult();

@@ -31,7 +31,7 @@ public partial class MainWindow : Window
 
         if (DataContext is MainWindowViewModel mainVm && mainVm.CurrentView is MainChatViewModel chatVm)
         {
-            bool allowClose = chatVm.HandleWindowClosing(
+            var allowClose = chatVm.HandleWindowClosing(
                 hideWindow: () => Hide(),
                 exitApp: () => ForceClose()
             );

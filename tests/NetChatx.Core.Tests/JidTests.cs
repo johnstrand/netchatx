@@ -81,9 +81,9 @@ public class JidTests
     [Fact]
     public void Parse_ExceedingLengthLimits_ThrowsFormatException()
     {
-        string longLocal = new string('a', 1024) + "@example.com";
-        string longDomain = "user@" + new string('d', 1024);
-        string longResource = "user@example.com/" + new string('r', 1024);
+        var longLocal = new string('a', 1024) + "@example.com";
+        var longDomain = "user@" + new string('d', 1024);
+        var longResource = "user@example.com/" + new string('r', 1024);
 
         Assert.Throws<FormatException>(() => Jid.Parse(longLocal));
         Assert.Throws<FormatException>(() => Jid.Parse(longDomain));
@@ -103,7 +103,7 @@ public class JidTests
     [InlineData("alice@domain@com/resource")]
     public void TryParse_InvalidOrWhitespaceInput_ReturnsFalseAndNullResult(string? input)
     {
-        bool success = Jid.TryParse(input, out var result);
+        var success = Jid.TryParse(input, out var result);
 
         Assert.False(success);
         Assert.Null(result);
@@ -112,9 +112,9 @@ public class JidTests
     [Fact]
     public void TryParse_ExceedingLengthLimits_ReturnsFalseAndNullResult()
     {
-        string longLocal = new string('a', 1024) + "@example.com";
-        string longDomain = "user@" + new string('d', 1024);
-        string longResource = "user@example.com/" + new string('r', 1024);
+        var longLocal = new string('a', 1024) + "@example.com";
+        var longDomain = "user@" + new string('d', 1024);
+        var longResource = "user@example.com/" + new string('r', 1024);
 
         Assert.False(Jid.TryParse(longLocal, out var r1));
         Assert.Null(r1);
@@ -134,7 +134,7 @@ public class JidTests
     public void TryParse_ValidInput_ReturnsTrueAndJid(
         string input, string? expectedLocal, string expectedDomain, string? expectedResource)
     {
-        bool success = Jid.TryParse(input, out var result);
+        var success = Jid.TryParse(input, out var result);
 
         Assert.True(success);
         Assert.NotNull(result);
@@ -175,7 +175,7 @@ public class JidTests
         Assert.True(jid == same);
         Assert.False(jid != same);
 
-        string str = jid;
+        var str = jid;
         Assert.Equal("alice@example.com", str);
 
         var explicitJid = (Jid)"alice@example.com";
