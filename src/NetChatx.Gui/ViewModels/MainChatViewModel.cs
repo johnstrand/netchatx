@@ -210,12 +210,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         if (result is null) return;
 
-        string targetJidStr = !string.IsNullOrEmpty(result.RemoteJid) ? result.RemoteJid : result.SenderName;
+        var targetJidStr = !string.IsNullOrEmpty(result.RemoteJid) ? result.RemoteJid : result.SenderName;
         if (Jid.TryParse(targetJidStr, out var parsedTarget))
         {
             var bare = parsedTarget.BareJid;
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(bare.ToString(), StringComparison.OrdinalIgnoreCase));
-            string title = contact?.DisplayName ?? bare.ToString();
+            var title = contact?.DisplayName ?? bare.ToString();
             var conv = GetOrCreateConversation(bare.ToString(), title, bare, isGroupChat: false);
             ActiveConversation = conv;
             await conv.EnsureHistoryLoadedAsync();
@@ -270,7 +270,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         var bareJid = parsedJid.BareJid;
-        string displayName = !string.IsNullOrWhiteSpace(NewChatDisplayName)
+        var displayName = !string.IsNullOrWhiteSpace(NewChatDisplayName)
             ? NewChatDisplayName.Trim()
             : (!string.IsNullOrEmpty(bareJid.LocalPart) ? bareJid.LocalPart : bareJid.ToString());
 
@@ -632,7 +632,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         };
 
         // Restore last presence mode and status message from settings per user preference
-        string initialPresence = SettingsRepository.DefaultPresenceMode;
+        var initialPresence = SettingsRepository.DefaultPresenceMode;
         try
         {
             initialPresence = await _settingsRepo.GetLastPresenceModeAsync(AccountJid);
@@ -716,9 +716,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 var contactsToUpsert = new System.Collections.Generic.List<RosterContact>();
                 foreach (var item in queryElem.Elements("item"))
                 {
-                    string? cJid = item.GetAttr("jid");
-                    string? name = item.GetAttr("name");
-                    string sub = item.GetAttr("subscription") ?? "none";
+                    var cJid = item.GetAttr("jid");
+                    var name = item.GetAttr("name");
+                    var sub = item.GetAttr("subscription") ?? "none";
                     if (!string.IsNullOrEmpty(cJid))
                     {
                         contactsToUpsert.Add(new RosterContact
@@ -807,7 +807,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _ = CatchUpAccountArchiveAsync();
 
         // Restore last active chat from settings, or fall back to the first contact
-        bool restoredActiveChat = false;
+        var restoredActiveChat = false;
         try
         {
             _isInitializingActiveChat = true;
@@ -869,16 +869,16 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             var parsedAccountJid = Jid.TryParse(AccountJid, out var parsedAcc) ? parsedAcc : null;
             var latestTimestamp = await _messageRepo.GetLatestMessageTimestampAsync(AccountJid);
-            DateTimeOffset? startTimestamp = latestTimestamp;
+            var startTimestamp = latestTimestamp;
             string? beforeId = null;
             string? afterId = null;
-            int pagesFetched = 0;
-            int totalFetchedCount = 0;
+            var pagesFetched = 0;
+            var totalFetchedCount = 0;
 
             while (true)
             {
                 MamQueryResult? mamResult = null;
-                int retries = 3;
+                var retries = 3;
                 while (retries > 0)
                 {
                     try
@@ -924,7 +924,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 foreach (var item in mamResult.Messages)
                 {
                     var m = item.Message;
-                    bool isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
+                    var isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
                                    || (m.From?.EqualsBare(_client.BoundJid) == true);
 
                     if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: isFromSelf, out var reactArgs))
@@ -1004,7 +1004,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
                 if (startTimestamp.HasValue)
                 {
-                    string? nextAfter = !string.IsNullOrEmpty(mamResult.LastId)
+                    var nextAfter = !string.IsNullOrEmpty(mamResult.LastId)
                         ? mamResult.LastId
                         : mamResult.Messages.LastOrDefault()?.ArchiveId;
 
@@ -1014,7 +1014,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
                 else
                 {
-                    string? nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
+                    var nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
                         ? mamResult.FirstId
                         : mamResult.Messages.FirstOrDefault()?.ArchiveId;
 
@@ -1088,7 +1088,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(conversationId, StringComparison.OrdinalIgnoreCase)
                                                     || (Jid.TryParse(c.ContactJid, out var cj) && cj.EqualsBare(parsedJid)));
-            string title = contact?.DisplayName ?? parsedJid.BareJid.ToString();
+            var title = contact?.DisplayName ?? parsedJid.BareJid.ToString();
             var newConv = GetOrCreateConversation(parsedJid.BareJid.ToString(), title, parsedJid.BareJid, isGroupChat: false);
             await SelectConversationAsync(newConv);
         }
@@ -1096,7 +1096,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     public void TriggerNotification(string remoteJid, string senderDisplayName, string previewText, bool isEncrypted)
     {
-        bool isChatActiveAndFocused = IsWindowActive && (ActiveConversation?.Id == remoteJid || (Jid.TryParse(remoteJid, out var rj) && ActiveConversation?.RemoteJid.EqualsBare(rj) == true));
+        var isChatActiveAndFocused = IsWindowActive && (ActiveConversation?.Id == remoteJid || (Jid.TryParse(remoteJid, out var rj) && ActiveConversation?.RemoteJid.EqualsBare(rj) == true));
 
         if (isChatActiveAndFocused)
         {
@@ -1106,7 +1106,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         if (Settings.NotificationPopupsEnabled)
         {
-            string title = isEncrypted ? $"🔒 {senderDisplayName}" : senderDisplayName;
+            var title = isEncrypted ? $"🔒 {senderDisplayName}" : senderDisplayName;
             _notificationService.ShowSystemNotification(title, previewText);
         }
 
@@ -1335,7 +1335,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         // Check if this is our own presence being reflected back
-        bool isOurOwnPresence = false;
+        var isOurOwnPresence = false;
         if (_client.BoundJid is not null)
         {
             isOurOwnPresence = fromJid is not null && (fromJid.Equals(_client.BoundJid) ||
@@ -1451,7 +1451,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var replaceElem = msg.RawElement.Element("replace", "urn:xmpp:message-correct:0");
         if (replaceElem is not null)
         {
-            string? originalId = replaceElem.GetAttr("id");
+            var originalId = replaceElem.GetAttr("id");
             if (!string.IsNullOrEmpty(originalId))
             {
                 await HandleMessageCorrectionAsync(msg, originalId);
@@ -1463,7 +1463,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                        ?? msg.RawElement.Element("retract", "urn:xmpp:message-retract:1");
         if (retractElem is not null)
         {
-            string? targetId = retractElem.GetAttr("id");
+            var targetId = retractElem.GetAttr("id");
             if (!string.IsNullOrEmpty(targetId))
             {
                 await HandleMessageRetractionAsync(targetId, msg.From);
@@ -1476,7 +1476,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var accountJid = Jid.Parse(AccountJid);
         var sender = msg.From ?? accountJid;
 
-        bool isFromSelf = sender.EqualsBare(accountJid);
+        var isFromSelf = sender.EqualsBare(accountJid);
         Jid remote;
         MessageDirection direction;
 
@@ -1491,8 +1491,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             direction = MessageDirection.Inbound;
         }
 
-        bool isGroup = msg.Type == MessageStanza.TypeGroupChat;
-        bool isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remote) == true;
+        var isGroup = msg.Type == MessageStanza.TypeGroupChat;
+        var isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remote) == true;
 
         var chatMsg = new ChatMessage
         {
@@ -1549,7 +1549,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var replaceElem = msg.RawElement.Element("replace", "urn:xmpp:message-correct:0");
         if (replaceElem is not null)
         {
-            string? originalId = replaceElem.GetAttr("id");
+            var originalId = replaceElem.GetAttr("id");
             if (!string.IsNullOrEmpty(originalId))
             {
                 await HandleMessageCorrectionAsync(msg, originalId);
@@ -1561,7 +1561,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                        ?? msg.RawElement.Element("retract", "urn:xmpp:message-retract:1");
         if (retractElem is not null)
         {
-            string? targetId = retractElem.GetAttr("id");
+            var targetId = retractElem.GetAttr("id");
             if (!string.IsNullOrEmpty(targetId))
             {
                 await HandleMessageRetractionAsync(targetId, msg.From);
@@ -1586,9 +1586,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
             direction = MessageDirection.Inbound;
         }
 
-        bool isGroup = msg.Type == MessageStanza.TypeGroupChat;
+        var isGroup = msg.Type == MessageStanza.TypeGroupChat;
         var sender = msg.From ?? (isSentByUs ? accountJid : remote);
-        bool isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remote) == true;
+        var isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remote) == true;
 
         var chatMsg = new ChatMessage
         {
@@ -1643,7 +1643,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private async Task HandleDecryptedMessageAsync(DecryptedOmemoMessage dec)
     {
         var remoteJid = dec.SenderJid.BareJid;
-        bool isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remoteJid) == true;
+        var isActiveConv = ActiveConversation?.RemoteJid.EqualsBare(remoteJid) == true;
 
         var chatMsg = new ChatMessage
         {
@@ -1686,9 +1686,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         var accountJid = Jid.Parse(AccountJid);
         var sender = msg.From ?? accountJid;
-        bool isFromSelf = sender.EqualsBare(accountJid);
-        Jid remote = isFromSelf ? (msg.To ?? accountJid).BareJid : sender.BareJid;
-        string newBody = msg.Body ?? string.Empty;
+        var isFromSelf = sender.EqualsBare(accountJid);
+        var remote = isFromSelf ? (msg.To ?? accountJid).BareJid : sender.BareJid;
+        var newBody = msg.Body ?? string.Empty;
 
         await _messageRepo.UpdateMessageByReplaceIdAsync(AccountJid, originalId, newBody, msg.Id);
 

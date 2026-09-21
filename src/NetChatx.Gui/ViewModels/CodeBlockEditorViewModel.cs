@@ -79,7 +79,7 @@ public sealed partial class CodeBlockEditorViewModel : ViewModelBase
         get
         {
             if (string.IsNullOrEmpty(Code)) return 1;
-            int count = 1;
+            var count = 1;
             for (int i = 0; i < Code.Length; i++)
             {
                 if (Code[i] == '\n') count++;
@@ -96,7 +96,7 @@ public sealed partial class CodeBlockEditorViewModel : ViewModelBase
     {
         get
         {
-            int count = LineCount;
+            var count = LineCount;
             var sb = new StringBuilder();
             for (int i = 1; i <= count; i++)
             {
@@ -128,7 +128,7 @@ public sealed partial class CodeBlockEditorViewModel : ViewModelBase
 
     public void SetLanguageFromHint(string hint)
     {
-        string normalized = hint.Trim().ToLowerInvariant();
+        var normalized = hint.Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(normalized) || normalized is "text" or "plain" or "plaintext" or "none")
         {
             SelectedLanguage = PlainTextLanguage;
@@ -186,8 +186,8 @@ public sealed partial class CodeBlockEditorViewModel : ViewModelBase
 
     public string GenerateMarkdown()
     {
-        string id = GetEffectiveLanguageIdentifier();
-        string trimmedCode = (Code ?? string.Empty).TrimEnd('\r', '\n');
+        var id = GetEffectiveLanguageIdentifier();
+        var trimmedCode = (Code ?? string.Empty).TrimEnd('\r', '\n');
 
         if (string.IsNullOrWhiteSpace(id) || id.Equals("text", StringComparison.OrdinalIgnoreCase) || id.Equals("plain text", StringComparison.OrdinalIgnoreCase))
         {
@@ -202,7 +202,7 @@ public sealed partial class CodeBlockEditorViewModel : ViewModelBase
     [RelayCommand]
     public void Insert()
     {
-        string markdown = GenerateMarkdown();
+        var markdown = GenerateMarkdown();
         var callback = _onInsert;
         Close();
         callback?.Invoke(markdown);

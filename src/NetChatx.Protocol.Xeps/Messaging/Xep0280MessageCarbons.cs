@@ -60,7 +60,7 @@ public sealed class Xep0280MessageCarbons : XepFeatureBase
                 if (innerMsgElem is not null)
                 {
                     var innerMsg = new MessageStanza(innerMsgElem);
-                    bool isSentByUs = sentCarbon is not null;
+                    var isSentByUs = sentCarbon is not null;
                     CarbonMessageReceived?.Invoke(innerMsg, isSentByUs);
                 }
             }

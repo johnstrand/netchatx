@@ -9,7 +9,7 @@ public class XmppStreamParserTests
     public void ParseChunk_StreamHeaderAndFeatures_EmitsHeaderThenFeatures()
     {
         var parser = new XmppStreamParser();
-        string input = "<?xml version='1.0'?><stream:stream from='example.com' id='12345' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/></stream:features>";
+        var input = "<?xml version='1.0'?><stream:stream from='example.com' id='12345' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/></stream:features>";
 
         var elements = parser.ParseChunk(input).ToList();
 
@@ -68,7 +68,7 @@ public class XmppStreamParserTests
         var parser = new XmppStreamParser();
         _ = parser.ParseChunk("<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>").ToList();
 
-        string xml = "<message type='chat' to='richard@squishythoughts.com'><body>/me retracted a previous message, but it's unsupported by your client. \"Hello!\"</body></message>";
+        var xml = "<message type='chat' to='richard@squishythoughts.com'><body>/me retracted a previous message, but it's unsupported by your client. \"Hello!\"</body></message>";
         var res = parser.ParseChunk(xml).ToList();
 
         Assert.Single(res);

@@ -40,7 +40,7 @@ public sealed class MockXmppServer : IAsyncDisposable
 
             // Stage 2: SASL Auth
             var authElem = await ReadElementAsync(ct);
-            string mech = authElem.GetAttr("mechanism") ?? "PLAIN";
+            var mech = authElem.GetAttr("mechanism") ?? "PLAIN";
 
             if (mech == "PLAIN")
             {
@@ -49,14 +49,14 @@ public sealed class MockXmppServer : IAsyncDisposable
             else if (mech == "SCRAM-SHA-256")
             {
                 // Challenge
-                string saltB64 = Convert.ToBase64String("mocksalt1234"u8.ToArray());
-                string challenge = $"r=mocknonce1234,s={saltB64},i=4096";
-                string challengeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(challenge));
+                var saltB64 = Convert.ToBase64String("mocksalt1234"u8.ToArray());
+                var challenge = $"r=mocknonce1234,s={saltB64},i=4096";
+                var challengeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(challenge));
                 await SendRawAsync($"<challenge xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>{challengeB64}</challenge>", ct);
 
                 var responseElem = await ReadElementAsync(ct);
                 // Send success with signature
-                string success = "v=" + Convert.ToBase64String("mockserversig"u8.ToArray());
+                var success = "v=" + Convert.ToBase64String("mockserversig"u8.ToArray());
                 // For test simplicity in mock, if PLAIN or SCRAM, send success
                 await SendRawAsync("<success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>", ct);
             }
@@ -68,8 +68,8 @@ public sealed class MockXmppServer : IAsyncDisposable
 
             // Stage 4: Resource Bind
             var bindIqElem = await ReadElementAsync(ct);
-            string bindId = bindIqElem.GetAttr("id") ?? "b1";
-            string resource = bindIqElem.Element("bind")?.Element("resource")?.Value ?? "NetChatx";
+            var bindId = bindIqElem.GetAttr("id") ?? "b1";
+            var resource = bindIqElem.Element("bind")?.Element("resource")?.Value ?? "NetChatx";
             await SendRawAsync($"<iq type='result' id='{bindId}'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>alice@{Domain}/{resource}</jid></bind></iq>", ct);
 
             // Stage 5: Main connected loop
@@ -148,7 +148,7 @@ public sealed class MockXmppServer : IAsyncDisposable
         var mam = iq.RawElement.Element("query", "urn:xmpp:mam:2");
         if (mam is not null && iq.IsSet)
         {
-            string? queryId = mam.GetAttr("queryid");
+            var queryId = mam.GetAttr("queryid");
             await Task.Delay(100, ct);
             var fin = new XmppElement("fin", "urn:xmpp:mam:2").Attr("complete", "true");
             if (!string.IsNullOrEmpty(queryId))
@@ -163,13 +163,13 @@ public sealed class MockXmppServer : IAsyncDisposable
 
     public async Task InjectStanzaAsync(Stanza stanza)
     {
-        string xml = stanza.ToXmlString();
+        var xml = stanza.ToXmlString();
         await SendRawAsync(xml, CancellationToken.None);
     }
 
     public async Task InjectElementAsync(XmppElement element)
     {
-        string xml = element.ToXmlString();
+        var xml = element.ToXmlString();
         await SendRawAsync(xml, CancellationToken.None);
     }
 
@@ -180,7 +180,7 @@ public sealed class MockXmppServer : IAsyncDisposable
 
     private async Task SendRawAsync(string text, CancellationToken ct)
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        var bytes = Encoding.UTF8.GetBytes(text);
         await _transport.ServerOutput.WriteAsync(bytes, ct);
         await _transport.ServerOutput.FlushAsync(ct);
     }

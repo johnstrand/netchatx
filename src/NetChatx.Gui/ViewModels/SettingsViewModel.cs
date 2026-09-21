@@ -335,7 +335,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         if (!_isInitializing)
         {
-            string toSave = IsCustomFont ? CustomFontFamily : value;
+            var toSave = IsCustomFont ? CustomFontFamily : value;
             _ = _settingsRepo.SetFontFamilyAsync(_accountJid, toSave);
             _onTypographyChanged?.Invoke(EffectiveFontFamily, FontSize);
         }
@@ -540,7 +540,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     public void SelectAccent(object? param)
     {
-        string? hex = param?.ToString();
+        var hex = param?.ToString();
         if (!string.IsNullOrWhiteSpace(hex))
         {
             AccentColor = hex;
@@ -550,7 +550,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     public void SelectOutboundBubbleColor(object? param)
     {
-        string? hex = param?.ToString();
+        var hex = param?.ToString();
         if (!string.IsNullOrWhiteSpace(hex))
         {
             OutboundBubbleColor = hex;
@@ -560,7 +560,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     public void SelectInboundBubbleColor(object? param)
     {
-        string? hex = param?.ToString();
+        var hex = param?.ToString();
         if (!string.IsNullOrWhiteSpace(hex))
         {
             InboundBubbleColor = hex;
@@ -579,7 +579,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     public void SelectEmojiSlot(object? param)
     {
-        int index = -1;
+        var index = -1;
         if (param is int i) index = i;
         else if (param is string s && int.TryParse(s, out int parsed)) index = parsed;
 
@@ -591,7 +591,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public async Task PickEmojiForSlotAsync(string emoji)
     {
         if (string.IsNullOrWhiteSpace(emoji)) return;
-        int target = (SelectedEmojiSlot >= 0 && SelectedEmojiSlot < QuickEmojis.Count) ? SelectedEmojiSlot : 0;
+        var target = (SelectedEmojiSlot >= 0 && SelectedEmojiSlot < QuickEmojis.Count) ? SelectedEmojiSlot : 0;
         QuickEmojis[target] = emoji;
         OnPropertyChanged(nameof(SelectedSlotLabel));
         await SaveQuickEmojisAsync();

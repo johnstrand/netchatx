@@ -220,7 +220,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PostToUi(() =>
         {
             var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, "System");
-            int index = 0;
+            var index = 0;
             while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
             {
                 index++;
@@ -496,11 +496,11 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         var originIdElem = m.RawElement.Element("origin-id", "urn:xmpp:sid:0");
         var stanzaIdElem = m.RawElement.Element("stanza-id", "urn:xmpp:sid:0");
-        string? stanzaId = stanzaIdElem?.GetAttr("id") ?? m.Id;
-        string? originId = originIdElem?.GetAttr("id");
+        var stanzaId = stanzaIdElem?.GetAttr("id") ?? m.Id;
+        var originId = originIdElem?.GetAttr("id");
 
         var parsedAccountJid = Jid.TryParse(accountJid, out var accJid) ? accJid : null;
-        bool isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
+        var isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
                        || (m.From?.EqualsBare(client?.BoundJid) == true);
 
         Jid effectiveRemote;
@@ -517,7 +517,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             effectiveRemote = (m.From ?? defaultRemoteJid).BareJid;
         }
 
-        string senderJidStr = (m.From ?? (isFromSelf ? (parsedAccountJid ?? effectiveRemote) : effectiveRemote)).ToString();
+        var senderJidStr = (m.From ?? (isFromSelf ? (parsedAccountJid ?? effectiveRemote) : effectiveRemote)).ToString();
 
         return new ChatMessage
         {
@@ -548,7 +548,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         foreach (var item in items)
         {
             var m = item.Message;
-            bool isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
+            var isFromSelf = (m.From is not null && parsedAccountJid is not null && m.From.EqualsBare(parsedAccountJid))
                            || (m.From?.EqualsBare(_client?.BoundJid) == true);
 
             if (Xep0444Reactions.TryExtractReaction(m.RawElement, isCarbonSent: isFromSelf, out var reactArgs))
@@ -576,20 +576,20 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         try
         {
-            Jid? archiveJid = IsGroupChat ? RemoteJid : null;
-            Jid? withJid = IsGroupChat ? null : RemoteJid;
+            var archiveJid = IsGroupChat ? RemoteJid : null;
+            var withJid = IsGroupChat ? null : RemoteJid;
 
             var latestBubble = Messages.LastOrDefault();
-            DateTimeOffset? startTimestamp = latestBubble?.Timestamp;
+            var startTimestamp = latestBubble?.Timestamp;
 
             string? beforeId = null;
             string? afterId = null;
-            int pagesFetched = 0;
+            var pagesFetched = 0;
 
             while (true)
             {
                 MamQueryResult? mamResult = null;
-                int retries = 3;
+                var retries = 3;
                 while (retries > 0)
                 {
                     try
@@ -652,7 +652,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
                 if (startTimestamp.HasValue)
                 {
-                    string? nextAfter = !string.IsNullOrEmpty(mamResult.LastId)
+                    var nextAfter = !string.IsNullOrEmpty(mamResult.LastId)
                         ? mamResult.LastId
                         : mamResult.Messages.LastOrDefault()?.ArchiveId;
 
@@ -662,7 +662,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 }
                 else
                 {
-                    string? nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
+                    var nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
                         ? mamResult.FirstId
                         : mamResult.Messages.FirstOrDefault()?.ArchiveId;
 
@@ -833,8 +833,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == args.TargetMessageId) ||
             (!string.IsNullOrEmpty(m.OriginId) && m.OriginId == args.TargetMessageId));
 
-        string targetId = bubble?.Id ?? args.TargetMessageId;
-        string effectiveSenderJid = args.IsCarbonSent ? _accountJid : args.SenderJid.ToString();
+        var targetId = bubble?.Id ?? args.TargetMessageId;
+        var effectiveSenderJid = args.IsCarbonSent ? _accountJid : args.SenderJid.ToString();
 
         await _messageRepo.SaveReactionsAsync(
             _accountJid,
@@ -855,10 +855,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (imageBytes is null || imageBytes.Length == 0) return;
 
-        bool isGif = GifDecoder.IsGif(imageBytes) || (fileName?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true);
+        var isGif = GifDecoder.IsGif(imageBytes) || (fileName?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true);
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            string ext = isGif ? "gif" : "png";
+            var ext = isGif ? "gif" : "png";
             fileName = $"{(isGif ? "gif" : "image")}_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}.{ext}";
         }
         else if (isGif && !fileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
@@ -866,8 +866,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             fileName = Path.ChangeExtension(fileName, ".gif");
         }
 
-        double kb = imageBytes.Length / 1024.0;
-        string sizeText = kb >= 1024 ? $"{kb / 1024.0:F1} MB" : $"{kb:F0} KB";
+        var kb = imageBytes.Length / 1024.0;
+        var sizeText = kb >= 1024 ? $"{kb / 1024.0:F1} MB" : $"{kb:F0} KB";
 
         Bitmap? previewBitmap = null;
         try
@@ -905,9 +905,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (imageBytes is null || imageBytes.Length == 0) return null;
 
-        bool isGif = GifDecoder.IsGif(imageBytes) || (fileName?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true);
-        string defaultExt = isGif ? "gif" : "png";
-        string contentType = isGif ? "image/gif" : "image/png";
+        var isGif = GifDecoder.IsGif(imageBytes) || (fileName?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true);
+        var defaultExt = isGif ? "gif" : "png";
+        var contentType = isGif ? "image/gif" : "image/png";
 
         if (string.IsNullOrWhiteSpace(fileName))
         {
@@ -968,8 +968,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         // Check if we are currently editing an existing message
         if (IsEditingMessage && !string.IsNullOrEmpty(EditingMessageId))
         {
-            string newText = InputText.Trim();
-            string targetId = EditingMessageId;
+            var newText = InputText.Trim();
+            var targetId = EditingMessageId;
             CancelEditingMessage();
 
             if (string.IsNullOrWhiteSpace(newText)) return;
@@ -997,7 +997,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
             if (_client.BoundJid is not null)
             {
-                string byJid = _client.BoundJid.BareJid.ToString();
+                var byJid = _client.BoundJid.BareJid.ToString();
                 if (!string.IsNullOrEmpty(byJid))
                 {
                     replaceStanza.RawElement.Child(new XmppElement("stanza-id", "urn:xmpp:sid:0")
@@ -1029,14 +1029,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             return;
         }
 
-        bool hasText = !string.IsNullOrWhiteSpace(InputText);
-        bool hasPendingImage = HasPendingImage && PendingImageBytes is not null && PendingImageBytes.Length > 0;
+        var hasText = !string.IsNullOrWhiteSpace(InputText);
+        var hasPendingImage = HasPendingImage && PendingImageBytes is not null && PendingImageBytes.Length > 0;
 
         if (!hasText && !hasPendingImage) return;
 
-        byte[]? imageToSend = PendingImageBytes;
-        string? imageFileName = PendingImageFileName;
-        string textToSend = hasText ? InputText.Trim() : string.Empty;
+        var imageToSend = PendingImageBytes;
+        var imageFileName = PendingImageFileName;
+        var textToSend = hasText ? InputText.Trim() : string.Empty;
 
         InputText = string.Empty;
         ClearPendingImage();
@@ -1134,7 +1134,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         if (_client.BoundJid is not null)
         {
-            string byJid = _client.BoundJid.BareJid.ToString();
+            var byJid = _client.BoundJid.BareJid.ToString();
             if (!string.IsNullOrEmpty(byJid))
             {
                 stanza.RawElement.Child(new XmppElement("stanza-id", "urn:xmpp:sid:0")
@@ -1273,7 +1273,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (message is null) return;
         ReplyingToMessage = message;
 
-        string textToQuote = !string.IsNullOrEmpty(message.Body) ? message.Body : (message.ImageUrl ?? string.Empty);
+        var textToQuote = !string.IsNullOrEmpty(message.Body) ? message.Body : (message.ImageUrl ?? string.Empty);
         if (string.IsNullOrWhiteSpace(textToQuote)) return;
 
         var sender = message.SenderName;
@@ -1312,8 +1312,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             insertionIndex = InputText.Length;
         }
 
-        string before = InputText[..insertionIndex];
-        string after = InputText[insertionIndex..];
+        var before = InputText[..insertionIndex];
+        var after = InputText[insertionIndex..];
 
         var sb = new System.Text.StringBuilder();
         sb.Append(before);
@@ -1388,7 +1388,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
         else
         {
-            string targetId = message.StanzaId ?? message.OriginId ?? message.Id;
+            var targetId = message.StanzaId ?? message.OriginId ?? message.Id;
             idsToDelete.Add(targetId);
             if (!string.IsNullOrEmpty(message.Id) && message.Id != targetId) idsToDelete.Add(message.Id);
         }
@@ -1484,7 +1484,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
             if (EnableMessageMerging && MessageMergeThresholdSeconds > 0 && Messages.Count > 0)
             {
-                int insertIdx = 0;
+                var insertIdx = 0;
                 while (insertIdx < Messages.Count && Messages[insertIdx].Timestamp <= msg.Timestamp)
                 {
                     insertIdx++;
@@ -1508,7 +1508,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             bubble.ReplyRequested = ReplyToMessage;
             bubble.EditRequested = StartEditingMessage;
             bubble.DeleteRequested = b => _ = DeleteMessageAsync(b);
-            int index = 0;
+            var index = 0;
             while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
             {
                 index++;

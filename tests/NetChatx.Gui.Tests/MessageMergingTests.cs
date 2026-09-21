@@ -260,7 +260,7 @@ public class MessageMergingTests : IDisposable
         Assert.Equal("Part A\nPart B", bubble.Body);
 
         // Remove msg1
-        bool removed = bubble.RemoveMessageById("id1");
+        var removed = bubble.RemoveMessageById("id1");
         Assert.True(removed);
         Assert.Single(bubble.MergedMessages);
         Assert.Equal("Part B", bubble.Body);
@@ -268,7 +268,7 @@ public class MessageMergingTests : IDisposable
         Assert.True(bubble.ContainsMessageId("id2"));
 
         // Remove msg2
-        bool removedSecond = bubble.RemoveMessageById("id2");
+        var removedSecond = bubble.RemoveMessageById("id2");
         Assert.True(removedSecond);
         Assert.Empty(bubble.MergedMessages);
         Assert.False(bubble.ContainsMessageId("id2"));
@@ -277,7 +277,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_AddOrUpdateMessage_MergesConsecutiveWithinThreshold()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var conv = new ChatConversationViewModel(
@@ -327,7 +327,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_AddOrUpdateMessage_SeparateBubblesWhenExceedingThreshold()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var conv = new ChatConversationViewModel(
@@ -376,7 +376,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_AddOrUpdateMessage_SeparateBubblesWhenDisabled()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var conv = new ChatConversationViewModel(
@@ -425,7 +425,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_TogglingMergeSetting_RebuildsExistingBubbles()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var conv = new ChatConversationViewModel(
@@ -481,7 +481,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public void ChatConversationViewModel_RetractingMergedMessage_UpdatesOrRemovesBubble()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var remote = Jid.Parse("peer@test.org");
 
         var conv = new ChatConversationViewModel(
@@ -535,7 +535,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public async Task SettingsRepository_MergeMessagesPreferences_PersistAndRead()
     {
-        string account = "user_pref@test.org";
+        var account = "user_pref@test.org";
 
         // Defaults
         var defaultEnabled = await _settingsRepo.GetMergeMessagesEnabledAsync(account);
@@ -556,7 +556,7 @@ public class MessageMergingTests : IDisposable
     [Fact]
     public void MainChatViewModel_MergeSettingsChange_PropagatesToConversations()
     {
-        string account = "user@test.org";
+        var account = "user@test.org";
         var options = new XmppClientOptions
         {
             Jid = Jid.Parse(account),
@@ -681,7 +681,7 @@ public class MessageMergingTests : IDisposable
         Assert.Equal(expectedCorrected, bubble.RawXml);
 
         // Remove m1 (retraction)
-        bool removed = bubble.RemoveMessageById("m1");
+        var removed = bubble.RemoveMessageById("m1");
         Assert.True(removed);
         Assert.Equal("Original 2", bubble.Body);
         Assert.Equal("<message id='m2'><body>Original 2</body></message>", bubble.RawXml);

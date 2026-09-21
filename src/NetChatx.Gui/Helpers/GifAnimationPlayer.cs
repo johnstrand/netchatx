@@ -21,7 +21,7 @@ public sealed class GifAnimationPlayer : IDisposable
 
         if (_frames.Count > 1)
         {
-            int initialDelay = Math.Max(20, _frames[0].DurationMs);
+            var initialDelay = Math.Max(20, _frames[0].DurationMs);
             _timer = new Timer(OnTimerTick, null, initialDelay, Timeout.Infinite);
         }
     }
@@ -41,7 +41,7 @@ public sealed class GifAnimationPlayer : IDisposable
             }
         });
 
-        int nextDelay = Math.Max(20, durationMs);
+        var nextDelay = Math.Max(20, durationMs);
         try
         {
             _timer?.Change(nextDelay, Timeout.Infinite);

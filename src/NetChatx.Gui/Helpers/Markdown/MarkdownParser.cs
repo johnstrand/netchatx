@@ -23,11 +23,11 @@ public static class MarkdownParser
 
         for (int i = 0; i < text.Length; i++)
         {
-            char c = text[i];
+            var c = text[i];
             if (c is '*' or '_' or '~' or '`' or '#' or '>') return true;
             if (c == '[')
             {
-                int closeBracket = text.IndexOf(']', i + 1);
+                var closeBracket = text.IndexOf(']', i + 1);
                 if (closeBracket > i && closeBracket + 1 < text.Length && text[closeBracket + 1] == '(')
                     return true;
             }
@@ -59,14 +59,14 @@ public static class MarkdownParser
             return new MarkdownDocument([]);
         }
 
-        string normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
-        string[] lines = normalized.Split('\n');
+        var normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
+        var lines = normalized.Split('\n');
         var blocks = new List<IMarkdownBlock>();
 
-        int lineIndex = 0;
+        var lineIndex = 0;
         while (lineIndex < lines.Length)
         {
-            string line = lines[lineIndex];
+            var line = lines[lineIndex];
 
             if (string.IsNullOrWhiteSpace(line))
             {
@@ -77,8 +77,8 @@ public static class MarkdownParser
             // 1. Preformatted Code Block (```)
             if (line.TrimStart().StartsWith("```", StringComparison.Ordinal))
             {
-                string trimmed = line.TrimStart();
-                string? language = trimmed.Length > 3 ? trimmed.Substring(3).Trim() : null;
+                var trimmed = line.TrimStart();
+                var language = trimmed.Length > 3 ? trimmed.Substring(3).Trim() : null;
                 if (string.IsNullOrWhiteSpace(language)) language = null;
 
                 var codeLines = new List<string>();
@@ -104,13 +104,13 @@ public static class MarkdownParser
                 var quoteLines = new List<string>();
                 while (lineIndex < lines.Length && lines[lineIndex].StartsWith('>'))
                 {
-                    string qLine = lines[lineIndex].Substring(1);
+                    var qLine = lines[lineIndex].Substring(1);
                     if (qLine.StartsWith(' ')) qLine = qLine.Substring(1);
                     quoteLines.Add(qLine);
                     lineIndex++;
                 }
 
-                string childText = string.Join("\n", quoteLines);
+                var childText = string.Join("\n", quoteLines);
                 var childDoc = Parse(childText);
                 blocks.Add(new MarkdownBlockquote(childDoc.Blocks));
                 continue;
@@ -119,11 +119,11 @@ public static class MarkdownParser
             // 3. Headers (# Header)
             if (line.StartsWith('#'))
             {
-                int level = 0;
+                var level = 0;
                 while (level < line.Length && line[level] == '#') level++;
                 if (level <= 6 && level < line.Length && line[level] == ' ')
                 {
-                    string headerContent = line.Substring(level + 1).Trim();
+                    var headerContent = line.Substring(level + 1).Trim();
                     blocks.Add(new MarkdownHeader(level, ParseInlines(headerContent)));
                     lineIndex++;
                     continue;
@@ -134,7 +134,7 @@ public static class MarkdownParser
             if (IsListItem(line, out bool isOrdered, out int listNum, out string itemText))
             {
                 var listItems = new List<MarkdownListItem>();
-                int currentNum = isOrdered ? listNum : 1;
+                var currentNum = isOrdered ? listNum : 1;
                 listItems.Add(new MarkdownListItem(currentNum, ParseInlines(itemText)));
                 lineIndex++;
 
@@ -154,7 +154,7 @@ public static class MarkdownParser
             var paraLines = new List<string>();
             while (lineIndex < lines.Length)
             {
-                string cur = lines[lineIndex];
+                var cur = lines[lineIndex];
                 if (cur.TrimStart().StartsWith("```", StringComparison.Ordinal) ||
                     cur.StartsWith('>') ||
                     (cur.StartsWith('#') && cur.Length > 1 && cur.IndexOf(' ') > 0 && cur.IndexOf(' ') <= 6) ||
@@ -193,7 +193,7 @@ public static class MarkdownParser
 
         if (string.IsNullOrWhiteSpace(line)) return false;
 
-        string trimmed = line.TrimStart();
+        var trimmed = line.TrimStart();
         if (trimmed.StartsWith("- ", StringComparison.Ordinal) || trimmed.StartsWith("* ", StringComparison.Ordinal))
         {
             isOrdered = false;
@@ -201,10 +201,10 @@ public static class MarkdownParser
             return true;
         }
 
-        int dotIdx = trimmed.IndexOf(". ", StringComparison.Ordinal);
+        var dotIdx = trimmed.IndexOf(". ", StringComparison.Ordinal);
         if (dotIdx > 0 && dotIdx <= 6)
         {
-            string numPart = trimmed.Substring(0, dotIdx);
+            var numPart = trimmed.Substring(0, dotIdx);
             if (int.TryParse(numPart, out int num))
             {
                 isOrdered = true;
@@ -233,7 +233,7 @@ public static class MarkdownParser
             return inlines;
         }
 
-        int currentIndex = 0;
+        var currentIndex = 0;
         foreach (Match match in matches)
         {
             if (match.Index < currentIndex)
@@ -249,15 +249,15 @@ public static class MarkdownParser
 
             if (match.Groups["code"].Success)
             {
-                string raw = match.Groups["code"].Value;
-                string codeVal = raw.Substring(1, raw.Length - 2);
+                var raw = match.Groups["code"].Value;
+                var codeVal = raw.Substring(1, raw.Length - 2);
                 inlines.Add(new MarkdownInlineCode(codeVal));
                 currentIndex = match.Index + match.Length;
             }
             else if (match.Groups["mdlink"].Success)
             {
-                string linkText = match.Groups["linktext"].Value;
-                string linkUrl = match.Groups["linkurl"].Value;
+                var linkText = match.Groups["linktext"].Value;
+                var linkUrl = match.Groups["linkurl"].Value;
                 if (LinkParser.IsValidUrl(linkUrl, out var targetUri))
                 {
                     inlines.Add(new MarkdownLink(linkText, targetUri));
@@ -270,7 +270,7 @@ public static class MarkdownParser
             }
             else if (match.Groups["autolink"].Success)
             {
-                string rawUrl = match.Groups["autolink"].Value;
+                var rawUrl = match.Groups["autolink"].Value;
                 var (cleanUrl, trailing) = LinkParser.TrimTrailingPunctuation(rawUrl);
                 if (LinkParser.IsValidUrl(cleanUrl, out var targetUri))
                 {
@@ -290,25 +290,25 @@ public static class MarkdownParser
             }
             else if (match.Groups["bolditalic"].Success)
             {
-                string content = match.Groups["bitext"].Value;
+                var content = match.Groups["bitext"].Value;
                 inlines.Add(new MarkdownBoldItalic(ParseInlines(content)));
                 currentIndex = match.Index + match.Length;
             }
             else if (match.Groups["bold"].Success)
             {
-                string content = match.Groups["btext"].Value;
+                var content = match.Groups["btext"].Value;
                 inlines.Add(new MarkdownBold(ParseInlines(content)));
                 currentIndex = match.Index + match.Length;
             }
             else if (match.Groups["italic"].Success)
             {
-                string content = match.Groups["itext"].Value;
+                var content = match.Groups["itext"].Value;
                 inlines.Add(new MarkdownItalic(ParseInlines(content)));
                 currentIndex = match.Index + match.Length;
             }
             else if (match.Groups["strike"].Success)
             {
-                string content = match.Groups["stext"].Value;
+                var content = match.Groups["stext"].Value;
                 inlines.Add(new MarkdownStrikethrough(ParseInlines(content)));
                 currentIndex = match.Index + match.Length;
             }

@@ -120,7 +120,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 OnPropertyChanged(nameof(SenderDisplayName));
                 if (IsActionMessage && !string.IsNullOrEmpty(RawBody))
                 {
-                    string actionText = RawBody.Length > 3 ? RawBody.Substring(3).Trim() : string.Empty;
+                    var actionText = RawBody.Length > 3 ? RawBody.Substring(3).Trim() : string.Empty;
                     Body = $"_{value} {actionText}_";
                 }
             }
@@ -215,10 +215,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     public void UpdateDisplayText(string? sourceBody = null)
     {
-        string bodyToUse = !string.IsNullOrEmpty(sourceBody) ? sourceBody : Body;
+        var bodyToUse = !string.IsNullOrEmpty(sourceBody) ? sourceBody : Body;
         if (HasImage && ShowInlinePreviews && !string.IsNullOrEmpty(ImageUrl))
         {
-            string cleaned = bodyToUse.Replace(ImageUrl, string.Empty);
+            var cleaned = bodyToUse.Replace(ImageUrl, string.Empty);
             cleaned = Regex.Replace(cleaned, @"^\s*[\r\n]+|[\r\n]+\s*$", string.Empty).Trim();
             DisplayText = cleaned;
         }
@@ -266,7 +266,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             var time = LatestTimestamp != default ? LatestTimestamp : Timestamp;
             var local = time.ToLocalTime();
             var today = DateTime.Today;
-            string timeFmt = Use24HourClock ? "HH:mm" : "h:mm tt";
+            var timeFmt = Use24HourClock ? "HH:mm" : "h:mm tt";
 
             if (local.Date == today)
             {
@@ -345,7 +345,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public async Task CopyTextAsync()
     {
-        string textToCopy = !string.IsNullOrEmpty(Body) ? Body : (ImageUrl ?? string.Empty);
+        var textToCopy = !string.IsNullOrEmpty(Body) ? Body : (ImageUrl ?? string.Empty);
         if (string.IsNullOrEmpty(textToCopy)) return;
 
         try
@@ -448,7 +448,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         try
         {
             var elem = NetChatx.Core.Xml.XmppElement.Parse(rawXml);
-            string? oobUrl = NetChatx.Protocol.Xeps.Sharing.Xep0066OutOfBandData.ExtractOobUrl(elem);
+            var oobUrl = NetChatx.Protocol.Xeps.Sharing.Xep0066OutOfBandData.ExtractOobUrl(elem);
             if (!string.IsNullOrWhiteSpace(oobUrl))
             {
                 var match = ImageUrlRegex.Match(oobUrl);
@@ -513,7 +513,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public void OpenUrl(string? url)
     {
-        string? target = url ?? Links.FirstOrDefault();
+        var target = url ?? Links.FirstOrDefault();
         if (!string.IsNullOrEmpty(target))
         {
             UrlLauncher.OpenUrl(target);
@@ -523,7 +523,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public async Task CopyLinkAsync(string? url)
     {
-        string? toCopy = url ?? Links.FirstOrDefault();
+        var toCopy = url ?? Links.FirstOrDefault();
         if (!string.IsNullOrEmpty(toCopy))
         {
             await UrlLauncher.CopyToClipboardAsync(toCopy);
@@ -595,15 +595,15 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         IEnumerable<string>? quickEmojis = null,
         string? senderDisplayName = null)
     {
-        string effectiveSenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid;
-        string effectiveSenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
+        var effectiveSenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid;
+        var effectiveSenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
             ? senderDisplayName
             : ResolveSenderDisplayName(msg.SenderJid, msg.Direction);
 
-        bool isAction = msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase) ||
+        var isAction = msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase) ||
                         msg.Body.Equals("/me", StringComparison.OrdinalIgnoreCase);
 
-        string displayBody = msg.Body;
+        var displayBody = msg.Body;
         string? actionText = null;
 
         if (isAction)

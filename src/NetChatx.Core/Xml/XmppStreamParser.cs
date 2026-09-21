@@ -44,7 +44,7 @@ public sealed class XmppStreamParser
     {
         while (_readyElements.Count == 0)
         {
-            ReadResult result = await reader.ReadAsync(cancellationToken);
+            var result = await reader.ReadAsync(cancellationToken);
             var buffer = result.Buffer;
 
             if (buffer.IsEmpty && result.IsCompleted)
@@ -54,8 +54,8 @@ public sealed class XmppStreamParser
 
             foreach (var segment in buffer)
             {
-                string text = Encoding.UTF8.GetString(segment.Span);
-                foreach (char c in text)
+                var text = Encoding.UTF8.GetString(segment.Span);
+                foreach (var c in text)
                 {
                     var elem = ProcessChar(c);
                     if (elem is not null)
@@ -109,7 +109,7 @@ public sealed class XmppStreamParser
     /// </summary>
     public IEnumerable<XmppElement> ParseChunk(string chunk)
     {
-        foreach (char c in chunk)
+        foreach (var c in chunk)
         {
             var elem = ProcessChar(c);
             if (elem is not null)
@@ -125,8 +125,8 @@ public sealed class XmppStreamParser
 
         if (_state == ParserState.AwaitingStreamHeader)
         {
-            string current = _buffer.ToString();
-            int streamIndex = current.IndexOf("<stream:stream", StringComparison.OrdinalIgnoreCase);
+            var current = _buffer.ToString();
+            var streamIndex = current.IndexOf("<stream:stream", StringComparison.OrdinalIgnoreCase);
             if (streamIndex < 0)
             {
                 streamIndex = current.IndexOf("<stream ", StringComparison.OrdinalIgnoreCase);
@@ -134,13 +134,13 @@ public sealed class XmppStreamParser
 
             if (streamIndex >= 0)
             {
-                int tagEnd = current.IndexOf('>', streamIndex);
+                var tagEnd = current.IndexOf('>', streamIndex);
                 if (tagEnd > streamIndex)
                 {
-                    string tagContent = current.Substring(streamIndex, tagEnd - streamIndex + 1);
+                    var tagContent = current.Substring(streamIndex, tagEnd - streamIndex + 1);
                     if (CountQuotes(tagContent) % 2 == 0)
                     {
-                        string parsedTag = tagContent.TrimEnd('>');
+                        var parsedTag = tagContent.TrimEnd('>');
                         if (!parsedTag.EndsWith('/'))
                         {
                             parsedTag += "/>";
@@ -169,7 +169,7 @@ public sealed class XmppStreamParser
             return null;
         }
 
-        int len = _buffer.Length;
+        var len = _buffer.Length;
 
         // Check for CDATA
         if (!_inCData && len >= 9 && _buffer.ToString(len - 9, 9) == "<![CDATA[")
@@ -223,7 +223,7 @@ public sealed class XmppStreamParser
         }
 
         // Detect closing of stream: </stream:stream>
-        string bufStr = _buffer.ToString().Trim();
+        var bufStr = _buffer.ToString().Trim();
         if (bufStr.Equals("</stream:stream>", StringComparison.OrdinalIgnoreCase) ||
             bufStr.Equals("</stream>", StringComparison.OrdinalIgnoreCase))
         {
@@ -248,11 +248,11 @@ public sealed class XmppStreamParser
         else if (c == '>')
         {
             _inTag = false;
-            string s = _buffer.ToString();
-            int openAngle = s.LastIndexOf('<');
+            var s = _buffer.ToString();
+            var openAngle = s.LastIndexOf('<');
             if (openAngle >= 0)
             {
-                string tag = s.Substring(openAngle);
+                var tag = s.Substring(openAngle);
                 if (tag.StartsWith("</", StringComparison.Ordinal))
                 {
                     _depth--;
@@ -261,7 +261,7 @@ public sealed class XmppStreamParser
                 {
                     if (_depth == 0)
                     {
-                        string stanzaXml = _buffer.ToString().Trim();
+                        var stanzaXml = _buffer.ToString().Trim();
                         _buffer.Clear();
                         if (!string.IsNullOrEmpty(stanzaXml))
                         {
@@ -277,7 +277,7 @@ public sealed class XmppStreamParser
 
             if (_depth <= 0)
             {
-                string stanzaXml = _buffer.ToString().Trim();
+                var stanzaXml = _buffer.ToString().Trim();
                 _buffer.Clear();
                 _depth = 0;
                 if (!string.IsNullOrEmpty(stanzaXml) && stanzaXml.StartsWith('<'))
@@ -292,7 +292,7 @@ public sealed class XmppStreamParser
 
     private static int CountQuotes(string text)
     {
-        int count = 0;
+        var count = 0;
         for (int i = 0; i < text.Length; i++)
         {
             if (text[i] is '"' or '\'') count++;

@@ -20,7 +20,7 @@ public class ClipboardImageHelperSecurityTests
     public async Task FetchImageBytesAsync_WithDataUri_ReturnsDecodedBytes()
     {
         // 1x1 transparent PNG base64
-        string base64Png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        var base64Png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
         var bytes = await ClipboardImageHelper.FetchImageBytesAsync(base64Png);
         Assert.NotNull(bytes);
         Assert.True(bytes.Length > 0);
@@ -30,7 +30,7 @@ public class ClipboardImageHelperSecurityTests
     public async Task FetchImageBytesAsync_WithFileUriOrPath_ReturnsNull()
     {
         // Create a temp file on disk
-        string tempFile = Path.GetTempFileName();
+        var tempFile = Path.GetTempFileName();
         try
         {
             await File.WriteAllTextAsync(tempFile, "dummy file content");

@@ -47,7 +47,7 @@ public class Xep0313MessageArchiveManagement : XepFeatureBase
     {
         if (Client is null) throw new InvalidOperationException("Client not attached.");
 
-        string queryId = Guid.NewGuid().ToString("N");
+        var queryId = Guid.NewGuid().ToString("N");
         var items = new List<MamMessageItem>();
         _activeQueries[queryId] = items;
 
@@ -103,7 +103,7 @@ public class Xep0313MessageArchiveManagement : XepFeatureBase
             var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
             var fin = resultIq.RawElement.Element("fin", NsMam) ?? resultIq.RawElement.Element("fin");
 
-            bool isComplete = fin?.GetAttr("complete") == "true";
+            var isComplete = fin?.GetAttr("complete") == "true";
             string? first = null;
             string? last = null;
             int? count = null;
@@ -142,8 +142,8 @@ public class Xep0313MessageArchiveManagement : XepFeatureBase
             var resultElem = element.Element("result", NsMam) ?? element.Element("result");
             if (resultElem is not null)
             {
-                string? queryId = resultElem.GetAttr("queryid") ?? element.GetAttr("queryid");
-                string? archiveId = resultElem.GetAttr("id") ?? Guid.NewGuid().ToString("N");
+                var queryId = resultElem.GetAttr("queryid") ?? element.GetAttr("queryid");
+                var archiveId = resultElem.GetAttr("id") ?? Guid.NewGuid().ToString("N");
 
                 var forwarded = resultElem.Element("forwarded", NsForward) ?? resultElem.Element("forwarded");
                 var innerMsgElem = forwarded?.Element("message");
@@ -158,7 +158,7 @@ public class Xep0313MessageArchiveManagement : XepFeatureBase
                                  ?? innerMsgElem.Element("delay", NsDelay)
                                  ?? innerMsgElem.Element("delay")
                                  ?? innerMsgElem.Element("x", "jabber:x:delay");
-                    DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+                    var timestamp = DateTimeOffset.UtcNow;
 
                     if (delayElem?.GetAttr("stamp") is string stampStr &&
                         DateTimeOffset.TryParse(stampStr, out var parsedStamp))

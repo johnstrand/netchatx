@@ -29,7 +29,7 @@ public static class LinkParser
             return segments;
         }
 
-        int currentIndex = 0;
+        var currentIndex = 0;
         foreach (Match match in matches)
         {
             if (match.Index < currentIndex)
@@ -39,8 +39,8 @@ public static class LinkParser
 
             if (match.Groups["mdlink"].Success)
             {
-                string label = match.Groups["label"].Value;
-                string mdurl = match.Groups["mdurl"].Value;
+                var label = match.Groups["label"].Value;
+                var mdurl = match.Groups["mdurl"].Value;
 
                 if (IsValidUrl(mdurl, out var targetUri))
                 {
@@ -55,13 +55,13 @@ public static class LinkParser
                 }
             }
 
-            string rawCandidate = match.Groups["url"].Value;
+            var rawCandidate = match.Groups["url"].Value;
             if (string.IsNullOrEmpty(rawCandidate))
             {
                 continue;
             }
 
-            int candidateStart = match.Index;
+            var candidateStart = match.Index;
             var (cleanUrl, trailingPunctuation) = TrimTrailingPunctuation(rawCandidate);
 
             if (IsValidUrl(cleanUrl, out var targetUri2))
@@ -99,7 +99,7 @@ public static class LinkParser
         targetUri = url;
         if (string.IsNullOrWhiteSpace(url)) return false;
 
-        string testUrl = url;
+        var testUrl = url;
         if (testUrl.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
         {
             testUrl = "https://" + testUrl;
@@ -128,11 +128,11 @@ public static class LinkParser
     public static (string CleanUrl, string Trailing) TrimTrailingPunctuation(string candidate)
     {
         var trailing = new StringBuilder();
-        string url = candidate;
+        var url = candidate;
 
         while (url.Length > 0)
         {
-            char last = url[^1];
+            var last = url[^1];
             if (last is '.' or ',' or ';' or ':' or '!' or '?' or '"' or '\'' or '>' or '<')
             {
                 trailing.Insert(0, last);
@@ -140,9 +140,9 @@ public static class LinkParser
             }
             else if (last == ')')
             {
-                int openCount = 0;
-                int closeCount = 0;
-                foreach (char c in url)
+                var openCount = 0;
+                var closeCount = 0;
+                foreach (var c in url)
                 {
                     if (c == '(') openCount++;
                     else if (c == ')') closeCount++;
@@ -160,9 +160,9 @@ public static class LinkParser
             }
             else if (last == ']')
             {
-                int openCount = 0;
-                int closeCount = 0;
-                foreach (char c in url)
+                var openCount = 0;
+                var closeCount = 0;
+                foreach (var c in url)
                 {
                     if (c == '[') openCount++;
                     else if (c == ']') closeCount++;
@@ -180,9 +180,9 @@ public static class LinkParser
             }
             else if (last == '}')
             {
-                int openCount = 0;
-                int closeCount = 0;
-                foreach (char c in url)
+                var openCount = 0;
+                var closeCount = 0;
+                foreach (var c in url)
                 {
                     if (c == '{') openCount++;
                     else if (c == '}') closeCount++;

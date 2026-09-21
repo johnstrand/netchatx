@@ -21,9 +21,9 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_ReactionsSaveAndRetrieve_WorksCorrectly()
     {
         var repo = new MessageRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
-        string msgId = "msg_reaction_test_1";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
+        var msgId = "msg_reaction_test_1";
 
         await repo.SaveMessageAsync(new ChatMessage
         {
@@ -65,7 +65,7 @@ public class StorageTests : IDisposable
     public async Task SettingsRepository_QuickEmojis_SaveAndRetrieve_Succeeds()
     {
         var repo = new SettingsRepository(_context);
-        string account = "user@example.org";
+        var account = "user@example.org";
 
         // 1. Defaults when nothing is configured
         var defaults = await repo.GetQuickEmojisAsync(account);
@@ -79,7 +79,7 @@ public class StorageTests : IDisposable
         Assert.Equal(custom, retrieved);
 
         // 3. Independent per account
-        string otherAccount = "other@example.org";
+        var otherAccount = "other@example.org";
         var otherDefaults = await repo.GetQuickEmojisAsync(otherAccount);
         Assert.Equal(SettingsRepository.DefaultQuickEmojis, otherDefaults);
     }
@@ -88,7 +88,7 @@ public class StorageTests : IDisposable
     public async Task SettingsRepository_NotificationSettings_SaveAndRetrieve_Succeeds()
     {
         var repo = new SettingsRepository(_context);
-        string account = "notify_user@example.org";
+        var account = "notify_user@example.org";
 
         // Defaults
         Assert.True(await repo.GetNotificationPopupsEnabledAsync(account));
@@ -113,7 +113,7 @@ public class StorageTests : IDisposable
     public async Task SettingsRepository_FullConfigurability_SaveAndRetrieve_Succeeds()
     {
         var repo = new SettingsRepository(_context);
-        string account = "config_user@example.org";
+        var account = "config_user@example.org";
 
         // Verify default values
         Assert.Equal(SettingsRepository.DefaultLaunchOnStartup, await repo.GetLaunchOnStartupAsync(account));
@@ -199,8 +199,8 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_SaveAndGetPaged_ReturnsChronologicalOrder()
     {
         var repo = new MessageRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
 
         var t0 = DateTimeOffset.UtcNow.AddMinutes(-10);
         var msg1 = new ChatMessage
@@ -239,7 +239,7 @@ public class StorageTests : IDisposable
         Assert.Equal("Second message", searchResults[0].Body);
 
         // Test replacement (XEP-0308)
-        bool replaced = await repo.UpdateMessageByReplaceIdAsync(account, "s1", "First message (edited)");
+        var replaced = await repo.UpdateMessageByReplaceIdAsync(account, "s1", "First message (edited)");
         Assert.True(replaced);
 
         var updatedMessages = await repo.GetMessagesAsync(account, remote, limit: 10);
@@ -250,8 +250,8 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_GetMessagesWithBeforePaging_ReturnsOlderBatches()
     {
         var repo = new MessageRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
 
         var baseTime = DateTimeOffset.UtcNow.AddHours(-1);
 
@@ -292,8 +292,8 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_SaveMessageAsync_DeduplicatesByStanzaIdAndContent()
     {
         var repo = new MessageRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
         var t0 = DateTimeOffset.UtcNow.AddHours(-3);
 
         // 1. Save initial message
@@ -370,7 +370,7 @@ public class StorageTests : IDisposable
     public async Task OmemoRepository_SaveAndGetIdentity_Succeeds()
     {
         var repo = new OmemoRepository(_context);
-        string account = "alice@example.com";
+        var account = "alice@example.com";
 
         // Non-existent identity returns null
         var nonExistent = await repo.GetIdentityAsync("nonexistent@example.com");
@@ -400,8 +400,8 @@ public class StorageTests : IDisposable
     public async Task OmemoRepository_SaveAndGetSession_Succeeds()
     {
         var repo = new OmemoRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
 
         // Non-existent session returns null
         var nonExistent = await repo.GetSessionAsync(account, remote, 100);
@@ -478,8 +478,8 @@ public class StorageTests : IDisposable
     public async Task OmemoRepository_UpdateTrustState_Succeeds()
     {
         var repo = new OmemoRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
         uint deviceId = 300;
 
         var session = new OmemoSessionRecord
@@ -510,7 +510,7 @@ public class StorageTests : IDisposable
     public async Task RosterRepository_UpsertAndGet_Succeeds()
     {
         var repo = new RosterRepository(_context);
-        string account = "alice@example.com";
+        var account = "alice@example.com";
 
         var contact = new RosterContact
         {
@@ -533,8 +533,8 @@ public class StorageTests : IDisposable
     public async Task RosterRepository_RemoveContact_RemovesSpecifiedContactOnly()
     {
         var repo = new RosterRepository(_context);
-        string account1 = "alice@example.com";
-        string account2 = "bob@example.com";
+        var account1 = "alice@example.com";
+        var account2 = "bob@example.com";
 
         var contact1 = new RosterContact
         {
@@ -591,8 +591,8 @@ public class StorageTests : IDisposable
     public async Task RosterRepository_IndividualVsBatchUpserts_PerformanceComparison()
     {
         var repo = new RosterRepository(_context);
-        string account = "alice@example.com";
-        int count = 200;
+        var account = "alice@example.com";
+        var count = 200;
 
         var contacts1 = Enumerable.Range(1, count).Select(i => new RosterContact
         {
@@ -634,8 +634,8 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_SaveMessagesAsync_SavesAndDeduplicatesCorrectly()
     {
         var repo = new MessageRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
         var t0 = DateTimeOffset.UtcNow.AddHours(-1);
 
         var batch1 = new List<ChatMessage>
@@ -697,9 +697,9 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_PerformanceBenchmark()
     {
         var repo = new MessageRepository(_context);
-        string account = "alice@example.com";
-        string remote = "bob@example.com";
-        int messageCount = 500;
+        var account = "alice@example.com";
+        var remote = "bob@example.com";
+        var messageCount = 500;
 
         var messagesBatch = new List<ChatMessage>(messageCount);
         var baseTime = DateTimeOffset.UtcNow.AddDays(-1);
@@ -732,9 +732,9 @@ public class StorageTests : IDisposable
     public async Task MessageRepository_GetLatestMessageTimestampAndSummaries_WorkCorrectly()
     {
         var repo = new MessageRepository(_context);
-        string account = "user@example.com";
-        string remote1 = "bob@example.com";
-        string remote2 = "carol@example.com";
+        var account = "user@example.com";
+        var remote1 = "bob@example.com";
+        var remote2 = "carol@example.com";
 
         var t1 = DateTimeOffset.UtcNow.AddMinutes(-30);
         var t2 = DateTimeOffset.UtcNow.AddMinutes(-10);
@@ -798,7 +798,7 @@ public class StorageTests : IDisposable
     [Fact]
     public void DatabaseContext_GetDefaultDatabasePath_ReturnsValidAppDataPath()
     {
-        string defaultPath = DatabaseContext.GetDefaultDatabasePath();
+        var defaultPath = DatabaseContext.GetDefaultDatabasePath();
         Assert.False(string.IsNullOrWhiteSpace(defaultPath));
         Assert.EndsWith("netchatx.db", defaultPath, StringComparison.OrdinalIgnoreCase);
         Assert.True(Directory.Exists(Path.GetDirectoryName(defaultPath)));

@@ -20,7 +20,7 @@ public class ChatHistoryTests : IDisposable
     public async Task MessageRepository_SearchMessages_FindsMatchingText()
     {
         var repo = new MessageRepository(_context);
-        string account = "user@test.org";
+        var account = "user@test.org";
 
         await repo.SaveMessageAsync(new ChatMessage
         {
@@ -55,8 +55,8 @@ public class ChatHistoryTests : IDisposable
     public async Task MessageRepository_RawXml_SavesAndRetrievesXml()
     {
         var repo = new MessageRepository(_context);
-        string account = "user@test.org";
-        string expectedXml = "<message to='remote@test.org' type='chat'><body>Test XML message</body></message>";
+        var account = "user@test.org";
+        var expectedXml = "<message to='remote@test.org' type='chat'><body>Test XML message</body></message>";
 
         var msg = new ChatMessage
         {

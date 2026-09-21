@@ -339,11 +339,11 @@ public partial class MainChatView : UserControl
 
             if (e.Key is Key.Enter or Key.Return)
             {
-                bool sendOnEnter = mainVm.SendOnEnter;
-                bool isCtrlOrMeta = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
-                bool isShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                var sendOnEnter = mainVm.SendOnEnter;
+                var isCtrlOrMeta = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+                var isShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
-                bool shouldSend = sendOnEnter ? (!isShift && !isCtrlOrMeta) : isCtrlOrMeta;
+                var shouldSend = sendOnEnter ? (!isShift && !isCtrlOrMeta) : isCtrlOrMeta;
 
                 if (!shouldSend)
                 {
@@ -353,14 +353,14 @@ public partial class MainChatView : UserControl
 
                 // Check for code block trigger or send message
                 textBox = sender as TextBox;
-                string currentText = textBox?.Text ?? conv.InputText;
+                var currentText = textBox?.Text ?? conv.InputText;
 
                 // If user typed ``` or ```<lang> and pressed Enter, open the Code Block Editor
-                string trimmed = currentText.Trim();
+                var trimmed = currentText.Trim();
                 if (trimmed.StartsWith("```") && !trimmed.Contains('\n') && !trimmed.Contains('\r'))
                 {
                     e.Handled = true;
-                    string langHint = trimmed.Length > 3 ? trimmed[3..].Trim() : string.Empty;
+                    var langHint = trimmed.Length > 3 ? trimmed[3..].Trim() : string.Empty;
 
                     if (textBox is not null)
                     {
@@ -372,8 +372,8 @@ public partial class MainChatView : UserControl
                     return;
                 }
 
-                bool hasText = !string.IsNullOrWhiteSpace(currentText);
-                bool hasPendingImage = conv.HasPendingImage;
+                var hasText = !string.IsNullOrWhiteSpace(currentText);
+                var hasPendingImage = conv.HasPendingImage;
 
                 if (hasText || hasPendingImage)
                 {
@@ -408,14 +408,14 @@ public partial class MainChatView : UserControl
             if (DataContext is not MainChatViewModel mainVm || mainVm.ActiveConversation is null) return;
             if (_messageInputBox is null) return;
 
-            string? inputText = e.Text;
+            var inputText = e.Text;
             if (string.IsNullOrEmpty(inputText)) return;
 
             // Check if typing a single backtick that completes 3 consecutive backticks
             if (inputText == "`")
             {
-                int caret = _messageInputBox.CaretIndex;
-                string current = _messageInputBox.Text ?? string.Empty;
+                var caret = _messageInputBox.CaretIndex;
+                var current = _messageInputBox.Text ?? string.Empty;
 
                 // Check if the preceding 2 characters before caret are "``"
                 if (caret >= 2 && current.Length >= 2 &&
@@ -430,7 +430,7 @@ public partial class MainChatView : UserControl
                     e.Handled = true;
 
                     // Remove the two preceding backticks from the input box
-                    string updated = current.Remove(caret - 2, 2);
+                    var updated = current.Remove(caret - 2, 2);
                     _messageInputBox.Text = updated;
                     _messageInputBox.CaretIndex = caret - 2;
                     mainVm.ActiveConversation.InputText = updated;
@@ -443,7 +443,7 @@ public partial class MainChatView : UserControl
             else if (inputText == "```")
             {
                 e.Handled = true;
-                int caret = _messageInputBox.CaretIndex;
+                var caret = _messageInputBox.CaretIndex;
                 mainVm.OpenCodeBlockEditor(initialCode: string.Empty, insertionIndex: caret);
                 return;
             }
@@ -458,8 +458,8 @@ public partial class MainChatView : UserControl
     {
         if (DataContext is not MainChatViewModel mainVm || mainVm.ActiveConversation is null) return;
 
-        string selectedText = _messageInputBox?.SelectedText ?? string.Empty;
-        int caretIndex = _messageInputBox?.CaretIndex ?? -1;
+        var selectedText = _messageInputBox?.SelectedText ?? string.Empty;
+        var caretIndex = _messageInputBox?.CaretIndex ?? -1;
 
         mainVm.OpenCodeBlockEditor(initialCode: selectedText, insertionIndex: caretIndex);
     }

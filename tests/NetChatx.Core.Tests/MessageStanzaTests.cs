@@ -241,7 +241,7 @@ public class MessageStanzaTests
     public void CreateGroupChat_WithoutFrom_SetsPropertiesCorrectly()
     {
         var roomJid = Jid.Parse("room@conference.example.com");
-        string bodyText = "Hello room!";
+        var bodyText = "Hello room!";
 
         var stanza = MessageStanza.CreateGroupChat(roomJid, bodyText);
 
@@ -256,7 +256,7 @@ public class MessageStanzaTests
     {
         var roomJid = Jid.Parse("room@conference.example.com");
         var senderJid = Jid.Parse("user@example.com/res");
-        string bodyText = "Hello room with from!";
+        var bodyText = "Hello room with from!";
 
         var stanza = MessageStanza.CreateGroupChat(roomJid, bodyText, senderJid);
 
@@ -270,7 +270,7 @@ public class MessageStanzaTests
     public void CreateChat_WithoutFrom_SetsPropertiesCorrectly()
     {
         var recipientJid = Jid.Parse("alice@example.com");
-        string bodyText = "Hello Alice!";
+        var bodyText = "Hello Alice!";
 
         var stanza = MessageStanza.CreateChat(recipientJid, bodyText);
 
@@ -285,7 +285,7 @@ public class MessageStanzaTests
     {
         var recipientJid = Jid.Parse("alice@example.com");
         var senderJid = Jid.Parse("bob@example.com/mobile");
-        string bodyText = "Hello Alice from Bob!";
+        var bodyText = "Hello Alice from Bob!";
 
         var stanza = MessageStanza.CreateChat(recipientJid, bodyText, senderJid);
 

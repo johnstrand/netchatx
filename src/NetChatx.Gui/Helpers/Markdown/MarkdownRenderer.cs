@@ -36,7 +36,7 @@ public static class MarkdownRenderer
         for (int b = 0; b < document.Blocks.Count; b++)
         {
             var block = document.Blocks[b];
-            bool isLast = b == document.Blocks.Count - 1;
+            var isLast = b == document.Blocks.Count - 1;
 
             if (block is MarkdownParagraph paragraph)
             {
@@ -50,7 +50,7 @@ public static class MarkdownRenderer
             {
                 if (inlines.Count > 0) inlines.Add(new LineBreak());
 
-                double sizeMultiplier = header.Level switch
+                var sizeMultiplier = header.Level switch
                 {
                     1 => 1.35,
                     2 => 1.20,
@@ -90,7 +90,7 @@ public static class MarkdownRenderer
                 for (int i = 0; i < list.Items.Count; i++)
                 {
                     var item = list.Items[i];
-                    string prefix = list.IsOrdered ? $"{item.Number}. " : "•  ";
+                    var prefix = list.IsOrdered ? $"{item.Number}. " : "•  ";
                     var run = new Run(prefix)
                     {
                         FontWeight = FontWeight.SemiBold,
@@ -282,7 +282,7 @@ public static class MarkdownRenderer
             Margin = new Thickness(0, 0, 0, 4)
         };
 
-        string langDisplay = !string.IsNullOrEmpty(codeBlock.Language) ? codeBlock.Language : "code";
+        var langDisplay = !string.IsNullOrEmpty(codeBlock.Language) ? codeBlock.Language : "code";
         var langTb = new TextBlock
         {
             Text = langDisplay,

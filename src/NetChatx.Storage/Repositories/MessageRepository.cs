@@ -232,7 +232,7 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$replace_id", (object?)replacementStanzaId ?? targetId);
         cmd.Parameters.AddWithValue("$body", newBody);
 
-        int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return rows > 0;
     }
 
@@ -271,7 +271,7 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$id", messageId);
 
-        int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         return rows > 0;
@@ -290,7 +290,7 @@ public sealed class MessageRepository
         using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         // Normalize sender JID: for 1:1 chats, use bare JID so multiple resources of the same contact/user don't accumulate duplicates
-        string normalizedSenderJid = senderJid;
+        var normalizedSenderJid = senderJid;
         if (!isGroupChat)
         {
             var slashIdx = senderJid.IndexOf('/');
@@ -301,7 +301,7 @@ public sealed class MessageRepository
         }
 
         // Find actual message ID if targetMessageId matches stanza_id or origin_id
-        string canonicalMessageId = targetMessageId;
+        var canonicalMessageId = targetMessageId;
         using (var findCmd = connection.CreateCommand())
         {
             findCmd.Transaction = (SqliteTransaction)transaction;
@@ -427,7 +427,7 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$messageId", messageId);
 
-        int rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return rows > 0;
     }
 
@@ -531,9 +531,9 @@ public sealed class MessageRepository
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            string remote = reader.GetString(0);
-            int unread = reader.IsDBNull(1) ? 0 : Convert.ToInt32(reader.GetValue(1));
-            string? lastBody = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var remote = reader.GetString(0);
+            var unread = reader.IsDBNull(1) ? 0 : Convert.ToInt32(reader.GetValue(1));
+            var lastBody = reader.IsDBNull(2) ? null : reader.GetString(2);
             result[remote] = (unread, lastBody);
         }
 

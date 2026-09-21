@@ -44,10 +44,10 @@ public sealed class Xep0424MessageRetraction : XepFeatureBase
             var retractElem = element.Element("retract", NsRetraction1) ?? element.Element("retract", NsRetraction0);
             if (retractElem is not null)
             {
-                string? targetId = retractElem.GetAttr("id");
+                var targetId = retractElem.GetAttr("id");
                 if (!string.IsNullOrEmpty(targetId))
                 {
-                    string? fromStr = element.GetAttr("from");
+                    var fromStr = element.GetAttr("from");
                     Jid.TryParse(fromStr, out var fromJid);
                     MessageRetracted?.Invoke(targetId, fromJid);
                     return ValueTask.FromResult(false);

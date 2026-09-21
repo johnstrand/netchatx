@@ -35,7 +35,7 @@ public static class GifDecoder
                 return null;
             }
 
-            int frameCount = Math.Min(codec.FrameCount, maxFrames);
+            var frameCount = Math.Min(codec.FrameCount, maxFrames);
             var frames = new List<(Bitmap Bitmap, int DurationMs)>(frameCount);
 
             var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
@@ -45,7 +45,7 @@ public static class GifDecoder
             for (int i = 0; i < frameCount; i++)
             {
                 var frameInfo = codec.FrameInfo[i];
-                int duration = frameInfo.Duration;
+                var duration = frameInfo.Duration;
                 if (duration <= 10) duration = 100; // 100ms default for 0 or sub-10ms frame delays
 
                 using var frameBitmap = new SKBitmap(info);

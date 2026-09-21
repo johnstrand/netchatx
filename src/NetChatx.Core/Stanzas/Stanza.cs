@@ -20,11 +20,11 @@ public abstract class Stanza
         Id = element.GetAttr("id");
         Type = element.GetAttr("type");
 
-        string? toStr = element.GetAttr("to");
+        var toStr = element.GetAttr("to");
         if (!string.IsNullOrEmpty(toStr) && Jid.TryParse(toStr, out var toJid))
             To = toJid;
 
-        string? fromStr = element.GetAttr("from");
+        var fromStr = element.GetAttr("from");
         if (!string.IsNullOrEmpty(fromStr) && Jid.TryParse(fromStr, out var fromJid))
             From = fromJid;
     }

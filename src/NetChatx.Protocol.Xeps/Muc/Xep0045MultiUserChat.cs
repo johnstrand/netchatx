@@ -96,15 +96,15 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
     {
         if (element.Name == "presence")
         {
-            string? fromStr = element.GetAttr("from");
+            var fromStr = element.GetAttr("from");
             if (!string.IsNullOrEmpty(fromStr) && Jid.TryParse(fromStr, out var fromJid) && fromJid.IsFull)
             {
                 var roomJid = fromJid.BareJid;
                 if (_joinedRooms.TryGetValue(roomJid, out var room))
                 {
-                    string nick = fromJid.Resource!;
-                    string? type = element.GetAttr("type");
-                    bool isUnavailable = string.Equals(type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase);
+                    var nick = fromJid.Resource!;
+                    var type = element.GetAttr("type");
+                    var isUnavailable = string.Equals(type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase);
 
                     var mucUser = element.Element("x", NsMucUser);
                     var item = mucUser?.Element("item");
@@ -123,7 +123,7 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
                         {
                             occupant.Affiliation = item.GetAttr("affiliation") ?? occupant.Affiliation;
                             occupant.Role = item.GetAttr("role") ?? occupant.Role;
-                            string? jidStr = item.GetAttr("jid");
+                            var jidStr = item.GetAttr("jid");
                             if (!string.IsNullOrEmpty(jidStr) && Jid.TryParse(jidStr, out var realJid))
                             {
                                 occupant.RealJid = realJid;
@@ -137,13 +137,13 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
         }
         else if (element.Name == "message" && element.GetAttr("type") == "groupchat")
         {
-            string? fromStr = element.GetAttr("from");
+            var fromStr = element.GetAttr("from");
             if (!string.IsNullOrEmpty(fromStr) && Jid.TryParse(fromStr, out var fromJid))
             {
                 var roomJid = fromJid.BareJid;
                 if (_joinedRooms.TryGetValue(roomJid, out var room))
                 {
-                    string? subject = element.Element("subject")?.Value;
+                    var subject = element.Element("subject")?.Value;
                     if (subject is not null && subject != room.Subject)
                     {
                         room.Subject = subject;

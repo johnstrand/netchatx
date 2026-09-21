@@ -41,7 +41,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (activeAccount is not null)
         {
             StatusText = $"Auto-connecting to {activeAccount.Jid}...";
-            bool success = await ConnectWithProfileAsync(activeAccount);
+            var success = await ConnectWithProfileAsync(activeAccount);
             if (success) return;
         }
 

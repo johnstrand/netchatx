@@ -60,13 +60,13 @@ public sealed class Xep0444Reactions : XepFeatureBase
         var reactionsElem = messageElem.Element("reactions", NsReactions);
         if (reactionsElem is null) return false;
 
-        string? targetId = reactionsElem.GetAttr("id");
+        var targetId = reactionsElem.GetAttr("id");
         if (string.IsNullOrEmpty(targetId)) return false;
 
-        string? fromStr = messageElem.GetAttr("from");
-        string? toStr = messageElem.GetAttr("to");
-        string? msgType = messageElem.GetAttr("type");
-        bool isGroupChat = string.Equals(msgType, MessageStanza.TypeGroupChat, StringComparison.OrdinalIgnoreCase);
+        var fromStr = messageElem.GetAttr("from");
+        var toStr = messageElem.GetAttr("to");
+        var msgType = messageElem.GetAttr("type");
+        var isGroupChat = string.Equals(msgType, MessageStanza.TypeGroupChat, StringComparison.OrdinalIgnoreCase);
 
         Jid senderJid;
         Jid remoteJid;
@@ -88,7 +88,7 @@ public sealed class Xep0444Reactions : XepFeatureBase
             remoteJid = isGroupChat ? fromJid.BareJid : fromJid.BareJid;
         }
 
-        List<string> emojiList = reactionsElem.Elements("reaction")
+        var emojiList = reactionsElem.Elements("reaction")
             .Select(r => r.Value)
             .Where(val => !string.IsNullOrWhiteSpace(val))
             .Select(val => val!)

@@ -36,7 +36,7 @@ public static class SlashCommandProcessor
             return new SlashCommandResult { Type = SlashCommandResultType.Handled };
         }
 
-        string trimmed = input.Trim();
+        var trimmed = input.Trim();
 
         // Escaped slash: `//command` -> send `/command`
         if (trimmed.StartsWith("//", StringComparison.Ordinal))
@@ -59,9 +59,9 @@ public static class SlashCommandProcessor
         }
 
         // Extract command and arguments
-        int spaceIdx = trimmed.IndexOf(' ');
-        string commandName = (spaceIdx < 0 ? trimmed.Substring(1) : trimmed.Substring(1, spaceIdx - 1)).ToLowerInvariant();
-        string args = spaceIdx < 0 ? string.Empty : trimmed.Substring(spaceIdx + 1).Trim();
+        var spaceIdx = trimmed.IndexOf(' ');
+        var commandName = (spaceIdx < 0 ? trimmed.Substring(1) : trimmed.Substring(1, spaceIdx - 1)).ToLowerInvariant();
+        var args = spaceIdx < 0 ? string.Empty : trimmed.Substring(spaceIdx + 1).Trim();
 
         return commandName switch
         {
@@ -106,7 +106,7 @@ public static class SlashCommandProcessor
 
     private static SlashCommandResult ProcessEmoticonCommand(string emoticon, string args)
     {
-        string text = string.IsNullOrWhiteSpace(args)
+        var text = string.IsNullOrWhiteSpace(args)
             ? emoticon
             : $"{args} {emoticon}";
 
@@ -128,11 +128,11 @@ public static class SlashCommandProcessor
             };
         }
 
-        int spaceIdx = args.IndexOf(' ');
-        string show = (spaceIdx < 0 ? args : args.Substring(0, spaceIdx)).ToLowerInvariant();
-        string? statusMsg = spaceIdx < 0 ? null : args.Substring(spaceIdx + 1).Trim();
+        var spaceIdx = args.IndexOf(' ');
+        var show = (spaceIdx < 0 ? args : args.Substring(0, spaceIdx)).ToLowerInvariant();
+        var statusMsg = spaceIdx < 0 ? null : args.Substring(spaceIdx + 1).Trim();
 
-        string normalizedShow = show switch
+        var normalizedShow = show switch
         {
             "available" or "online" => "available",
             "away" => "away",
@@ -214,9 +214,9 @@ public static class SlashCommandProcessor
             };
         }
 
-        int spaceIdx = args.IndexOf(' ');
-        string jid = spaceIdx < 0 ? args : args.Substring(0, spaceIdx).Trim();
-        string? msg = spaceIdx < 0 ? null : args.Substring(spaceIdx + 1).Trim();
+        var spaceIdx = args.IndexOf(' ');
+        var jid = spaceIdx < 0 ? args : args.Substring(0, spaceIdx).Trim();
+        var msg = spaceIdx < 0 ? null : args.Substring(spaceIdx + 1).Trim();
 
         return new SlashCommandResult
         {

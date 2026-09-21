@@ -144,7 +144,7 @@ public class HelperAndViewModelCoverageTests
     [Fact]
     public async Task OmemoDeviceItemViewModel_PropertiesAndToggleTrust_WorkAsExpected()
     {
-        string dbPath = Path.Combine(Path.GetTempPath(), $"netchatx_omemo_test_{Guid.NewGuid():N}.db");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"netchatx_omemo_test_{Guid.NewGuid():N}.db");
         var context = new DatabaseContext(dbPath);
         var repo = new OmemoRepository(context);
 
@@ -268,7 +268,7 @@ public class HelperAndViewModelCoverageTests
         Assert.Equal("contact@chat.example", vm.ContactJid);
         Assert.Empty(vm.Devices);
 
-        string dbPath = Path.Combine(Path.GetTempPath(), $"netchatx_details_test_{Guid.NewGuid():N}.db");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"netchatx_details_test_{Guid.NewGuid():N}.db");
         var context = new DatabaseContext(dbPath);
         var repo = new OmemoRepository(context);
 
@@ -291,7 +291,7 @@ public class HelperAndViewModelCoverageTests
     public void LinkParser_MarkdownLinksAndBrackets_ParseCorrectly()
     {
         // 1. Markdown link format
-        string mdText = "Here is [Project Source](https://github.com/johnstrand/netchatx) for review.";
+        var mdText = "Here is [Project Source](https://github.com/johnstrand/netchatx) for review.";
         var segments = LinkParser.Parse(mdText);
         Assert.Equal(3, segments.Count);
         Assert.Equal("Here is ", segments[0].Text);
@@ -305,13 +305,13 @@ public class HelperAndViewModelCoverageTests
         Assert.False(segments[2].IsLink);
 
         // 2. Markdown link with invalid URL is treated as normal text
-        string badMd = "Check [Invalid](not-a-valid-url) here";
+        var badMd = "Check [Invalid](not-a-valid-url) here";
         var badSegments = LinkParser.Parse(badMd);
         Assert.Single(badSegments);
         Assert.False(badSegments[0].IsLink);
 
         // 3. Square and Curly bracket trimming
-        string bracketText = "Open [https://example.com/one] and {https://example.com/two} please";
+        var bracketText = "Open [https://example.com/one] and {https://example.com/two} please";
         var bracketSegments = LinkParser.Parse(bracketText);
         var links = bracketSegments.Where(s => s.IsLink).ToList();
         Assert.Equal(2, links.Count);
@@ -395,7 +395,7 @@ public class HelperAndViewModelCoverageTests
     [AvaloniaFact]
     public void LoginView_EnterInPasswordField_TriggersConnect()
     {
-        bool loginInvoked = false;
+        var loginInvoked = false;
         var vm = new LoginViewModel(profile =>
         {
             loginInvoked = true;

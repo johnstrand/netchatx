@@ -16,7 +16,7 @@ public class LinkTests
     [Fact]
     public void LinkParser_PlainText_ReturnsSingleNonLinkSegment()
     {
-        string text = "Hello, this is a plain message with no links!";
+        var text = "Hello, this is a plain message with no links!";
         var segments = LinkParser.Parse(text);
 
         Assert.Single(segments);
@@ -27,7 +27,7 @@ public class LinkTests
     [Fact]
     public void LinkParser_SingleHttpAndHttpsUrls_ExtractedProperly()
     {
-        string text = "Check out https://github.com/johnstrand/netchatx for code";
+        var text = "Check out https://github.com/johnstrand/netchatx for code";
         var segments = LinkParser.Parse(text);
 
         Assert.Equal(3, segments.Count);
@@ -45,7 +45,7 @@ public class LinkTests
     [Fact]
     public void LinkParser_TrailingPunctuation_ExcludedFromUrl()
     {
-        string text = "Visit https://example.com/test. Have you seen https://another.com/path, right?";
+        var text = "Visit https://example.com/test. Have you seen https://another.com/path, right?";
         var segments = LinkParser.Parse(text);
 
         var links = segments.Where(s => s.IsLink).ToList();
@@ -54,7 +54,7 @@ public class LinkTests
         Assert.Equal("https://another.com/path", links[1].Text);
 
         // Invariant: concatenated segment texts equal original string
-        string reconstructed = string.Join("", segments.Select(s => s.Text));
+        var reconstructed = string.Join("", segments.Select(s => s.Text));
         Assert.Equal(text, reconstructed);
     }
 
@@ -62,14 +62,14 @@ public class LinkTests
     public void LinkParser_ParenthesesInUrl_BalancedKept_UnbalancedExcluded()
     {
         // 1. Unbalanced: (https://example.com)
-        string text1 = "Look at this (https://example.com)!";
+        var text1 = "Look at this (https://example.com)!";
         var segments1 = LinkParser.Parse(text1);
         var link1 = segments1.First(s => s.IsLink);
         Assert.Equal("https://example.com", link1.Text);
         Assert.Equal(text1, string.Join("", segments1.Select(s => s.Text)));
 
         // 2. Balanced in Wikipedia: https://en.wikipedia.org/wiki/C_(programming_language)
-        string text2 = "Read https://en.wikipedia.org/wiki/C_(programming_language) here.";
+        var text2 = "Read https://en.wikipedia.org/wiki/C_(programming_language) here.";
         var segments2 = LinkParser.Parse(text2);
         var link2 = segments2.First(s => s.IsLink);
         Assert.Equal("https://en.wikipedia.org/wiki/C_(programming_language)", link2.Text);
@@ -79,7 +79,7 @@ public class LinkTests
     [Fact]
     public void LinkParser_WwwPrefix_NormalizesToHttps()
     {
-        string text = "Search on www.google.com today";
+        var text = "Search on www.google.com today";
         var segments = LinkParser.Parse(text);
 
         Assert.Equal(3, segments.Count);
@@ -91,7 +91,7 @@ public class LinkTests
     [Fact]
     public void LinkParser_MailtoAndXmpp_ExtractedProperly()
     {
-        string text = "Email mailto:support@netchatx.org or join xmpp:team@conference.netchatx.org?join";
+        var text = "Email mailto:support@netchatx.org or join xmpp:team@conference.netchatx.org?join";
         var segments = LinkParser.Parse(text);
 
         var links = segments.Where(s => s.IsLink).ToList();

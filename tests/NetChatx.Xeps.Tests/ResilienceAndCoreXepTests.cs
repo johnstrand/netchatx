@@ -44,7 +44,7 @@ public class ResilienceAndCoreXepTests
         // 2. Process enabled stanza
         var enabledElem = new XmppElement("enabled", Xep0198StreamManagement.NsSm)
             .Attr("id", "resume_token_999");
-        bool pass = await sm.OnIncomingElementAsync(client, enabledElem);
+        var pass = await sm.OnIncomingElementAsync(client, enabledElem);
         Assert.False(pass); // Consumed by SM
         Assert.True(sm.IsEnabled);
         Assert.Equal("resume_token_999", sm.ResumeId);
@@ -131,12 +131,12 @@ public class ResilienceAndCoreXepTests
             .Attr("to", "user@example.com")
             .Child(new XmppElement("ping", Xep0199Ping.NsPing));
 
-        bool handled = await ping.OnIncomingElementAsync(client, pingIq);
+        var handled = await ping.OnIncomingElementAsync(client, pingIq);
         Assert.False(handled); // Consumed and responded with pong
 
         // Other elements should pass through
         var otherIq = new XmppElement("iq").Attr("type", "get").Attr("id", "other_1");
-        bool passed = await ping.OnIncomingElementAsync(client, otherIq);
+        var passed = await ping.OnIncomingElementAsync(client, otherIq);
         Assert.True(passed);
     }
 
@@ -163,7 +163,7 @@ public class ResilienceAndCoreXepTests
             .Attr("to", "user@example.com")
             .Child(new XmppElement("query", Xep0030ServiceDiscovery.NsInfo));
 
-        bool handled = await disco.OnIncomingElementAsync(client, queryIq);
+        var handled = await disco.OnIncomingElementAsync(client, queryIq);
         Assert.False(handled); // Consumed by disco
     }
 
@@ -231,7 +231,7 @@ public class ResilienceAndCoreXepTests
                     .Attr("jid", "bob@example.com/laptop")))
             .Child(new XmppElement("status") { Value = "Online and coding" });
 
-        bool handled = await muc.OnIncomingElementAsync(client, occPresence);
+        var handled = await muc.OnIncomingElementAsync(client, occPresence);
         Assert.NotNull(changedOccupant);
         Assert.Equal("Bob", changedOccupant.Nickname);
         Assert.Equal("member", changedOccupant.Affiliation);
@@ -275,7 +275,7 @@ public class ResilienceAndCoreXepTests
     [Fact]
     public void DoubleRatchetSession_EncryptionDecryptionExchange_Works()
     {
-        byte[] rootKey = new byte[32];
+        var rootKey = new byte[32];
         System.Security.Cryptography.RandomNumberGenerator.Fill(rootKey);
 
         var aliceDh = OmemoCrypto.GenerateX25519KeyPair();
@@ -351,13 +351,13 @@ public class ResilienceAndCoreXepTests
 
         foreach (var state in new[] { ChatState.Composing, ChatState.Paused, ChatState.Inactive, ChatState.Gone, ChatState.Active })
         {
-            string stateName = state.ToString().ToLowerInvariant();
+            var stateName = state.ToString().ToLowerInvariant();
             var msg = new XmppElement("message")
                 .Attr("from", "bob@example.com/phone")
                 .Attr("to", "alice@example.com")
                 .Child(new XmppElement(stateName, Xep0085ChatStates.NsChatStates));
 
-            bool pass = await chatStates.OnIncomingElementAsync(client, msg);
+            var pass = await chatStates.OnIncomingElementAsync(client, msg);
             Assert.True(pass);
             Assert.Equal(state, receivedState);
             Assert.Equal("bob@example.com", senderJid?.BareJid.ToString());
@@ -404,7 +404,7 @@ public class ResilienceAndCoreXepTests
             .Attr("id", "msg_receipt_1")
             .Child(new XmppElement("request", Xep0184MessageDeliveryReceipts.NsReceipts));
 
-        bool pass = await receipts.OnIncomingElementAsync(client, inboundMsg);
+        var pass = await receipts.OnIncomingElementAsync(client, inboundMsg);
         Assert.True(pass);
 
         // 3. Incoming receipt raises event
@@ -450,7 +450,7 @@ public class ResilienceAndCoreXepTests
             .Child(new XmppElement("body") { Value = "corrected body" })
             .Child(new XmppElement("replace", Xep0308LastMessageCorrection.NsCorrection).Attr("id", "orig_1"));
 
-        bool handled = await correction.OnIncomingElementAsync(client, replaceElem);
+        var handled = await correction.OnIncomingElementAsync(client, replaceElem);
         Assert.False(handled); // Consumed
         Assert.Equal("orig_1", correctedOrigId);
     }
@@ -481,7 +481,7 @@ public class ResilienceAndCoreXepTests
         string? retractedMsgId = null;
         retraction.MessageRetracted += (id, sender) => retractedMsgId = id;
 
-        bool handled = await retraction.OnIncomingElementAsync(client, stanza.RawElement);
+        var handled = await retraction.OnIncomingElementAsync(client, stanza.RawElement);
         Assert.False(handled); // Consumed
         Assert.Equal("target_99", retractedMsgId);
     }

@@ -25,10 +25,10 @@ public sealed class Xep0184MessageDeliveryReceipts : XepFeatureBase
             var received = element.Element("received", NsReceipts);
             if (received is not null)
             {
-                string? id = received.GetAttr("id");
+                var id = received.GetAttr("id");
                 if (!string.IsNullOrEmpty(id))
                 {
-                    string? fromStr = element.GetAttr("from");
+                    var fromStr = element.GetAttr("from");
                     Jid.TryParse(fromStr, out var fromJid);
                     ReceiptReceived?.Invoke(id, fromJid);
                 }
@@ -37,8 +37,8 @@ public sealed class Xep0184MessageDeliveryReceipts : XepFeatureBase
             var request = element.Element("request", NsReceipts);
             if (request is not null && AutoAcknowledge)
             {
-                string? id = element.GetAttr("id");
-                string? fromStr = element.GetAttr("from");
+                var id = element.GetAttr("id");
+                var fromStr = element.GetAttr("from");
                 if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(fromStr) && Jid.TryParse(fromStr, out var fromJid))
                 {
                     var ack = new MessageStanza(to: fromJid, type: MessageStanza.TypeNormal);

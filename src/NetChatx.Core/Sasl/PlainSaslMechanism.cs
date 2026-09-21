@@ -9,10 +9,10 @@ public sealed class PlainSaslMechanism : ISaslMechanism
     public string? CreateInitialResponse(string username, string password)
     {
         // Format: [authzid] UTF8NUL authcid UTF8NUL passwd
-        byte[] userBytes = Encoding.UTF8.GetBytes(username);
-        byte[] passBytes = Encoding.UTF8.GetBytes(password);
+        var userBytes = Encoding.UTF8.GetBytes(username);
+        var passBytes = Encoding.UTF8.GetBytes(password);
 
-        byte[] payload = new byte[userBytes.Length + passBytes.Length + 2];
+        var payload = new byte[userBytes.Length + passBytes.Length + 2];
         payload[0] = 0; // null separator
         Buffer.BlockCopy(userBytes, 0, payload, 1, userBytes.Length);
         payload[userBytes.Length + 1] = 0; // null separator

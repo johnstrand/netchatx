@@ -19,25 +19,25 @@ public class CoreProtocolCoverageTests
         var client = new ScramSaslMechanism(isSha256: false);
         Assert.Equal("SCRAM-SHA-1", client.Name);
 
-        string? clientFirstB64 = client.CreateInitialResponse("user", "pencil");
+        var clientFirstB64 = client.CreateInitialResponse("user", "pencil");
         Assert.NotNull(clientFirstB64);
 
-        string clientFirst = Encoding.UTF8.GetString(Convert.FromBase64String(clientFirstB64));
-        string clientNonce = clientFirst.Substring("n,,n=user,r=".Length);
+        var clientFirst = Encoding.UTF8.GetString(Convert.FromBase64String(clientFirstB64));
+        var clientNonce = clientFirst.Substring("n,,n=user,r=".Length);
 
-        string serverNonce = clientNonce + "servernonce123";
-        string saltB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("random_salt_sha1"));
-        string serverFirst = $"r={serverNonce},s={saltB64},i=4096";
-        string serverFirstB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(serverFirst));
+        var serverNonce = clientNonce + "servernonce123";
+        var saltB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("random_salt_sha1"));
+        var serverFirst = $"r={serverNonce},s={saltB64},i=4096";
+        var serverFirstB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(serverFirst));
 
-        string? clientFinalB64 = client.HandleChallenge(serverFirstB64, "pencil");
+        var clientFinalB64 = client.HandleChallenge(serverFirstB64, "pencil");
         Assert.NotNull(clientFinalB64);
 
         // Verify failure cases in VerifySuccess
         Assert.False(client.VerifySuccess(null));
         Assert.False(client.VerifySuccess(""));
-        string fakeSigB64 = Convert.ToBase64String(new byte[20]);
-        string fakeSuccess = $"v={fakeSigB64}";
+        var fakeSigB64 = Convert.ToBase64String(new byte[20]);
+        var fakeSuccess = $"v={fakeSigB64}";
         Assert.False(client.VerifySuccess(Convert.ToBase64String(Encoding.UTF8.GetBytes(fakeSuccess))));
     }
 
@@ -52,12 +52,12 @@ public class CoreProtocolCoverageTests
         client.CreateInitialResponse("user", "password");
 
         // Missing attributes in server message
-        string malformed = Convert.ToBase64String(Encoding.UTF8.GetBytes("invalid_format"));
+        var malformed = Convert.ToBase64String(Encoding.UTF8.GetBytes("invalid_format"));
         Assert.Throws<FormatException>(() => client.HandleChallenge(malformed, "password"));
 
         // Nonce mismatch
-        string badNonceMsg = $"r=different_nonce,s={Convert.ToBase64String("salt"u8.ToArray())},i=4096";
-        string badNonceB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(badNonceMsg));
+        var badNonceMsg = $"r=different_nonce,s={Convert.ToBase64String("salt"u8.ToArray())},i=4096";
+        var badNonceB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(badNonceMsg));
         Assert.Throws<CryptographicException>(() => client.HandleChallenge(badNonceB64, "password"));
     }
 
@@ -111,7 +111,7 @@ public class CoreProtocolCoverageTests
         Assert.Equal("stream", header.Prefix);
 
         // 2. Message with CDATA and comments
-        string xml = "<message to='bob@example.com'><body><![CDATA[Hello <xml> in cdata]]></body><!-- comment here --><extra/></message>";
+        var xml = "<message to='bob@example.com'><body><![CDATA[Hello <xml> in cdata]]></body><!-- comment here --><extra/></message>";
         var elements = parser.ParseChunk(xml).ToList();
         Assert.Single(elements);
         var msg = elements[0];
@@ -137,7 +137,7 @@ public class CoreProtocolCoverageTests
         // 7. PipeReader async streaming with ReadAllAsync
         parser.Reset();
         var pipe = new Pipe();
-        byte[] data = Encoding.UTF8.GetBytes("<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><message><body>Hi</body></message></stream:stream>");
+        var data = Encoding.UTF8.GetBytes("<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><message><body>Hi</body></message></stream:stream>");
         await pipe.Writer.WriteAsync(data);
         await pipe.Writer.CompleteAsync();
 

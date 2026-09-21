@@ -28,7 +28,7 @@ public sealed class Xep0085ChatStates : XepFeatureBase
     {
         if (Client is null) throw new InvalidOperationException("Client not attached.");
 
-        string stateName = state switch
+        var stateName = state switch
         {
             ChatState.Active => "active",
             ChatState.Composing => "composing",
@@ -48,7 +48,7 @@ public sealed class Xep0085ChatStates : XepFeatureBase
     {
         if (element.Name == "message")
         {
-            string? fromStr = element.GetAttr("from");
+            var fromStr = element.GetAttr("from");
             if (!string.IsNullOrEmpty(fromStr) && Jid.TryParse(fromStr, out var fromJid))
             {
                 foreach (var child in element.Children)
@@ -83,7 +83,7 @@ public sealed class Xep0085ChatStates : XepFeatureBase
             (element.GetAttr("type") is "chat" or "groupchat" || string.IsNullOrEmpty(element.GetAttr("type"))) &&
             element.Element("body") is not null)
         {
-            bool hasState = element.Children.Any(c => c.Namespace == NsChatStates);
+            var hasState = element.Children.Any(c => c.Namespace == NsChatStates);
             if (!hasState)
             {
                 element.Child(new XmppElement("active", NsChatStates));
