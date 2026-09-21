@@ -596,9 +596,24 @@
                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
                                                                    Opacity="0.75" VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
+                                                                   ToolTip.Tip="{Binding ReceiptTooltip}"
                                                                    Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
                                                                    Opacity="0.9" VerticalAlignment="Center" />
                                                     </StackPanel>
+                                                </Grid>
+
+                                                <!-- Read Marker Horizontal Line Divider -->
+                                                <Grid Margin="0,8,0,4" IsVisible="{Binding ShowReadMarkerDivider}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Rectangle Grid.Column="0" Height="1" Fill="#00F0FF" Opacity="0.5" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <Border Grid.Column="1" Background="#0F172A" BorderBrush="#00F0FF" BorderThickness="1" CornerRadius="10" Padding="10,2">
+                                                        <TextBlock Text="{Binding ReadMarkerDividerText}" FontSize="10" FontWeight="SemiBold" Foreground="#67E8F9" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <Rectangle Grid.Column="2" Height="1" Fill="#00F0FF" Opacity="0.5" VerticalAlignment="Center" Margin="8,0,0,0" />
                                                 </Grid>
 
                                                 <!-- Raw XML View Container -->

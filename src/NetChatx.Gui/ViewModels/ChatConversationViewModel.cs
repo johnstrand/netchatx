@@ -46,6 +46,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
     }
 
+    private readonly Dictionary<string, (string messageId, DateTimeOffset timestamp)> _participantReadMarkers = new(StringComparer.OrdinalIgnoreCase);
+
     private System.Threading.CancellationTokenSource? _remoteComposingCts;
     private System.Threading.CancellationTokenSource? _localPauseCts;
     private ChatState? _lastSentLocalState;
@@ -368,6 +370,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     msg.IsRead = true;
                 }
             }
+            UpdateReadMarkersOnBubbles();
         }
 
         if (Dispatcher.UIThread.CheckAccess())
@@ -377,6 +380,196 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         else
         {
             Dispatcher.UIThread.Post(Apply);
+        }
+    }
+
+    public void UpdateReadMarker(string participantJid, string stanzaOrMessageId, DateTimeOffset? timestamp = null)
+    {
+        var msg = Messages.FirstOrDefault(m => m.ContainsMessageId(stanzaOrMessageId));
+        DateTimeOffset ts = timestamp ?? msg?.Timestamp ?? DateTimeOffset.UtcNow;
+        string msgId = msg?.Id ?? stanzaOrMessageId;
+
+        _participantReadMarkers[participantJid] = (msgId, ts);
+        _ = _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), participantJid, msgId, ts);
+
+        PostToUi(UpdateReadMarkersOnBubbles);
+    }
+
+    public async Task LoadReadMarkersAsync()
+    {
+        try
+        {
+            var dbMarkers = await _messageRepo.GetReadMarkersAsync(_accountJid, RemoteJid.ToString());
+            foreach (var m in dbMarkers)
+            {
+                _participantReadMarkers[m.ParticipantJid] = (m.LastReadMessageId, m.LastReadTimestamp);
+            }
+            PostToUi(UpdateReadMarkersOnBubbles);
+        }
+        catch
+        {
+            // Soft failure loading read markers
+        }
+    }
+
+    public void UpdateReadMarkersOnBubbles()
+    {
+        foreach (var b in Messages)
+        {
+            b.ShowReadMarkerDivider = false;
+            b.ReadMarkerDividerText = null;
+            b.ReceiptTooltip = null;
+        }
+
+        if (Messages.Count == 0) return;
+
+        if (!IsGroupChat)
+        {
+            string remoteJidStr = RemoteJid.BareJid.ToString();
+            string contactDisplayName = GetSenderDisplayName(remoteJidStr, MessageDirection.Inbound);
+
+            DateTimeOffset? remoteReadTs = null;
+            string? lastReadMsgId = null;
+
+            foreach (var kvp in _participantReadMarkers)
+            {
+                if (remoteReadTs == null || kvp.Value.timestamp > remoteReadTs.Value)
+                {
+                    remoteReadTs = kvp.Value.timestamp;
+                    lastReadMsgId = kvp.Value.messageId;
+                }
+            }
+
+            var lastInbound = Messages.LastOrDefault(m => m.Direction == MessageDirection.Inbound);
+            if (lastInbound != null && (remoteReadTs == null || lastInbound.Timestamp > remoteReadTs.Value))
+            {
+                remoteReadTs = lastInbound.Timestamp;
+                lastReadMsgId = lastInbound.Id;
+            }
+
+            if (remoteReadTs.HasValue)
+            {
+                MessageBubbleViewModel? lastReadBubble = null;
+                if (!string.IsNullOrEmpty(lastReadMsgId))
+                {
+                    lastReadBubble = Messages.FirstOrDefault(m => m.ContainsMessageId(lastReadMsgId));
+                }
+
+                if (lastReadBubble == null)
+                {
+                    lastReadBubble = Messages.LastOrDefault(m => m.Timestamp <= remoteReadTs.Value);
+                }
+
+                if (lastReadBubble != null)
+                {
+                    int readIndex = Messages.IndexOf(lastReadBubble);
+                    if (readIndex >= 0 && readIndex < Messages.Count - 1)
+                    {
+                        lastReadBubble.ShowReadMarkerDivider = true;
+                        lastReadBubble.ReadMarkerDividerText = $"Read by {contactDisplayName}";
+                    }
+                }
+
+                foreach (var bubble in Messages)
+                {
+                    if (bubble.IsOutbound)
+                    {
+                        if (bubble.Timestamp <= remoteReadTs.Value || bubble.IsRead)
+                        {
+                            bubble.ReceiptTooltip = $"Read by {contactDisplayName}";
+                        }
+                        else
+                        {
+                            bubble.ReceiptTooltip = "Delivered";
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (var bubble in Messages)
+                {
+                    if (bubble.IsOutbound)
+                    {
+                        bubble.ReceiptTooltip = bubble.IsRead ? $"Read by {contactDisplayName}" : "Delivered";
+                    }
+                }
+            }
+        }
+        else
+        {
+            var participantReadTimes = new Dictionary<string, (string name, DateTimeOffset ts)>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var kvp in _participantReadMarkers)
+            {
+                string pJid = kvp.Key;
+                string pName = GetSenderDisplayName(pJid, MessageDirection.Inbound);
+                participantReadTimes[pJid] = (pName, kvp.Value.timestamp);
+            }
+
+            foreach (var msg in Messages)
+            {
+                if (msg.Direction == MessageDirection.Inbound && !string.IsNullOrEmpty(msg.SenderName))
+                {
+                    string pJid = msg.SenderName;
+                    string pName = msg.SenderDisplayName;
+                    if (!participantReadTimes.TryGetValue(pJid, out var existing) || msg.Timestamp > existing.ts)
+                    {
+                        participantReadTimes[pJid] = (pName, msg.Timestamp);
+                    }
+                }
+            }
+
+            if (participantReadTimes.Count > 0)
+            {
+                DateTimeOffset everyoneReadTs = participantReadTimes.Values.Min(v => v.ts);
+
+                var everyoneReadBubble = Messages.LastOrDefault(m => m.Timestamp <= everyoneReadTs);
+                if (everyoneReadBubble != null)
+                {
+                    int readIndex = Messages.IndexOf(everyoneReadBubble);
+                    if (readIndex >= 0 && readIndex < Messages.Count - 1)
+                    {
+                        everyoneReadBubble.ShowReadMarkerDivider = true;
+                        everyoneReadBubble.ReadMarkerDividerText = "Read by everyone";
+                    }
+                }
+
+                foreach (var bubble in Messages)
+                {
+                    if (bubble.IsOutbound)
+                    {
+                        var readers = participantReadTimes.Values
+                            .Where(p => p.ts >= bubble.Timestamp)
+                            .Select(p => p.name)
+                            .Distinct()
+                            .ToList();
+
+                        if (readers.Count == participantReadTimes.Count)
+                        {
+                            bubble.ReceiptTooltip = $"Read by everyone ({string.Join(", ", readers)})";
+                        }
+                        else if (readers.Count > 0)
+                        {
+                            bubble.ReceiptTooltip = $"Read by: {string.Join(", ", readers)}";
+                        }
+                        else
+                        {
+                            bubble.ReceiptTooltip = "Delivered";
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (var bubble in Messages)
+                {
+                    if (bubble.IsOutbound)
+                    {
+                        bubble.ReceiptTooltip = "Delivered";
+                    }
+                }
+            }
         }
     }
 
@@ -450,6 +643,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         {
             AddOrUpdateMessage(msg);
         }
+        await LoadReadMarkersAsync();
         await LoadReactionsForCurrentMessagesAsync();
         UpdateDateHeaders();
         HasLoadedHistory = true;
@@ -1519,6 +1713,15 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             {
                 OldestMessageTimestamp = bubble.Timestamp;
             }
+
+            if (msg.Direction == MessageDirection.Inbound)
+            {
+                string pJid = IsGroupChat ? msg.SenderJid : RemoteJid.BareJid.ToString();
+                _participantReadMarkers[pJid] = (msg.Id, msg.Timestamp);
+                _ = _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), pJid, msg.Id, msg.Timestamp);
+            }
+
+            UpdateReadMarkersOnBubbles();
 
             MessageProcessed?.Invoke(msg);
         }
