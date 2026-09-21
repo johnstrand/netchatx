@@ -686,4 +686,57 @@ public class MessageMergingTests : IDisposable
         Assert.Equal("Original 2", bubble.Body);
         Assert.Equal("<message id='m2'><body>Original 2</body></message>", bubble.RawXml);
     }
+
+    [Fact]
+    public void MessageBubbleViewModel_MergedTextMessageAndImageMessage_HidesImageUrlInDisplayText()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var textMsg = new ChatMessage
+        {
+            Id = "msg1",
+            AccountJid = "john@squishythoughts.com",
+            RemoteJid = "richard@squishythoughts.com",
+            SenderJid = "john@squishythoughts.com/NetChatx",
+            Body = "Daemon fanns inte på storytel, men vem behöver det när man har",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now
+        };
+
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg2",
+            AccountJid = "john@squishythoughts.com",
+            RemoteJid = "richard@squishythoughts.com",
+            SenderJid = "john@squishythoughts.com/NetChatx",
+            Body = "https://chat.squishythoughts.com/upload/8419fdbf-fe77-4a92-941e-a913f8fe72b4/image_20260921_124307.png",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddSeconds(1),
+            RawXml = "<message xmlns='jabber:client'><x xmlns='jabber:x:oob'><url>https://chat.squishythoughts.com/upload/8419fdbf-fe77-4a92-941e-a913f8fe72b4/image_20260921_124307.png</url></x><body>https://chat.squishythoughts.com/upload/8419fdbf-fe77-4a92-941e-a913f8fe72b4/image_20260921_124307.png</body></message>"
+        };
+
+        // Previews enabled (default)
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(textMsg);
+        Assert.Equal("Daemon fanns inte på storytel, men vem behöver det när man har", bubble.DisplayText);
+        Assert.False(bubble.HasImage);
+
+        bubble.MergeMessage(imgMsg);
+
+        Assert.True(bubble.HasImage);
+        Assert.Equal("https://chat.squishythoughts.com/upload/8419fdbf-fe77-4a92-941e-a913f8fe72b4/image_20260921_124307.png", bubble.ImageUrl);
+        Assert.Equal("Daemon fanns inte på storytel, men vem behöver det när man har", bubble.DisplayText);
+        Assert.False(bubble.IsOnlyImage);
+        Assert.True(bubble.IsPreviewVisible);
+
+        // Toggle previews disabled -> DisplayText should return to full Body including the image URL
+        MessageBubbleViewModel.ShowInlinePreviews = false;
+        bubble.RefreshPreviewVisibility();
+
+        Assert.Equal("Daemon fanns inte på storytel, men vem behöver det när man har\nhttps://chat.squishythoughts.com/upload/8419fdbf-fe77-4a92-941e-a913f8fe72b4/image_20260921_124307.png", bubble.DisplayText);
+        Assert.False(bubble.IsPreviewVisible);
+
+        // Reset static setting
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+    }
 }
