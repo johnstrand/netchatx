@@ -1229,18 +1229,31 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         await _messageRepo.MarkMessageAsReadAsync(AccountJid, stanzaId);
 
+        string remoteJidStr = fromJid?.BareJid.ToString() ?? string.Empty;
+        string participantJidStr = fromJid?.ToString() ?? remoteJidStr;
+
+        if (!string.IsNullOrEmpty(remoteJidStr))
+        {
+            await _messageRepo.SaveReadMarkerAsync(AccountJid, remoteJidStr, participantJidStr, stanzaId);
+        }
+
         PostToUi(() =>
         {
             if (fromJid is not null)
             {
                 var conv = Conversations.FirstOrDefault(c => c.RemoteJid.EqualsBare(fromJid));
-                conv?.MarkMessageAsRead(stanzaId);
+                if (conv is not null)
+                {
+                    conv.MarkMessageAsRead(stanzaId);
+                    conv.UpdateReadMarker(participantJidStr, stanzaId);
+                }
             }
             else
             {
                 foreach (var conv in Conversations)
                 {
                     conv.MarkMessageAsRead(stanzaId);
+                    conv.UpdateReadMarker(conv.RemoteJid.ToString(), stanzaId);
                 }
             }
         });

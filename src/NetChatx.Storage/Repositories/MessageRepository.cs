@@ -540,6 +540,102 @@ public sealed class MessageRepository
         return result;
     }
 
+    public async Task SaveReadMarkerAsync(
+        string accountJid,
+        string remoteJid,
+        string participantJid,
+        string lastReadMessageId,
+        DateTimeOffset? timestamp = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(remoteJid) || string.IsNullOrEmpty(participantJid) || string.IsNullOrEmpty(lastReadMessageId))
+            return;
+
+        using var connection = _context.CreateConnection();
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        string canonicalMessageId = lastReadMessageId;
+        DateTimeOffset markerTimestamp = timestamp ?? DateTimeOffset.UtcNow;
+
+        using (var findCmd = connection.CreateCommand())
+        {
+            findCmd.Transaction = (SqliteTransaction)transaction;
+            findCmd.CommandText = """
+                SELECT id, timestamp FROM messages
+                WHERE account_jid = $account_jid
+                  AND (id = $target_id OR stanza_id = $target_id OR origin_id = $target_id)
+                LIMIT 1;
+            """;
+            findCmd.Parameters.AddWithValue("$account_jid", accountJid);
+            findCmd.Parameters.AddWithValue("$target_id", lastReadMessageId);
+
+            using var reader = await findCmd.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                canonicalMessageId = reader.GetString(0);
+                if (!timestamp.HasValue && DateTimeOffset.TryParse(reader.GetString(1), out var msgTs))
+                {
+                    markerTimestamp = msgTs;
+                }
+            }
+        }
+
+        using var upsertCmd = connection.CreateCommand();
+        upsertCmd.Transaction = (SqliteTransaction)transaction;
+        upsertCmd.CommandText = """
+            INSERT INTO chat_read_markers (account_jid, remote_jid, participant_jid, last_read_message_id, last_read_timestamp)
+            VALUES ($account_jid, $remote_jid, $participant_jid, $last_read_message_id, $last_read_timestamp)
+            ON CONFLICT(account_jid, remote_jid, participant_jid) DO UPDATE SET
+                last_read_message_id = excluded.last_read_message_id,
+                last_read_timestamp = excluded.last_read_timestamp;
+        """;
+
+        upsertCmd.Parameters.AddWithValue("$account_jid", accountJid);
+        upsertCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+        upsertCmd.Parameters.AddWithValue("$participant_jid", participantJid);
+        upsertCmd.Parameters.AddWithValue("$last_read_message_id", canonicalMessageId);
+        upsertCmd.Parameters.AddWithValue("$last_read_timestamp", markerTimestamp.ToString("O"));
+
+        await upsertCmd.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<List<ChatReadMarker>> GetReadMarkersAsync(
+        string accountJid,
+        string remoteJid,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(remoteJid)) return [];
+
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT account_jid, remote_jid, participant_jid, last_read_message_id, last_read_timestamp
+            FROM chat_read_markers
+            WHERE account_jid = $account_jid AND remote_jid = $remote_jid;
+        """;
+
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+
+        var list = new List<ChatReadMarker>();
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            list.Add(new ChatReadMarker
+            {
+                AccountJid = reader.GetString(0),
+                RemoteJid = reader.GetString(1),
+                ParticipantJid = reader.GetString(2),
+                LastReadMessageId = reader.GetString(3),
+                LastReadTimestamp = DateTimeOffset.Parse(reader.GetString(4))
+            });
+        }
+
+        return list;
+    }
+
     private static ChatMessage ReadMessage(SqliteDataReader reader)
     {
         return new ChatMessage

@@ -153,6 +153,15 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private string? _dateHeader;
 
     [ObservableProperty]
+    private bool _showReadMarkerDivider;
+
+    [ObservableProperty]
+    private string? _readMarkerDividerText;
+
+    [ObservableProperty]
+    private string? _receiptTooltip;
+
+    [ObservableProperty]
     private string? _imageUrl;
 
     [ObservableProperty]
