@@ -50,6 +50,17 @@ CREATE TABLE IF NOT EXISTS message_reactions (
 
 CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(account_jid, remote_jid, message_id);
 
+CREATE TABLE IF NOT EXISTS chat_read_markers (
+    account_jid TEXT NOT NULL,
+    remote_jid TEXT NOT NULL,
+    participant_jid TEXT NOT NULL,
+    last_read_message_id TEXT NOT NULL,
+    last_read_timestamp TEXT NOT NULL,
+    PRIMARY KEY (account_jid, remote_jid, participant_jid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_read_markers_chat ON chat_read_markers(account_jid, remote_jid);
+
 CREATE TABLE IF NOT EXISTS roster (
     account_jid TEXT NOT NULL,
     contact_jid TEXT NOT NULL,

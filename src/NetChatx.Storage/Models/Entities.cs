@@ -24,6 +24,15 @@ public sealed class ChatMessage
     public string? RawXml { get; set; }
 }
 
+public sealed class ChatReadMarker
+{
+    public required string AccountJid { get; set; }
+    public required string RemoteJid { get; set; }
+    public required string ParticipantJid { get; set; }
+    public required string LastReadMessageId { get; set; }
+    public DateTimeOffset LastReadTimestamp { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class MessageReaction
 {
     public required string AccountJid { get; set; }

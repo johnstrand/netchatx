@@ -80,6 +80,36 @@ public class ChatHistoryTests : IDisposable
         Assert.Equal(expectedXml, searchResult[0].RawXml);
     }
 
+    [Fact]
+    public async Task MessageRepository_ReadMarkers_SavesAndRetrievesReadMarkers()
+    {
+        var repo = new MessageRepository(_context);
+        string account = "user@test.org";
+        string remote = "group@conference.test.org";
+        string participant1 = "alice@test.org";
+        string participant2 = "bob@test.org";
+
+        var msg = new ChatMessage
+        {
+            AccountJid = account,
+            RemoteJid = remote,
+            SenderJid = "alice@test.org",
+            Timestamp = DateTimeOffset.UtcNow,
+            Direction = MessageDirection.Inbound,
+            Body = "Hello group",
+            StanzaId = "msg_100"
+        };
+        await repo.SaveMessageAsync(msg);
+
+        await repo.SaveReadMarkerAsync(account, remote, participant1, "msg_100");
+        await repo.SaveReadMarkerAsync(account, remote, participant2, "msg_100");
+
+        var markers = await repo.GetReadMarkersAsync(account, remote);
+        Assert.Equal(2, markers.Count);
+        Assert.Contains(markers, m => m.ParticipantJid == participant1 && m.LastReadMessageId == msg.Id);
+        Assert.Contains(markers, m => m.ParticipantJid == participant2 && m.LastReadMessageId == msg.Id);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))
