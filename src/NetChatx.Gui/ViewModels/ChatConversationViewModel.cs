@@ -202,6 +202,44 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
     }
 
+    public Func<SlashCommandResult, Task<bool>>? SlashCommandHandler { get; set; }
+
+    public void AddSystemMessage(string systemText)
+    {
+        var msg = new ChatMessage
+        {
+            AccountJid = _accountJid,
+            RemoteJid = RemoteJid.ToString(),
+            SenderJid = "System",
+            Body = systemText,
+            Direction = MessageDirection.Inbound,
+            Timestamp = DateTimeOffset.UtcNow,
+            IsRead = true
+        };
+
+        PostToUi(() =>
+        {
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, "System");
+            int index = 0;
+            while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
+            {
+                index++;
+            }
+            Messages.Insert(index, bubble);
+            UpdateDateHeaders();
+            RequestScrollToBottom();
+        });
+    }
+
+    public void ClearMessages()
+    {
+        PostToUi(() =>
+        {
+            Messages.Clear();
+            UpdateDateHeaders();
+        });
+    }
+
     public ChatConversationViewModel(
         string accountJid,
         string id,
@@ -1023,6 +1061,53 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         if (string.IsNullOrWhiteSpace(body)) return;
+
+        // Process slash command if no image attachment and message starts with / or //
+        if (string.IsNullOrEmpty(imageUrl) && (body.StartsWith('/') || body.StartsWith("//")))
+        {
+            var commandResult = SlashCommandProcessor.Process(body, IsGroupChat);
+
+            if (SlashCommandHandler is not null && await SlashCommandHandler(commandResult))
+            {
+                _localPauseCts?.Cancel();
+                _localPauseCts = null;
+                SendLocalChatState(ChatState.Active);
+                return;
+            }
+
+            switch (commandResult.Type)
+            {
+                case SlashCommandResultType.Handled:
+                    _localPauseCts?.Cancel();
+                    _localPauseCts = null;
+                    SendLocalChatState(ChatState.Active);
+                    return;
+
+                case SlashCommandResultType.SystemMessage:
+                    if (!string.IsNullOrEmpty(commandResult.SystemOutput))
+                    {
+                        AddSystemMessage(commandResult.SystemOutput);
+                    }
+                    _localPauseCts?.Cancel();
+                    _localPauseCts = null;
+                    SendLocalChatState(ChatState.Active);
+                    return;
+
+                case SlashCommandResultType.ClearChat:
+                    ClearMessages();
+                    _localPauseCts?.Cancel();
+                    _localPauseCts = null;
+                    SendLocalChatState(ChatState.Active);
+                    return;
+
+                case SlashCommandResultType.SendMessage:
+                    if (!string.IsNullOrEmpty(commandResult.MessageText))
+                    {
+                        body = commandResult.MessageText;
+                    }
+                    break;
+            }
+        }
 
         var stanza = new MessageStanza(
             to: RemoteJid,
