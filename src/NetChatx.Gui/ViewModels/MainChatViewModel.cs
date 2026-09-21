@@ -85,6 +85,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private string _statusMessage = "Online with NetChatx";
 
     [ObservableProperty]
+    private bool _isAccountSyncing;
+
+    [ObservableProperty]
+    private string _syncStatusMessage = string.Empty;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEmptyStateHeader))]
     private ChatConversationViewModel? _activeConversation;
 
@@ -854,7 +860,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     public async Task CatchUpAccountArchiveAsync()
     {
-        if (_mam is null) return;
+        if (_mam is null || IsAccountSyncing) return;
+
+        IsAccountSyncing = true;
+        SyncStatusMessage = "Syncing messages... ⏳";
 
         try
         {
@@ -863,20 +872,36 @@ public sealed partial class MainChatViewModel : ViewModelBase
             DateTimeOffset? startTimestamp = latestTimestamp;
             string? beforeId = null;
             string? afterId = null;
-            const int maxPages = 10;
             int pagesFetched = 0;
+            int totalFetchedCount = 0;
 
-            while (pagesFetched < maxPages)
+            while (true)
             {
-                MamQueryResult mamResult;
-                if (startTimestamp.HasValue)
+                MamQueryResult? mamResult = null;
+                int retries = 3;
+                while (retries > 0)
                 {
-                    mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, start: startTimestamp.Value, after: afterId);
+                    try
+                    {
+                        if (startTimestamp.HasValue)
+                        {
+                            mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, start: startTimestamp.Value, after: afterId);
+                        }
+                        else
+                        {
+                            mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, before: beforeId);
+                        }
+                        break;
+                    }
+                    catch
+                    {
+                        retries--;
+                        if (retries == 0) throw;
+                        await Task.Delay(500 * (3 - retries));
+                    }
                 }
-                else
-                {
-                    mamResult = await _mam.QueryArchiveAsync(withJid: null, maxResults: 50, before: beforeId);
-                }
+
+                if (mamResult is null) break;
 
                 pagesFetched++;
 
@@ -891,6 +916,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     }
                     break;
                 }
+
+                totalFetchedCount += mamResult.Messages.Count;
+                SyncStatusMessage = $"Syncing messages... ({totalFetchedCount} received)";
 
                 var chatMsgs = new System.Collections.Generic.List<ChatMessage>();
                 foreach (var item in mamResult.Messages)
@@ -999,6 +1027,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
         catch
         {
             // Soft failure on account archive catch-up
+        }
+        finally
+        {
+            IsAccountSyncing = false;
+            SyncStatusMessage = string.Empty;
         }
     }
 

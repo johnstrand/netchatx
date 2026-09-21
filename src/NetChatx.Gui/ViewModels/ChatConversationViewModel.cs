@@ -120,7 +120,13 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(SyncButtonIcon))]
     private bool _isSyncing;
 
-    public string SyncButtonText => IsSyncing ? "Syncing... ⏳" : "Sync 🔄";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SyncButtonText))]
+    private int _syncFetchedCount;
+
+    public string SyncButtonText => IsSyncing
+        ? (SyncFetchedCount > 0 ? $"Syncing... ({SyncFetchedCount}) ⏳" : "Syncing... ⏳")
+        : "Sync 🔄";
     public string SyncButtonIcon => IsSyncing ? "⏳" : "🔄";
 
     [ObservableProperty]
@@ -566,6 +572,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (IsSyncing || _mamManager is null) return;
         IsSyncing = true;
+        SyncFetchedCount = 0;
 
         try
         {
@@ -577,29 +584,44 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
             string? beforeId = null;
             string? afterId = null;
-            const int maxPages = 10;
             int pagesFetched = 0;
 
-            while (pagesFetched < maxPages)
+            while (true)
             {
-                MamQueryResult mamResult;
-                if (startTimestamp.HasValue)
+                MamQueryResult? mamResult = null;
+                int retries = 3;
+                while (retries > 0)
                 {
-                    mamResult = await _mamManager.QueryArchiveAsync(
-                        withJid: withJid,
-                        archiveJid: archiveJid,
-                        maxResults: 50,
-                        start: startTimestamp.Value,
-                        after: afterId);
+                    try
+                    {
+                        if (startTimestamp.HasValue)
+                        {
+                            mamResult = await _mamManager.QueryArchiveAsync(
+                                withJid: withJid,
+                                archiveJid: archiveJid,
+                                maxResults: 50,
+                                start: startTimestamp.Value,
+                                after: afterId);
+                        }
+                        else
+                        {
+                            mamResult = await _mamManager.QueryArchiveAsync(
+                                withJid: withJid,
+                                archiveJid: archiveJid,
+                                maxResults: 50,
+                                before: beforeId);
+                        }
+                        break;
+                    }
+                    catch
+                    {
+                        retries--;
+                        if (retries == 0) throw;
+                        await Task.Delay(500 * (3 - retries));
+                    }
                 }
-                else
-                {
-                    mamResult = await _mamManager.QueryArchiveAsync(
-                        withJid: withJid,
-                        archiveJid: archiveJid,
-                        maxResults: 50,
-                        before: beforeId);
-                }
+
+                if (mamResult is null) break;
 
                 pagesFetched++;
 
@@ -615,6 +637,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     }
                     break;
                 }
+
+                SyncFetchedCount += mamResult.Messages.Count;
 
                 var chatMsgs = await ProcessMamMessagesAsync(mamResult.Messages);
 
@@ -659,6 +683,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         finally
         {
             IsSyncing = false;
+            SyncFetchedCount = 0;
         }
     }
 
