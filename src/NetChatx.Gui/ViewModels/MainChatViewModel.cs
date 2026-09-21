@@ -1083,6 +1083,61 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
     }
 
+    private async Task<bool> HandleSlashCommandAsync(ChatConversationViewModel conv, SlashCommandResult result)
+    {
+        switch (result.Type)
+        {
+            case SlashCommandResultType.ChangeStatus:
+                if (!string.IsNullOrEmpty(result.StatusShow))
+                {
+                    StatusMessage = result.StatusMessage ?? StatusMessage;
+                    await SetPresenceAsync(result.StatusShow);
+                    conv.AddSystemMessage($"Status changed to {result.StatusShow}{(string.IsNullOrEmpty(StatusMessage) ? "" : $" ({StatusMessage})")}.");
+                }
+                return true;
+
+            case SlashCommandResultType.SetTopic:
+                if (conv.IsGroupChat && !string.IsNullOrEmpty(result.MessageText))
+                {
+                    conv.Title = result.MessageText;
+                    conv.AddSystemMessage($"Group topic changed to: {result.MessageText}");
+                }
+                return true;
+
+            case SlashCommandResultType.JoinRoom:
+            case SlashCommandResultType.OpenChat:
+                if (!string.IsNullOrEmpty(result.TargetJid))
+                {
+                    await SelectConversationByIdAsync(result.TargetJid);
+                    if (!string.IsNullOrEmpty(result.MessageText) && ActiveConversation is not null)
+                    {
+                        ActiveConversation.InputText = result.MessageText;
+                        await ActiveConversation.SendMessageAsync();
+                    }
+                }
+                return true;
+
+            case SlashCommandResultType.LeaveRoom:
+                conv.AddSystemMessage($"Left room {conv.Title}.");
+                Conversations.Remove(conv);
+                if (ActiveConversation == conv)
+                {
+                    ActiveConversation = Conversations.FirstOrDefault();
+                }
+                return true;
+
+            case SlashCommandResultType.ChangeNick:
+                if (conv.IsGroupChat && !string.IsNullOrEmpty(result.MessageText))
+                {
+                    conv.AddSystemMessage($"Nickname changed to: {result.MessageText}");
+                }
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
     public ChatConversationViewModel GetOrCreateConversation(string id, string title, Jid remoteJid, bool isGroupChat)
     {
         var existing = Conversations.FirstOrDefault(c => c.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
@@ -1116,6 +1171,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             EnableMessageMerging = EnableMessageMerging,
             MessageMergeThresholdSeconds = MessageMergeThresholdSeconds
         };
+
+        newConv.SlashCommandHandler = async result => await HandleSlashCommandAsync(newConv, result);
 
         newConv.MessageProcessed += msg =>
         {

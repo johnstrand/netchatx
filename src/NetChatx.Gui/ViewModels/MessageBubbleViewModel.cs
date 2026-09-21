@@ -36,6 +36,15 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _body = string.Empty;
 
+    [ObservableProperty]
+    private string? _rawBody;
+
+    [ObservableProperty]
+    private bool _isActionMessage;
+
+    [ObservableProperty]
+    private string? _actionContent;
+
     partial void OnBodyChanged(string value)
     {
         _gifPlayer?.Dispose();
@@ -105,6 +114,11 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             if (SetProperty(ref _senderDisplayName, value))
             {
                 OnPropertyChanged(nameof(SenderDisplayName));
+                if (IsActionMessage && !string.IsNullOrEmpty(RawBody))
+                {
+                    string actionText = RawBody.Length > 3 ? RawBody.Substring(3).Trim() : string.Empty;
+                    Body = $"_{value} {actionText}_";
+                }
             }
         }
     }
@@ -560,16 +574,34 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         IEnumerable<string>? quickEmojis = null,
         string? senderDisplayName = null)
     {
+        string effectiveSenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid;
+        string effectiveSenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
+            ? senderDisplayName
+            : ResolveSenderDisplayName(msg.SenderJid, msg.Direction);
+
+        bool isAction = msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase) ||
+                        msg.Body.Equals("/me", StringComparison.OrdinalIgnoreCase);
+
+        string displayBody = msg.Body;
+        string? actionText = null;
+
+        if (isAction)
+        {
+            actionText = msg.Body.Length > 3 ? msg.Body.Substring(3).Trim() : string.Empty;
+            displayBody = $"_{effectiveSenderDisplayName} {actionText}_";
+        }
+
         var vm = new MessageBubbleViewModel
         {
             Id = msg.Id,
-            Body = msg.Body,
+            RawBody = msg.Body,
+            Body = displayBody,
+            IsActionMessage = isAction,
+            ActionContent = actionText,
             Direction = msg.Direction,
             Timestamp = msg.Timestamp,
-            SenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid,
-            SenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
-                ? senderDisplayName
-                : ResolveSenderDisplayName(msg.SenderJid, msg.Direction),
+            SenderName = effectiveSenderName,
+            SenderDisplayName = effectiveSenderDisplayName,
             RemoteJid = msg.RemoteJid ?? string.Empty,
             IsEncrypted = msg.IsEncrypted,
             EncryptionType = msg.EncryptionType,
