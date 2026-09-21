@@ -36,12 +36,16 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _body = string.Empty;
 
+    [ObservableProperty]
+    private string _displayText = string.Empty;
+
     partial void OnBodyChanged(string value)
     {
         _gifPlayer?.Dispose();
         _gifPlayer = null;
         ExtractImageUrl(value);
         ExtractLinks(value);
+        UpdateDisplayText();
         if (HasImage)
         {
             _ = LoadThumbnailAsync();
@@ -191,7 +195,25 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     public void RefreshPreviewVisibility()
     {
+        UpdateDisplayText();
         OnPropertyChanged(nameof(IsPreviewVisible));
+    }
+
+    public void UpdateDisplayText(string? sourceBody = null)
+    {
+        string bodyToUse = !string.IsNullOrEmpty(sourceBody) ? sourceBody : Body;
+        if (HasImage && ShowInlinePreviews && !string.IsNullOrEmpty(ImageUrl))
+        {
+            string cleaned = bodyToUse.Replace(ImageUrl, string.Empty);
+            cleaned = Regex.Replace(cleaned, @"^\s*[\r\n]+|[\r\n]+\s*$", string.Empty).Trim();
+            DisplayText = cleaned;
+        }
+        else
+        {
+            DisplayText = bodyToUse;
+        }
+
+        IsOnlyImage = HasImage && ShowInlinePreviews && string.IsNullOrWhiteSpace(DisplayText);
     }
 
     [RelayCommand]
@@ -335,8 +357,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         {
             HasImage = false;
             ImageUrl = null;
-            IsOnlyImage = false;
             IsGif = false;
+            UpdateDisplayText(body);
             return;
         }
 
@@ -345,7 +367,6 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         {
             ImageUrl = match.Value;
             HasImage = true;
-            IsOnlyImage = body.Trim().Equals(match.Value, StringComparison.OrdinalIgnoreCase);
             if (ImageUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
                 ImageUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
                 ImageUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase))
@@ -357,9 +378,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         {
             HasImage = false;
             ImageUrl = null;
-            IsOnlyImage = false;
             IsGif = false;
         }
+        UpdateDisplayText(body);
     }
 
     public async Task LoadThumbnailAsync()
@@ -421,7 +442,6 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 {
                     ImageUrl = match.Value;
                     HasImage = true;
-                    IsOnlyImage = string.IsNullOrWhiteSpace(Body) || Body.Trim().Equals(match.Value, StringComparison.OrdinalIgnoreCase);
                     if (ImageUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
                         ImageUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
                         ImageUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase))
@@ -429,6 +449,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                         IsGif = true;
                     }
                 }
+                UpdateDisplayText();
             }
         }
         catch

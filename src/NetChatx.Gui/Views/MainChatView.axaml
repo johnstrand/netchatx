@@ -512,7 +512,7 @@
                                                 </Grid>
 
                                                 <!-- Message Content with Clickable Hyperlinks and Markdown -->
-                                                <controls:HyperlinkTextBlock Text="{Binding Body}"
+                                                <controls:HyperlinkTextBlock Text="{Binding DisplayText}"
                                                                              IsMarkdownEnabled="{Binding !IsUnstyled}"
                                                                              MessageDirection="{Binding Direction}"
                                                                              Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
