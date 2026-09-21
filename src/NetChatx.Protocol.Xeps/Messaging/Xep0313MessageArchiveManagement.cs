@@ -23,7 +23,7 @@ public sealed class MamQueryResult
     public int? Count { get; init; }
 }
 
-public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
+public class Xep0313MessageArchiveManagement : XepFeatureBase
 {
     public const string NsMam = "urn:xmpp:mam:2";
     public const string NsForward = "urn:xmpp:forward:0";
@@ -35,7 +35,7 @@ public sealed class Xep0313MessageArchiveManagement : XepFeatureBase
 
     private readonly ConcurrentDictionary<string, List<MamMessageItem>> _activeQueries = new();
 
-    public async Task<MamQueryResult> QueryArchiveAsync(
+    public virtual async Task<MamQueryResult> QueryArchiveAsync(
         Jid? withJid = null,
         Jid? archiveJid = null,
         int maxResults = 50,
