@@ -33,7 +33,6 @@ public class StartupService : IStartupService
             {
                 return IsLinuxStartupEnabled();
             }
-
             if (OperatingSystem.IsWindows())
             {
                 return IsWindowsStartupEnabled();
@@ -63,7 +62,6 @@ public class StartupService : IStartupService
             {
                 return SetLinuxStartupEnabled(enable);
             }
-
             if (OperatingSystem.IsWindows())
             {
                 return SetWindowsStartupEnabled(enable);

@@ -21,6 +21,8 @@ public sealed class TcpTlsTransport : IXmppTransport
 
     public async ValueTask ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
+        await CloseAsync();
+
         _tcpClient = new TcpClient
         {
             NoDelay = true
@@ -74,8 +76,10 @@ public sealed class TcpTlsTransport : IXmppTransport
         _networkStream?.Dispose();
         _networkStream = null;
 
-        _tcpClient?.Dispose();
+        try { _tcpClient?.Dispose(); } catch { }
         _tcpClient = null;
+
+        _activeStream = null;
     }
 
     public async ValueTask DisposeAsync()

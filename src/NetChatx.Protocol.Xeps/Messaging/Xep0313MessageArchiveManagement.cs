@@ -46,6 +46,8 @@ public class Xep0313MessageArchiveManagement : XepFeatureBase
         CancellationToken ct = default)
     {
         if (Client is null) throw new InvalidOperationException("Client not attached.");
+        if (Client.State == XmppClientState.Disconnected || Client.State == XmppClientState.Disconnecting)
+            throw new InvalidOperationException("Client is disconnected.");
 
         var queryId = Guid.NewGuid().ToString("N");
         var items = new List<MamMessageItem>();

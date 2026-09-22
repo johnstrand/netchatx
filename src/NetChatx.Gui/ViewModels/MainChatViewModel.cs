@@ -11,6 +11,8 @@ using NetChatx.Core.Stanzas;
 using NetChatx.Core.Xml;
 using NetChatx.Gui.Converters;
 using NetChatx.Gui.Helpers;
+using NetChatx.Protocol.Xeps.Common;
+using NetChatx.Protocol.Xeps.Core;
 using NetChatx.Protocol.Xeps.Messaging;
 using NetChatx.Protocol.Xeps.Muc;
 using NetChatx.Protocol.Xeps.Omemo;
@@ -33,7 +35,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly SettingsRepository _settingsRepo;
     private readonly Func<Task> _onDisconnectRequested;
     private readonly INotificationService _notificationService;
+    private readonly ISystemResumeWatcher _resumeWatcher;
 
+    private Xep0199Ping? _ping;
     private Xep0313MessageArchiveManagement? _mam;
     private Xep0384OmemoManager? _omemo;
     private Xep0045MultiUserChat? _muc;
@@ -49,6 +53,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0424MessageRetraction? _retraction;
     private Xep0393MessageStyling? _styling;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool _isManualDisconnect;
+    private readonly SemaphoreSlim _reconnectLock = new(1, 1);
+    private readonly SemaphoreSlim _resumeLock = new(1, 1);
+    private Task<bool>? _currentReconnectTask;
 
     private static int ShowScore(string show) => show switch
     {
@@ -295,7 +304,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 Subscription = "none"
             }]);
 
-            if (_client.State == XmppClientState.Connected)
+            if (_client.IsReady || _client.State == XmppClientState.Connected)
             {
                 try
                 {
@@ -411,7 +420,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         XmppClient client,
         DatabaseContext dbContext,
         Func<Task> onDisconnectRequested,
-        INotificationService? notificationService = null)
+        INotificationService? notificationService = null,
+        ISystemResumeWatcher? resumeWatcher = null)
     {
         _client = client;
         _dbContext = dbContext;
@@ -421,6 +431,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             OnPropertyChanged(nameof(IsWindowActive));
         };
+        _resumeWatcher = resumeWatcher ?? new SystemResumeWatcher();
+        _resumeWatcher.Resumed += async () => await HandleSystemResumeAsync();
 
         _messageRepo = new MessageRepository(_dbContext);
         _rosterRepo = new RosterRepository(_dbContext);
@@ -537,6 +549,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _correction = new Xep0308LastMessageCorrection();
         _retraction = new Xep0424MessageRetraction();
         _styling = new Xep0393MessageStyling();
+        _ping = new Xep0199Ping();
 
         await _mam.AttachAsync(_client);
         await _omemo.AttachAsync(_client);
@@ -552,6 +565,36 @@ public sealed partial class MainChatViewModel : ViewModelBase
         await _correction.AttachAsync(_client);
         await _retraction.AttachAsync(_client);
         await _styling.AttachAsync(_client);
+        await _ping.AttachAsync(_client);
+
+        _client.StateChanged += state =>
+        {
+            if (state == XmppClientState.Disconnected && !_isManualDisconnect)
+            {
+                PostToUi(() =>
+                {
+                    StatusMessage = "Connection lost. Reconnecting... ⏳";
+                });
+                _ = ReconnectAsync().ContinueWith(t =>
+                {
+                    if (t.IsCompletedSuccessfully && t.Result)
+                    {
+                        _ = CatchUpAccountArchiveAsync();
+                        if (ActiveConversation is not null)
+                        {
+                            _ = ActiveConversation.SyncArchiveAsync();
+                        }
+                    }
+                });
+            }
+            else if (state == XmppClientState.Ready)
+            {
+                PostToUi(() =>
+                {
+                    StatusMessage = $"Connected as {_client.BoundJid}";
+                });
+            }
+        };
 
         _correction.MessageCorrected += async (msg, originalId) =>
         {
@@ -591,7 +634,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         try
         {
-            if (_client.State == XmppClientState.Connected)
+            if (_client.IsReady || _client.State == XmppClientState.Connected)
             {
                 await _carbons.EnableAsync();
             }
@@ -703,64 +746,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         // Query roster from server per RFC 6121
-        try
-        {
-            if (_client.State == XmppClientState.Connected)
-            {
-                var rosterIq = IqStanza.CreateGet();
-                rosterIq.RawElement.Child(new XmppElement("query", "jabber:iq:roster"));
-                var result = await _client.SendIqAsync(rosterIq);
-                var queryElem = result.RawElement.Element("query", "jabber:iq:roster");
-                if (queryElem is not null)
-            {
-                var contactsToUpsert = new System.Collections.Generic.List<RosterContact>();
-                foreach (var item in queryElem.Elements("item"))
-                {
-                    var cJid = item.GetAttr("jid");
-                    var name = item.GetAttr("name");
-                    var sub = item.GetAttr("subscription") ?? "none";
-                    if (!string.IsNullOrEmpty(cJid))
-                    {
-                        contactsToUpsert.Add(new RosterContact
-                        {
-                            AccountJid = AccountJid,
-                            ContactJid = cJid,
-                            Name = name,
-                            Subscription = sub
-                        });
-
-                        var existing = Contacts.FirstOrDefault(x => x.ContactJid.Equals(cJid, StringComparison.OrdinalIgnoreCase));
-                        if (existing is null)
-                        {
-                            var newItem = new ContactItemViewModel
-                            {
-                                AccountJid = AccountJid,
-                                ContactJid = cJid,
-                                Name = name,
-                                Subscription = sub
-                            };
-                            ApplyPresenceToContact(newItem);
-                            Contacts.Add(newItem);
-                        }
-                        else
-                        {
-                            existing.Name = name;
-                            existing.Subscription = sub;
-                        }
-                    }
-                }
-
-                if (contactsToUpsert.Count > 0)
-                {
-                    await _rosterRepo.UpsertContactsAsync(contactsToUpsert);
-                }
-            }
-            }
-        }
-        catch
-        {
-            // Soft failure for roster fetch
-        }
+        await RefreshRosterFromServerAsync();
 
         // Populate unread badges and last previews from local SQLite database,
         // and ensure any contacts with existing message history appear in Contacts and Conversations
@@ -842,6 +828,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     }
                 }
             }
+
+            if (!restoredActiveChat && Contacts.Count > 0)
+            {
+                await SelectContactAsync(Contacts[0]);
+            }
         }
         catch
         {
@@ -851,16 +842,221 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             _isInitializingActiveChat = false;
         }
+    }
 
-        if (!restoredActiveChat && Contacts.Count > 0)
+    public async Task<bool> CheckConnectionHealthAsync(TimeSpan? timeout = null)
+    {
+        if (!_client.IsReady || _ping is null) return false;
+        try
         {
-            await SelectContactAsync(Contacts[0]);
+            using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(3));
+            await _ping.PingAsync(timeout: timeout ?? TimeSpan.FromSeconds(3), ct: cts.Token);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public Task<bool> EnsureConnectedAsync()
+    {
+        if (_client.IsReady)
+        {
+            return Task.FromResult(true);
+        }
+
+        return ReconnectAsync();
+    }
+
+    public async Task<bool> ReconnectAsync()
+    {
+        await _reconnectLock.WaitAsync();
+        try
+        {
+            if (_client.IsReady) return true;
+            if (_currentReconnectTask is not null && !_currentReconnectTask.IsCompleted)
+            {
+                return await _currentReconnectTask;
+            }
+
+            _currentReconnectTask = PerformReconnectAsync();
+            return await _currentReconnectTask;
+        }
+        finally
+        {
+            _reconnectLock.Release();
+        }
+    }
+
+    private async Task<bool> PerformReconnectAsync()
+    {
+        PostToUi(() =>
+        {
+            StatusMessage = "Reconnecting to server... ⏳";
+        });
+
+        try
+        {
+            if (_client.State != XmppClientState.Disconnected)
+            {
+                await _client.DisconnectAsync();
+            }
+        }
+        catch { }
+
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                PostToUi(() =>
+                {
+                    StatusMessage = attempt == 1
+                        ? "Reconnecting to server... ⏳"
+                        : $"Reconnecting to server (attempt {attempt}/{maxAttempts})... ⏳";
+                });
+
+                await _client.ConnectAsync();
+
+                if (_client.IsReady)
+                {
+                    PostToUi(() =>
+                    {
+                        StatusMessage = $"Connected as {_client.BoundJid}";
+                    });
+
+                    if (_carbons is not null)
+                    {
+                        try { await _carbons.EnableAsync(); } catch { }
+                    }
+
+                    try { await SetPresenceAsync(UserPresence); } catch { }
+
+                    await RefreshRosterFromServerAsync();
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Reconnect attempt {attempt} failed: {ex.Message}");
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(1000 * attempt);
+                }
+            }
+        }
+
+        PostToUi(() =>
+        {
+            StatusMessage = "Connection lost (Offline)";
+        });
+        return false;
+    }
+
+    public async Task HandleSystemResumeAsync()
+    {
+        if (!await _resumeLock.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("System resume event triggered. Checking connection health...");
+
+            bool isHealthy = false;
+            if (_client.IsReady)
+            {
+                isHealthy = await CheckConnectionHealthAsync(TimeSpan.FromSeconds(3));
+            }
+
+            if (!isHealthy)
+            {
+                System.Diagnostics.Debug.WriteLine("Connection unresponsive after sleep. Reconnecting...");
+                var reconnected = await ReconnectAsync();
+                if (!reconnected) return;
+            }
+
+            System.Diagnostics.Debug.WriteLine("Connected after resume. Syncing messages...");
+            _ = CatchUpAccountArchiveAsync();
+            if (ActiveConversation is not null)
+            {
+                _ = ActiveConversation.SyncArchiveAsync();
+            }
+        }
+        finally
+        {
+            _resumeLock.Release();
+        }
+    }
+
+    private async Task RefreshRosterFromServerAsync()
+    {
+        try
+        {
+            if (_client.IsReady || _client.State == XmppClientState.Connected)
+            {
+                var rosterIq = IqStanza.CreateGet();
+                rosterIq.RawElement.Child(new XmppElement("query", "jabber:iq:roster"));
+                var result = await _client.SendIqAsync(rosterIq);
+                var queryElem = result.RawElement.Element("query", "jabber:iq:roster");
+                if (queryElem is not null)
+                {
+                    var contactsToUpsert = new System.Collections.Generic.List<RosterContact>();
+                    foreach (var item in queryElem.Elements("item"))
+                    {
+                        var cJid = item.GetAttr("jid");
+                        var name = item.GetAttr("name");
+                        var sub = item.GetAttr("subscription") ?? "none";
+                        if (!string.IsNullOrEmpty(cJid))
+                        {
+                            contactsToUpsert.Add(new RosterContact
+                            {
+                                AccountJid = AccountJid,
+                                ContactJid = cJid,
+                                Name = name,
+                                Subscription = sub
+                            });
+
+                            var existing = Contacts.FirstOrDefault(x => x.ContactJid.Equals(cJid, StringComparison.OrdinalIgnoreCase));
+                            if (existing is null)
+                            {
+                                var newItem = new ContactItemViewModel
+                                {
+                                    AccountJid = AccountJid,
+                                    ContactJid = cJid,
+                                    Name = name,
+                                    Subscription = sub
+                                };
+                                ApplyPresenceToContact(newItem);
+                                Contacts.Add(newItem);
+                            }
+                            else
+                            {
+                                existing.Name = name;
+                                existing.Subscription = sub;
+                            }
+                        }
+                    }
+
+                    if (contactsToUpsert.Count > 0)
+                    {
+                        await _rosterRepo.UpsertContactsAsync(contactsToUpsert);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure for roster fetch
         }
     }
 
     public async Task CatchUpAccountArchiveAsync()
     {
-        if (_mam is null || IsAccountSyncing) return;
+        if (_mam is null || IsAccountSyncing || !_client.IsReady) return;
 
         IsAccountSyncing = true;
         SyncStatusMessage = "Syncing messages... ⏳";
@@ -1199,7 +1395,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _reactions,
             _chatMarkers,
             _chatStates,
-            _settingsRepo)
+            _settingsRepo,
+            ensureConnected: EnsureConnectedAsync)
         {
             EnableMessageMerging = EnableMessageMerging,
             MessageMergeThresholdSeconds = MessageMergeThresholdSeconds
@@ -1325,6 +1522,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public async Task DisconnectAsync()
     {
+        _isManualDisconnect = true;
+        _resumeWatcher.Dispose();
         _contactResourcePresence.Clear();
         foreach (var c in Contacts)
         {
