@@ -529,6 +529,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
             onCloseActionChanged: closeAction =>
             {
                 CloseAction = closeAction;
+            },
+            onEmoticonSettingsChanged: (autoReplace, mappings) =>
+            {
+                foreach (var conv in Conversations)
+                {
+                    conv.UpdateEmoticonSettings(autoReplace, mappings);
+                }
             });
     }
 
@@ -1385,6 +1392,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
         };
 
         newConv.SlashCommandHandler = async result => await HandleSlashCommandAsync(newConv, result);
+        newConv.OpenSettingsToChatRequested = () =>
+        {
+            Settings.SelectedTabIndex = 1; // Tab 2: "💬 Chat"
+            Settings.Open();
+        };
 
         newConv.MessageProcessed += msg =>
         {

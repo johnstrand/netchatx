@@ -38,6 +38,16 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private List<string> _quickEmojis = [.. EmojiData.DefaultQuickEmojis];
     public IReadOnlyList<string> QuickEmojis => _quickEmojis;
 
+    private List<EmoticonMapping> _emoticonMappings = [.. SettingsRepository.DefaultEmoticonMappings];
+
+    [ObservableProperty]
+    private bool _autoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
+
+    [ObservableProperty]
+    private bool _showEmoticonBanner;
+
+    public Action? OpenSettingsToChatRequested { get; set; }
+
     public void UpdateQuickEmojis(IEnumerable<string> emojis)
     {
         _quickEmojis = emojis.ToList();
@@ -45,6 +55,29 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         {
             msg.EmojiPicker?.UpdateQuickEmojis(_quickEmojis);
         }
+    }
+
+    public void UpdateEmoticonSettings(bool autoReplace, IEnumerable<EmoticonMapping> mappings)
+    {
+        AutoReplaceEmoticons = autoReplace;
+        _emoticonMappings = mappings.ToList();
+    }
+
+    [RelayCommand]
+    public async Task DismissEmoticonBannerAsync()
+    {
+        ShowEmoticonBanner = false;
+        if (_settingsRepo is not null)
+        {
+            await _settingsRepo.SetEmoticonBannerDismissedAsync(_accountJid, true);
+        }
+    }
+
+    [RelayCommand]
+    public async Task OpenChatSettingsAndDismissBannerAsync()
+    {
+        await DismissEmoticonBannerAsync();
+        OpenSettingsToChatRequested?.Invoke();
     }
 
     private readonly Dictionary<string, (string messageId, DateTimeOffset timestamp)> _participantReadMarkers = new(StringComparer.OrdinalIgnoreCase);
@@ -686,6 +719,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     _quickEmojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
                     EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
                     MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
+                    AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
+                    _emoticonMappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
                 }
                 catch
                 {
@@ -1301,6 +1336,17 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         var imageFileName = PendingImageFileName;
         var textToSend = hasText ? InputText.Trim() : string.Empty;
 
+        var wasEmoticonReplaced = false;
+        if (AutoReplaceEmoticons && !string.IsNullOrEmpty(textToSend))
+        {
+            var (replacedText, replaced) = EmoticonReplacer.ReplaceEmoticons(textToSend, _emoticonMappings);
+            if (replaced)
+            {
+                textToSend = replacedText;
+                wasEmoticonReplaced = true;
+            }
+        }
+
         InputText = string.Empty;
         ClearPendingImage();
         CancelReplyingMessage();
@@ -1431,6 +1477,15 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             AddOrUpdateMessage(chatMsg);
             UpdateDateHeaders();
             RequestScrollToBottom();
+
+            if (wasEmoticonReplaced && _settingsRepo is not null)
+            {
+                var dismissed = await _settingsRepo.GetEmoticonBannerDismissedAsync(_accountJid);
+                if (!dismissed)
+                {
+                    PostToUi(() => ShowEmoticonBanner = true);
+                }
+            }
         }
         catch
         {

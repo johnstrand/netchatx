@@ -30,6 +30,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<string, string>? _onBubbleColorChanged;
     private readonly Action<int>? _onChatInputMaxLinesChanged;
     private readonly Action<string>? _onCloseActionChanged;
+    private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
     private bool _isInitializing;
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
@@ -137,6 +138,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private int _messageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
 
+    // --- Emoticon Auto-Replacement ---
+    [ObservableProperty]
+    private bool _autoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
+
+    [ObservableProperty]
+    private ObservableCollection<EmoticonMapping> _emoticonMappings = new(SettingsRepository.DefaultEmoticonMappings);
+
+    [ObservableProperty]
+    private string _newShortcut = string.Empty;
+
+    [ObservableProperty]
+    private string _newEmoji = string.Empty;
+
     [ObservableProperty]
     private ObservableCollection<string> _quickEmojis = new(SettingsRepository.DefaultQuickEmojis);
 
@@ -206,6 +220,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<string, string>? onBubbleColorChanged = null,
         Action<int>? onChatInputMaxLinesChanged = null,
         Action<string>? onCloseActionChanged = null,
+        Action<bool, IReadOnlyList<EmoticonMapping>>? onEmoticonSettingsChanged = null,
         IStartupService? startupService = null)
     {
         _settingsRepo = settingsRepo;
@@ -223,6 +238,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onBubbleColorChanged = onBubbleColorChanged;
         _onChatInputMaxLinesChanged = onChatInputMaxLinesChanged;
         _onCloseActionChanged = onCloseActionChanged;
+        _onEmoticonSettingsChanged = onEmoticonSettingsChanged;
     }
 
     public async Task LoadSettingsAsync()
@@ -235,6 +251,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
             LaunchOnStartup = await _settingsRepo.GetLaunchOnStartupAsync(_accountJid);
             EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
             MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
+            AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
+
+            var mappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
+            EmoticonMappings.Clear();
+            foreach (var m in mappings)
+            {
+                EmoticonMappings.Add(m);
+            }
 
             var savedFont = await _settingsRepo.GetFontFamilyAsync(_accountJid);
             if (CuratedFontFamilies.Contains(savedFont))
@@ -307,6 +331,70 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetLaunchOnStartupAsync(_accountJid, value);
             _startupService.SetStartupEnabled(value);
+        }
+    }
+
+    partial void OnAutoReplaceEmoticonsChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetAutoReplaceEmoticonsAsync(_accountJid, value);
+            _onEmoticonSettingsChanged?.Invoke(value, EmoticonMappings.ToList());
+        }
+    }
+
+    [RelayCommand]
+    public async Task AddEmoticonMappingAsync()
+    {
+        var shortcut = NewShortcut?.Trim();
+        var emoji = NewEmoji?.Trim();
+
+        if (string.IsNullOrEmpty(shortcut) || string.IsNullOrEmpty(emoji)) return;
+
+        var existing = EmoticonMappings.FirstOrDefault(m => string.Equals(m.Shortcut, shortcut, StringComparison.Ordinal));
+        if (existing is not null)
+        {
+            EmoticonMappings.Remove(existing);
+        }
+
+        var newMapping = new EmoticonMapping(shortcut, emoji);
+        EmoticonMappings.Add(newMapping);
+        NewShortcut = string.Empty;
+        NewEmoji = string.Empty;
+
+        if (!_isInitializing)
+        {
+            await _settingsRepo.SetEmoticonMappingsAsync(_accountJid, EmoticonMappings);
+            _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
+        }
+    }
+
+    [RelayCommand]
+    public async Task RemoveEmoticonMappingAsync(EmoticonMapping mapping)
+    {
+        if (mapping is null) return;
+        EmoticonMappings.Remove(mapping);
+
+        if (!_isInitializing)
+        {
+            await _settingsRepo.SetEmoticonMappingsAsync(_accountJid, EmoticonMappings);
+            _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
+        }
+    }
+
+    [RelayCommand]
+    public async Task ResetEmoticonMappingsAsync()
+    {
+        EmoticonMappings.Clear();
+        foreach (var m in SettingsRepository.DefaultEmoticonMappings)
+        {
+            EmoticonMappings.Add(m);
+        }
+
+        if (!_isInitializing)
+        {
+            await _settingsRepo.SetEmoticonMappingsAsync(_accountJid, EmoticonMappings);
+            _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
         }
     }
 
@@ -639,6 +727,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         LaunchOnStartup = SettingsRepository.DefaultLaunchOnStartup;
         EnableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
         MessageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
+        AutoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
+
+        EmoticonMappings.Clear();
+        foreach (var m in SettingsRepository.DefaultEmoticonMappings)
+        {
+            EmoticonMappings.Add(m);
+        }
         FontFamily = SettingsRepository.DefaultFontFamily;
         CustomFontFamily = string.Empty;
         IsCustomFont = false;
@@ -667,6 +762,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _startupService.SetStartupEnabled(LaunchOnStartup);
         await _settingsRepo.SetMergeMessagesEnabledAsync(_accountJid, EnableMessageMerging);
         await _settingsRepo.SetMergeMessagesThresholdSecondsAsync(_accountJid, MessageMergeThresholdSeconds);
+        await _settingsRepo.SetAutoReplaceEmoticonsAsync(_accountJid, AutoReplaceEmoticons);
+        await _settingsRepo.SetEmoticonMappingsAsync(_accountJid, EmoticonMappings);
         await _settingsRepo.SetFontFamilyAsync(_accountJid, FontFamily);
         await _settingsRepo.SetFontSizeAsync(_accountJid, FontSize);
         await _settingsRepo.SetSendOnEnterAsync(_accountJid, SendOnEnter);
@@ -685,6 +782,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         DirectionToBackgroundConverter.SetColors(OutboundBubbleColor, InboundBubbleColor);
 
         _onBubbleMergeChanged?.Invoke(EnableMessageMerging, MessageMergeThresholdSeconds);
+        _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
         _onPopupsChanged?.Invoke(NotificationPopupsEnabled);
         _onFlashingChanged?.Invoke(IconFlashingEnabled);
         _onTypographyChanged?.Invoke(EffectiveFontFamily, FontSize);
