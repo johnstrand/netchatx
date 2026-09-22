@@ -140,6 +140,17 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(ReceiptIcon))]
     private bool _isRead;
 
+    partial void OnIsReadChanged(bool value)
+    {
+        if (value)
+        {
+            foreach (var m in MergedMessages)
+            {
+                m.IsRead = true;
+            }
+        }
+    }
+
     [ObservableProperty]
     private string? _stanzaId;
 

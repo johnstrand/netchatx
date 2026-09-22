@@ -1449,8 +1449,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
             {
                 foreach (var conv in Conversations)
                 {
-                    conv.MarkMessageAsRead(stanzaId);
-                    conv.UpdateReadMarker(conv.RemoteJid.ToString(), stanzaId);
+                    if (conv.Messages.Any(m => m.ContainsMessageId(stanzaId)))
+                    {
+                        conv.MarkMessageAsRead(stanzaId);
+                        conv.UpdateReadMarker(conv.RemoteJid.ToString(), stanzaId);
+                        break;
+                    }
                 }
             }
         });
