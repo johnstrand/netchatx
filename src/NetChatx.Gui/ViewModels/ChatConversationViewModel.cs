@@ -363,11 +363,26 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         void Apply()
         {
-            foreach (var msg in Messages)
+            var target = Messages.FirstOrDefault(m => m.ContainsMessageId(stanzaOrMessageId));
+            if (target is not null)
             {
-                if (msg.Id == stanzaOrMessageId || msg.StanzaId == stanzaOrMessageId)
+                target.IsRead = true;
+                foreach (var msg in Messages)
                 {
-                    msg.IsRead = true;
+                    if (msg.Timestamp <= target.Timestamp && msg.IsOutbound)
+                    {
+                        msg.IsRead = true;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var msg in Messages)
+                {
+                    if (msg.ContainsMessageId(stanzaOrMessageId))
+                    {
+                        msg.IsRead = true;
+                    }
                 }
             }
             UpdateReadMarkersOnBubbles();
@@ -386,13 +401,29 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public void UpdateReadMarker(string participantJid, string stanzaOrMessageId, DateTimeOffset? timestamp = null)
     {
         var msg = Messages.FirstOrDefault(m => m.ContainsMessageId(stanzaOrMessageId));
-        DateTimeOffset ts = timestamp ?? msg?.Timestamp ?? DateTimeOffset.UtcNow;
+        DateTimeOffset? ts = timestamp ?? msg?.Timestamp;
         string msgId = msg?.Id ?? stanzaOrMessageId;
 
-        _participantReadMarkers[participantJid] = (msgId, ts);
-        _ = _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), participantJid, msgId, ts);
-
-        PostToUi(UpdateReadMarkersOnBubbles);
+        if (ts.HasValue)
+        {
+            _participantReadMarkers[participantJid] = (msgId, ts.Value);
+            _ = _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), participantJid, msgId, ts.Value);
+            PostToUi(UpdateReadMarkersOnBubbles);
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), participantJid, msgId);
+                var markers = await _messageRepo.GetReadMarkersAsync(_accountJid, RemoteJid.ToString());
+                var matched = markers.FirstOrDefault(m => m.ParticipantJid.Equals(participantJid, StringComparison.OrdinalIgnoreCase));
+                if (matched is not null)
+                {
+                    _participantReadMarkers[participantJid] = (matched.LastReadMessageId, matched.LastReadTimestamp);
+                    PostToUi(UpdateReadMarkersOnBubbles);
+                }
+            });
+        }
     }
 
     public async Task LoadReadMarkersAsync()
@@ -455,7 +486,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     lastReadBubble = Messages.FirstOrDefault(m => m.ContainsMessageId(lastReadMsgId));
                 }
 
-                if (lastReadBubble == null)
+                if (lastReadBubble == null || lastReadBubble.Timestamp < remoteReadTs.Value)
                 {
                     lastReadBubble = Messages.LastOrDefault(m => m.Timestamp <= remoteReadTs.Value);
                 }
@@ -476,6 +507,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     {
                         if (bubble.Timestamp <= remoteReadTs.Value || bubble.IsRead)
                         {
+                            bubble.IsRead = true;
                             bubble.ReceiptTooltip = $"Read by {contactDisplayName}";
                         }
                         else
@@ -547,14 +579,17 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
                         if (readers.Count == participantReadTimes.Count)
                         {
+                            bubble.IsRead = true;
                             bubble.ReceiptTooltip = $"Read by everyone ({string.Join(", ", readers)})";
                         }
                         else if (readers.Count > 0)
                         {
+                            bubble.IsRead = true;
                             bubble.ReceiptTooltip = $"Read by: {string.Join(", ", readers)}";
                         }
                         else
                         {
+                            bubble.IsRead = false;
                             bubble.ReceiptTooltip = "Delivered";
                         }
                     }
@@ -566,7 +601,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 {
                     if (bubble.IsOutbound)
                     {
-                        bubble.ReceiptTooltip = "Delivered";
+                        bubble.ReceiptTooltip = bubble.IsRead ? "Read" : "Delivered";
                     }
                 }
             }
