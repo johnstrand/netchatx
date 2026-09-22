@@ -602,20 +602,6 @@
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <!-- Read Marker Horizontal Line Divider -->
-                                                <Grid Margin="0,8,0,4" IsVisible="{Binding ShowReadMarkerDivider}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Rectangle Grid.Column="0" Height="1" Fill="#00F0FF" Opacity="0.5" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                    <Border Grid.Column="1" Background="#0F172A" BorderBrush="#00F0FF" BorderThickness="1" CornerRadius="10" Padding="10,2">
-                                                        <TextBlock Text="{Binding ReadMarkerDividerText}" FontSize="10" FontWeight="SemiBold" Foreground="#67E8F9" VerticalAlignment="Center" />
-                                                    </Border>
-                                                    <Rectangle Grid.Column="2" Height="1" Fill="#00F0FF" Opacity="0.5" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                                </Grid>
-
                                                 <!-- Raw XML View Container -->
                                                 <Border IsVisible="{Binding IsRawXmlVisible}"
                                                         Background="#20000000"
@@ -639,6 +625,22 @@
                                                 </Border>
                                             </StackPanel>
                                         </Border>
+
+                                        <!-- Read Marker Horizontal Line Divider across entire chat window -->
+                                        <Grid Margin="0,10,0,6"
+                                              HorizontalAlignment="Stretch"
+                                              IsVisible="{Binding ShowReadMarkerDivider}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="0" Height="1" Fill="#00F0FF" Opacity="0.5" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <Border Grid.Column="1" Background="#0B0F19" BorderBrush="#00F0FF" BorderThickness="1" CornerRadius="10" Padding="12,3">
+                                                <TextBlock Text="{Binding ReadMarkerDividerText}" FontSize="10" FontWeight="SemiBold" Foreground="#67E8F9" VerticalAlignment="Center" />
+                                            </Border>
+                                            <Rectangle Grid.Column="2" Height="1" Fill="#00F0FF" Opacity="0.5" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        </Grid>
                                     </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

@@ -416,19 +416,66 @@ public sealed class MessageRepository
         if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(messageId)) return false;
 
         using var connection = _context.CreateConnection();
-        using var cmd = connection.CreateCommand();
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        cmd.CommandText = """
-            UPDATE messages
-            SET is_read = 1
-            WHERE account_jid = $account_jid AND (id = $messageId OR stanza_id = $messageId OR origin_id = $messageId);
-        """;
+        string? remoteJid = null;
+        DateTimeOffset? targetTimestamp = null;
 
-        cmd.Parameters.AddWithValue("$account_jid", accountJid);
-        cmd.Parameters.AddWithValue("$messageId", messageId);
+        using (var findCmd = connection.CreateCommand())
+        {
+            findCmd.Transaction = (SqliteTransaction)transaction;
+            findCmd.CommandText = """
+                SELECT remote_jid, timestamp FROM messages
+                WHERE account_jid = $account_jid
+                  AND (id = $messageId OR stanza_id = $messageId OR origin_id = $messageId)
+                LIMIT 1;
+            """;
+            findCmd.Parameters.AddWithValue("$account_jid", accountJid);
+            findCmd.Parameters.AddWithValue("$messageId", messageId);
 
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
-        return rows > 0;
+            using var reader = await findCmd.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                remoteJid = reader.GetString(0);
+                if (DateTimeOffset.TryParse(reader.GetString(1), out var ts))
+                {
+                    targetTimestamp = ts;
+                }
+            }
+        }
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = (SqliteTransaction)transaction;
+            if (targetTimestamp.HasValue && !string.IsNullOrEmpty(remoteJid))
+            {
+                cmd.CommandText = """
+                    UPDATE messages
+                    SET is_read = 1
+                    WHERE account_jid = $account_jid
+                      AND remote_jid = $remote_jid
+                      AND timestamp <= $target_timestamp
+                      AND is_read = 0;
+                """;
+                cmd.Parameters.AddWithValue("$account_jid", accountJid);
+                cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+                cmd.Parameters.AddWithValue("$target_timestamp", targetTimestamp.Value.ToString("O"));
+            }
+            else
+            {
+                cmd.CommandText = """
+                    UPDATE messages
+                    SET is_read = 1
+                    WHERE account_jid = $account_jid AND (id = $messageId OR stanza_id = $messageId OR origin_id = $messageId);
+                """;
+                cmd.Parameters.AddWithValue("$account_jid", accountJid);
+                cmd.Parameters.AddWithValue("$messageId", messageId);
+            }
+
+            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return rows > 0;
+        }
     }
 
     public async Task<List<string>> MarkUnreadMessagesAsReadAsync(
@@ -597,6 +644,23 @@ public sealed class MessageRepository
         upsertCmd.Parameters.AddWithValue("$last_read_timestamp", markerTimestamp.ToString("O"));
 
         await upsertCmd.ExecuteNonQueryAsync(cancellationToken);
+
+        using var updateMsgsCmd = connection.CreateCommand();
+        updateMsgsCmd.Transaction = (SqliteTransaction)transaction;
+        updateMsgsCmd.CommandText = """
+            UPDATE messages
+            SET is_read = 1
+            WHERE account_jid = $account_jid
+              AND remote_jid = $remote_jid
+              AND direction = 1
+              AND timestamp <= $last_read_timestamp
+              AND is_read = 0;
+        """;
+        updateMsgsCmd.Parameters.AddWithValue("$account_jid", accountJid);
+        updateMsgsCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+        updateMsgsCmd.Parameters.AddWithValue("$last_read_timestamp", markerTimestamp.ToString("O"));
+        await updateMsgsCmd.ExecuteNonQueryAsync(cancellationToken);
+
         await transaction.CommitAsync(cancellationToken);
     }
 
