@@ -498,3 +498,6 @@ dmg-staging/
 bundle/
 icon.iconset/
 
+# Agent worktrees
+.worktree/
+
