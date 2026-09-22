@@ -32,6 +32,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0333ChatMarkers? _chatMarkers;
     private readonly Xep0085ChatStates? _chatStates;
     private readonly SettingsRepository? _settingsRepo;
+    private readonly Func<Task<bool>>? _ensureConnected;
     private readonly string _accountJid;
 
     private List<string> _quickEmojis = [.. EmojiData.DefaultQuickEmojis];
@@ -256,7 +257,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         Xep0444Reactions? reactionsManager = null,
         Xep0333ChatMarkers? chatMarkers = null,
         Xep0085ChatStates? chatStates = null,
-        SettingsRepository? settingsRepo = null)
+        SettingsRepository? settingsRepo = null,
+        Func<Task<bool>>? ensureConnected = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -272,6 +274,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _chatMarkers = chatMarkers;
         _chatStates = chatStates;
         _settingsRepo = settingsRepo;
+        _ensureConnected = ensureConnected;
     }
 
     public void HandleRemoteChatState(ChatState state)
@@ -770,6 +773,16 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
         try
         {
+            if (_ensureConnected is not null)
+            {
+                var connected = await _ensureConnected();
+                if (!connected) return;
+            }
+            else if (_client is not null && !_client.IsReady)
+            {
+                return;
+            }
+
             var archiveJid = IsGroupChat ? RemoteJid : null;
             var withJid = IsGroupChat ? null : RemoteJid;
 

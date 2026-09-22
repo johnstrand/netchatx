@@ -29,6 +29,10 @@ public class StartupService : IStartupService
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(_customAutostartPath))
+            {
+                return IsLinuxStartupEnabled();
+            }
             if (OperatingSystem.IsWindows())
             {
                 return IsWindowsStartupEnabled();
@@ -54,6 +58,10 @@ public class StartupService : IStartupService
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(_customAutostartPath))
+            {
+                return SetLinuxStartupEnabled(enable);
+            }
             if (OperatingSystem.IsWindows())
             {
                 return SetWindowsStartupEnabled(enable);
