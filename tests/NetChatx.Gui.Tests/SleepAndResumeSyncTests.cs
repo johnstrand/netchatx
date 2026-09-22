@@ -261,6 +261,49 @@ public class SleepAndResumeSyncTests : IDisposable
         watcher.Dispose();
     }
 
+    [Fact]
+    public async Task MainChatViewModel_CatchUpAccountArchive_WhenCaughtUp_DoesNotHammerServer()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            Id = "msg_seed_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Seed message",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-10),
+            Direction = MessageDirection.Inbound
+        });
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "secret"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(
+            client,
+            _dbContext,
+            onDisconnectRequested: () => Task.CompletedTask,
+            notificationService: new NotificationService(dispatchNative: false));
+
+        await mainVm.CatchUpAccountArchiveAsync();
+
+        Assert.False(mainVm.IsAccountSyncing);
+        Assert.Equal(string.Empty, mainVm.SyncStatusMessage);
+
+        await client.DisconnectAsync();
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))

@@ -36,7 +36,6 @@ public sealed class SystemResumeWatcher : ISystemResumeWatcher
 
         try
         {
-            NetworkChange.NetworkAddressChanged += OnNetworkChanged;
             NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
         }
         catch
@@ -57,11 +56,6 @@ public sealed class SystemResumeWatcher : ISystemResumeWatcher
         {
             TriggerResume();
         }
-    }
-
-    private void OnNetworkChanged(object? sender, EventArgs e)
-    {
-        TriggerResume();
     }
 
     private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
@@ -151,7 +145,6 @@ public sealed class SystemResumeWatcher : ISystemResumeWatcher
 
         try
         {
-            NetworkChange.NetworkAddressChanged -= OnNetworkChanged;
             NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
         }
         catch { }
