@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NetChatx.Gui.ViewModels"
+             xmlns:repo="using:NetChatx.Storage.Repositories"
              x:Class="NetChatx.Gui.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
@@ -414,6 +415,72 @@
                                             <TextBlock Grid.Column="0" Text="1 line (No growth)" FontSize="9.5" Foreground="#475569" />
                                             <TextBlock Grid.Column="2" Text="12 lines (Expanded)" FontSize="9.5" Foreground="#475569" />
                                         </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Emoticon Auto-Replacement -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="EMOTICON AUTO-REPLACEMENT" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource NetChatxCyanBrush}" LetterSpacing="0.8" />
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Auto-replace Emoticons with Emojis" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Automatically convert text emoticons (e.g. :-) to 🙂) when sending messages."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding AutoReplaceEmoticons, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0" />
+                                    </Grid>
+
+                                    <!-- Emoticon Snippet Mappings -->
+                                    <StackPanel Spacing="8" IsVisible="{Binding AutoReplaceEmoticons}">
+                                        <Separator Background="#1E293B" Height="1" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0" Text="Emoticon Mappings &amp; Custom Snippets" FontSize="11.5" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="↺ Reset to Default"
+                                                    Command="{Binding ResetEmoticonMappingsCommand}"
+                                                    Classes="inline-link" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center" />
+                                        </Grid>
+
+                                        <!-- Add New Snippet Form -->
+                                        <Grid ColumnDefinitions="*,*,Auto" Margin="0,2">
+                                            <TextBox Grid.Column="0" Text="{Binding NewShortcut, Mode=TwoWay}"
+                                                     Watermark="Shortcut (e.g. :smile: or :))"
+                                                     Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                     FontSize="11" Height="30" Margin="0,0,4,0" VerticalContentAlignment="Center" />
+                                            <TextBox Grid.Column="1" Text="{Binding NewEmoji, Mode=TwoWay}"
+                                                     Watermark="Emoji (e.g. 🙂)"
+                                                     Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                     FontSize="11" Height="30" Margin="4,0,4,0" VerticalContentAlignment="Center" />
+                                            <Button Grid.Column="2" Content="+ Add Snippet"
+                                                    Command="{Binding AddEmoticonMappingCommand}"
+                                                    Classes="accent" FontSize="10.5" Padding="10,0" Height="30" Cursor="Hand" />
+                                        </Grid>
+
+                                        <!-- Mappings List -->
+                                        <Border Background="#090D16" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="6" MaxHeight="140">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding EmoticonMappings}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type repo:EmoticonMapping}">
+                                                            <Grid ColumnDefinitions="*,*,Auto" Margin="4,2">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Shortcut}" FontSize="11.5" FontFamily="Consolas, monospace" Foreground="#67E8F9" VerticalAlignment="Center" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding Emoji}" FontSize="13" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                                                                <Button Grid.Column="2" Content="✕"
+                                                                        Command="{Binding ((vm:SettingsViewModel)DataContext).RemoveEmoticonMappingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        Classes="icon-btn subtle" FontSize="10" Width="22" Height="22" Padding="0" Cursor="Hand" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

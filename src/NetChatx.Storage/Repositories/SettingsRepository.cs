@@ -5,16 +5,41 @@ using Microsoft.Data.Sqlite;
 namespace NetChatx.Storage.Repositories;
 
 [JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(List<EmoticonMapping>))]
 internal partial class SettingsJsonContext : JsonSerializerContext
 {
 }
+
+public sealed record EmoticonMapping(string Shortcut, string Emoji);
 
 public sealed class SettingsRepository
 {
     private readonly DatabaseContext _context;
 
     public static readonly string[] DefaultQuickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
+
+    public static readonly List<EmoticonMapping> DefaultEmoticonMappings =
+    [
+        new(":-)", "🙂"),
+        new(":)", "🙂"),
+        new(":-(", "🙁"),
+        new(":(", "🙁"),
+        new(";-)", "😉"),
+        new(";)", "😉"),
+        new(":-D", "😃"),
+        new(":D", "😃"),
+        new(":-P", "😛"),
+        new(":P", "😛"),
+        new(":-O", "😮"),
+        new(":O", "😮"),
+        new("<3", "❤️"),
+        new("8)", "😎")
+    ];
+
     public const string KeyQuickEmojis = "quick_emojis";
+    public const string KeyAutoReplaceEmoticons = "auto_replace_emoticons";
+    public const string KeyEmoticonMappings = "emoticon_mappings";
+    public const string KeyEmoticonBannerDismissed = "emoticon_banner_dismissed";
     public const string KeyMergeMessagesEnabled = "merge_messages_enabled";
     public const string KeyMergeMessagesThresholdSeconds = "merge_messages_threshold_seconds";
     public const string KeyNotificationPopupsEnabled = "notification_popups_enabled";
@@ -38,6 +63,8 @@ public sealed class SettingsRepository
 
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
+    public const bool DefaultAutoReplaceEmoticons = true;
+    public const bool DefaultEmoticonBannerDismissed = false;
     public const bool DefaultNotificationPopupsEnabled = true;
     public const bool DefaultIconFlashingEnabled = true;
     public const bool DefaultLaunchOnStartup = false;
@@ -122,6 +149,59 @@ public sealed class SettingsRepository
         var cleanList = emojis.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct().ToList();
         var json = JsonSerializer.Serialize(cleanList, SettingsJsonContext.Default.ListString);
         await SetSettingAsync(accountJid, KeyQuickEmojis, json, cancellationToken);
+    }
+
+    public async Task<bool> GetAutoReplaceEmoticonsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyAutoReplaceEmoticons, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultAutoReplaceEmoticons;
+    }
+
+    public async Task SetAutoReplaceEmoticonsAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyAutoReplaceEmoticons, enabled.ToString(), cancellationToken);
+    }
+
+    public async Task<bool> GetEmoticonBannerDismissedAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyEmoticonBannerDismissed, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultEmoticonBannerDismissed;
+    }
+
+    public async Task SetEmoticonBannerDismissedAsync(string accountJid, bool dismissed, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyEmoticonBannerDismissed, dismissed.ToString(), cancellationToken);
+    }
+
+    public async Task<List<EmoticonMapping>> GetEmoticonMappingsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var json = await GetSettingAsync(accountJid, KeyEmoticonMappings, cancellationToken);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [.. DefaultEmoticonMappings];
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.ListEmoticonMapping);
+            if (list is not null && list.Count > 0)
+            {
+                return list.Where(m => !string.IsNullOrWhiteSpace(m.Shortcut) && !string.IsNullOrWhiteSpace(m.Emoji)).ToList();
+            }
+        }
+        catch
+        {
+            // Fallback to default on JSON parse failure
+        }
+
+        return [.. DefaultEmoticonMappings];
+    }
+
+    public async Task SetEmoticonMappingsAsync(string accountJid, IEnumerable<EmoticonMapping> mappings, CancellationToken cancellationToken = default)
+    {
+        var cleanList = mappings.Where(m => !string.IsNullOrWhiteSpace(m.Shortcut) && !string.IsNullOrWhiteSpace(m.Emoji)).ToList();
+        var json = JsonSerializer.Serialize(cleanList, SettingsJsonContext.Default.ListEmoticonMapping);
+        await SetSettingAsync(accountJid, KeyEmoticonMappings, json, cancellationToken);
     }
 
     public async Task<bool> GetMergeMessagesEnabledAsync(string accountJid, CancellationToken cancellationToken = default)

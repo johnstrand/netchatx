@@ -645,6 +645,39 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Dismissible Emoticon Auto-Replacement Info Banner -->
+                        <Border HorizontalAlignment="Center"
+                                Background="#0F172A"
+                                BorderBrush="#00F0FF"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="12,6"
+                                Margin="0,8,0,0"
+                                IsVisible="{Binding ActiveConversation.ShowEmoticonBanner}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Text="💡 Emoticons are automatically converted to emojis. You can turn this off or customize snippets in"
+                                               FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                    <Button Content="Chat Settings"
+                                            Command="{Binding ActiveConversation.OpenChatSettingsAndDismissBannerCommand}"
+                                            Classes="inline-link"
+                                            Foreground="#00F0FF"
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Cursor="Hand"
+                                            VerticalAlignment="Center" />
+                                    <TextBlock Text="." FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="✕"
+                                        Command="{Binding ActiveConversation.DismissEmoticonBannerCommand}"
+                                        ToolTip.Tip="Dismiss"
+                                        Classes="icon-btn subtle"
+                                        FontSize="11"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
