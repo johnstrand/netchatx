@@ -246,12 +246,32 @@ public partial class MainChatView : UserControl
         });
     }
 
+    private bool IsNearBottom(double threshold = 60.0)
+    {
+        _messagesScrollViewer ??= this.FindControl<ScrollViewer>("MessagesScrollViewer");
+        if (_messagesScrollViewer is null) return true;
+        var maxScroll = Math.Max(0, _messagesScrollViewer.Extent.Height - _messagesScrollViewer.Viewport.Height);
+        return _messagesScrollViewer.Offset.Y >= (maxScroll - threshold);
+    }
+
     private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        // Don't auto-scroll to bottom if loading older history from the top
-        if (_currentConversation?.IsLoadingOlderHistory == true) return;
+        // Don't auto-scroll to bottom if loading older history, loading initial history, or syncing
+        if (_currentConversation is null) return;
+        if (_currentConversation.IsLoadingOlderHistory || _currentConversation.IsLoadingHistory || _currentConversation.IsSyncing)
+        {
+            return;
+        }
 
-        if (e.Action is NotifyCollectionChangedAction.Add or NotifyCollectionChangedAction.Reset)
+        if (e.Action is NotifyCollectionChangedAction.Add)
+        {
+            var isOutbound = e.NewItems?.OfType<MessageBubbleViewModel>().Any(m => m.IsOutbound) == true;
+            if (isOutbound || IsNearBottom())
+            {
+                ScrollToLatestMessage();
+            }
+        }
+        else if (e.Action is NotifyCollectionChangedAction.Reset)
         {
             ScrollToLatestMessage();
         }
@@ -259,7 +279,10 @@ public partial class MainChatView : UserControl
 
     private void OnMessagesScrollViewerSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        if (_currentConversation is not null && !_currentConversation.IsLoadingOlderHistory)
+        if (_currentConversation is not null &&
+            !_currentConversation.IsLoadingOlderHistory &&
+            !_currentConversation.IsLoadingHistory &&
+            IsNearBottom())
         {
             ScrollToLatestMessage();
         }
@@ -646,12 +669,6 @@ public partial class MainChatView : UserControl
             if (_messagesScrollViewer is null) return;
 
             _messagesScrollViewer.ScrollToEnd();
-
-            // Additional pass after measure/render pass completes
-            Dispatcher.UIThread.Post(() =>
-            {
-                _messagesScrollViewer?.ScrollToEnd();
-            }, DispatcherPriority.Background);
         }, DispatcherPriority.Normal);
     }
 }

@@ -205,6 +205,86 @@ public class MamSyncTests : IDisposable
         await client.DisconnectAsync();
     }
 
+    [Fact]
+    public async Task ChatConversationViewModel_SyncArchive_WhenCaughtUp_QueriesOnceAndDoesNotHammerServer()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("friend@test.org");
+
+        // Seed initial message so startTimestamp is set
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            Id = "seed_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Seed message",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Direction = MessageDirection.Inbound
+        });
+
+        // Mock MAM returns 0 messages when queried with start timestamp (client is up to date)
+        // If the buggy fallback existed, it would trigger a second query without start
+        var mockMam = new MockMamManager([]);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Friend",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: null,
+            mamManager: mockMam);
+
+        await conv.LoadHistoryAsync();
+
+        // Exactly 1 MAM query should be executed (checking for messages after seed_1)
+        // It must NOT hammer the server with fallback queries
+        Assert.Equal(1, mockMam.QueryCount);
+        Assert.Single(conv.Messages);
+        Assert.False(conv.IsSyncing);
+        Assert.Equal(0, conv.SyncFetchedCount);
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_EnsureHistoryLoadedAsync_ConcurrentCalls_LoadsOnce()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("friend@test.org");
+
+        await _messageRepo.SaveMessageAsync(new ChatMessage
+        {
+            Id = "seed_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Seed message",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Direction = MessageDirection.Inbound
+        });
+
+        var mockMam = new MockMamManager([]);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Friend",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: null,
+            mamManager: mockMam);
+
+        // Run 5 concurrent EnsureHistoryLoadedAsync calls
+        var tasks = Enumerable.Range(0, 5).Select(_ => conv.EnsureHistoryLoadedAsync()).ToArray();
+        await Task.WhenAll(tasks);
+
+        Assert.True(conv.HasLoadedHistory);
+        Assert.Single(conv.Messages);
+        Assert.Equal(1, mockMam.QueryCount);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))

@@ -580,10 +580,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     if (t.IsCompletedSuccessfully && t.Result)
                     {
                         _ = CatchUpAccountArchiveAsync();
-                        if (ActiveConversation is not null)
-                        {
-                            _ = ActiveConversation.SyncArchiveAsync();
-                        }
                     }
                 });
             }
@@ -981,10 +977,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
             System.Diagnostics.Debug.WriteLine("Connected after resume. Syncing messages...");
             _ = CatchUpAccountArchiveAsync();
-            if (ActiveConversation is not null)
-            {
-                _ = ActiveConversation.SyncArchiveAsync();
-            }
         }
         finally
         {
@@ -1070,8 +1062,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
             string? afterId = null;
             var pagesFetched = 0;
             var totalFetchedCount = 0;
+            const int maxPages = 50;
 
-            while (true)
+            while (pagesFetched < maxPages)
             {
                 MamQueryResult? mamResult = null;
                 var retries = 3;
@@ -1097,22 +1090,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     }
                 }
 
-                if (mamResult is null) break;
-
-                pagesFetched++;
-
-                if (mamResult.Messages.Count == 0)
+                if (mamResult is null || mamResult.Messages.Count == 0)
                 {
-                    if (startTimestamp.HasValue && pagesFetched == 1)
-                    {
-                        // Fallback to querying latest page with RSM <before/> in case start filter yields nothing
-                        startTimestamp = null;
-                        pagesFetched = 0;
-                        continue;
-                    }
                     break;
                 }
 
+                pagesFetched++;
                 totalFetchedCount += mamResult.Messages.Count;
                 SyncStatusMessage = $"Syncing messages... ({totalFetchedCount} received)";
 
@@ -1153,25 +1136,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
                     PostToUi(() =>
                     {
-                        foreach (var msg in chatMsgs)
+                        var groups = chatMsgs.GroupBy(m => m.RemoteJid, StringComparer.OrdinalIgnoreCase);
+                        foreach (var group in groups)
                         {
-                            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(msg.RemoteJid, out var rJid) && c.RemoteJid.EqualsBare(rJid));
+                            var remoteJidStr = group.Key;
+                            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(remoteJidStr, out var rJid) && c.RemoteJid.EqualsBare(rJid));
                             if (conv is not null)
                             {
-                                conv.ReceiveMessage(msg);
+                                conv.ReceiveMessages(group);
                             }
-                            else if (ActiveConversation?.RemoteJid.ToString().Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase) == true)
+                            else if (ActiveConversation?.RemoteJid.ToString().Equals(remoteJidStr, StringComparison.OrdinalIgnoreCase) == true)
                             {
-                                ActiveConversation.ReceiveMessage(msg);
+                                ActiveConversation.ReceiveMessages(group);
                             }
 
-                            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && Jid.TryParse(msg.RemoteJid, out var rJid) && cJid.EqualsBare(rJid));
+                            var lastMsg = group.Last();
+                            var inboundCount = group.Count(m => m.Direction == MessageDirection.Inbound);
+                            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && Jid.TryParse(remoteJidStr, out var rJid) && cJid.EqualsBare(rJid));
                             if (contact is not null)
                             {
-                                contact.LastMessagePreview = msg.Body;
-                                if (ActiveConversation?.RemoteJid.ToString() != msg.RemoteJid && msg.Direction == MessageDirection.Inbound)
+                                contact.LastMessagePreview = lastMsg.Body;
+                                if (ActiveConversation?.RemoteJid.ToString() != remoteJidStr)
                                 {
-                                    contact.UnreadCount++;
+                                    contact.UnreadCount += inboundCount;
                                 }
                             }
                             else
@@ -1179,14 +1166,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
                                 contact = new ContactItemViewModel
                                 {
                                     AccountJid = AccountJid,
-                                    ContactJid = msg.RemoteJid,
-                                    Name = msg.RemoteJid,
+                                    ContactJid = remoteJidStr,
+                                    Name = remoteJidStr,
                                     Subscription = "none",
-                                    LastMessagePreview = msg.Body,
-                                    UnreadCount = (ActiveConversation?.RemoteJid.ToString() != msg.RemoteJid && msg.Direction == MessageDirection.Inbound) ? 1 : 0
+                                    LastMessagePreview = lastMsg.Body,
+                                    UnreadCount = (ActiveConversation?.RemoteJid.ToString() != remoteJidStr) ? inboundCount : 0
                                 };
                                 Contacts.Add(contact);
-                                if (Jid.TryParse(msg.RemoteJid, out var parsedJid))
+                                if (Jid.TryParse(remoteJidStr, out var parsedJid))
                                 {
                                     GetOrCreateConversation(parsedJid.BareJid.ToString(), contact.DisplayName, parsedJid.BareJid, isGroupChat: false);
                                 }
@@ -1210,13 +1197,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
                 else
                 {
-                    var nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
-                        ? mamResult.FirstId
-                        : mamResult.Messages.FirstOrDefault()?.ArchiveId;
-
-                    if (string.IsNullOrEmpty(nextBefore) || nextBefore == beforeId)
-                        break;
-                    beforeId = nextBefore;
+                    // Initial account catchup when no messages exist locally only needs the latest page
+                    break;
                 }
             }
         }

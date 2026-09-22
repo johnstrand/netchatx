@@ -52,6 +52,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private System.Threading.CancellationTokenSource? _remoteComposingCts;
     private System.Threading.CancellationTokenSource? _localPauseCts;
     private ChatState? _lastSentLocalState;
+    private Task? _historyLoadingTask;
+    private readonly Lock _historyLoadLock = new();
 
     [ObservableProperty]
     private string _id;
@@ -112,6 +114,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _hasLoadedHistory;
+
+    [ObservableProperty]
+    private bool _isLoadingHistory;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LoadOlderButtonText))]
@@ -355,10 +360,23 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     public async Task EnsureHistoryLoadedAsync()
     {
-        if (!HasLoadedHistory)
+        if (HasLoadedHistory)
         {
-            await LoadHistoryAsync();
+            await MarkUnreadMessagesAsReadAsync();
+            return;
         }
+
+        Task task;
+        lock (_historyLoadLock)
+        {
+            if (_historyLoadingTask is null || _historyLoadingTask.IsCompleted)
+            {
+                _historyLoadingTask = LoadHistoryAsync();
+            }
+            task = _historyLoadingTask;
+        }
+
+        await task;
         await MarkUnreadMessagesAsReadAsync();
     }
 
@@ -655,42 +673,56 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     [RelayCommand]
     public async Task LoadHistoryAsync()
     {
-        if (_settingsRepo is not null)
+        if (HasLoadedHistory) return;
+        IsLoadingHistory = true;
+
+        try
         {
-            try
+            if (_settingsRepo is not null)
             {
-                _isLoadingSettings = true;
-                _quickEmojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
-                EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
-                MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
+                try
+                {
+                    _isLoadingSettings = true;
+                    _quickEmojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
+                    EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
+                    MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
+                }
+                catch
+                {
+                    // Fallback to default
+                }
+                finally
+                {
+                    _isLoadingSettings = false;
+                }
             }
-            catch
+
+            // 1. Immediately load whatever is cached in SQLite for responsive UI
+            var dbMessages = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50);
+            PostToUi(() =>
             {
-                // Fallback to default
-            }
-            finally
+                Messages.Clear();
+                foreach (var msg in dbMessages)
+                {
+                    AddOrUpdateMessageInternal(msg);
+                }
+                UpdateDateHeaders();
+                RequestScrollToBottom();
+            });
+
+            await LoadReadMarkersAsync();
+            await LoadReactionsForCurrentMessagesAsync();
+            HasLoadedHistory = true;
+
+            // 2. Query MAM to sync latest messages from the server
+            if (_mamManager is not null)
             {
-                _isLoadingSettings = false;
+                await SyncArchiveAsync();
             }
         }
-
-        // 1. Immediately load whatever is cached in SQLite for responsive UI
-        var dbMessages = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50);
-        Messages.Clear();
-        foreach (var msg in dbMessages)
+        finally
         {
-            AddOrUpdateMessage(msg);
-        }
-        await LoadReadMarkersAsync();
-        await LoadReactionsForCurrentMessagesAsync();
-        UpdateDateHeaders();
-        HasLoadedHistory = true;
-        RequestScrollToBottom();
-
-        // 2. Query MAM to sync latest messages from the server
-        if (_mamManager is not null)
-        {
-            await SyncArchiveAsync();
+            IsLoadingHistory = false;
         }
     }
 
@@ -827,8 +859,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             string? beforeId = null;
             string? afterId = null;
             var pagesFetched = 0;
+            const int maxPages = 50;
 
-            while (true)
+            while (pagesFetched < maxPages)
             {
                 MamQueryResult? mamResult = null;
                 var retries = 3;
@@ -863,23 +896,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     }
                 }
 
-                if (mamResult is null) break;
-
-                pagesFetched++;
-
-                if (mamResult.Messages.Count == 0)
+                if (mamResult is null || mamResult.Messages.Count == 0)
                 {
-                    if (startTimestamp.HasValue && pagesFetched == 1)
-                    {
-                        // Fallback to querying the latest page with RSM <before/>
-                        // in case the server ignores 'start', returns error, or clock drift exists
-                        startTimestamp = null;
-                        pagesFetched = 0;
-                        continue;
-                    }
                     break;
                 }
 
+                pagesFetched++;
                 SyncFetchedCount += mamResult.Messages.Count;
 
                 var chatMsgs = await ProcessMamMessagesAsync(mamResult.Messages);
@@ -904,19 +926,18 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 }
                 else
                 {
-                    var nextBefore = !string.IsNullOrEmpty(mamResult.FirstId)
-                        ? mamResult.FirstId
-                        : mamResult.Messages.FirstOrDefault()?.ArchiveId;
-
-                    if (string.IsNullOrEmpty(nextBefore) || nextBefore == beforeId)
-                        break;
-                    beforeId = nextBefore;
+                    // Initial sync on empty conversation only loads the latest page.
+                    // Older history is paged on demand via LoadOlderHistoryAsync.
+                    break;
                 }
             }
 
-            await LoadReactionsForCurrentMessagesAsync();
-            UpdateDateHeaders();
-            RequestScrollToBottom();
+            if (SyncFetchedCount > 0)
+            {
+                await LoadReactionsForCurrentMessagesAsync();
+                UpdateDateHeaders();
+                RequestScrollToBottom();
+            }
         }
         catch
         {
@@ -1432,9 +1453,44 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         void Apply()
         {
-            AddOrUpdateMessage(msg);
+            AddOrUpdateMessageInternal(msg);
             UpdateDateHeaders();
             RequestScrollToBottom();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(Apply);
+        }
+    }
+
+    public void ReceiveMessages(IEnumerable<ChatMessage> msgs)
+    {
+        void Apply()
+        {
+            var anyAdded = false;
+            foreach (var msg in msgs)
+            {
+                var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
+                if (existing is not null)
+                {
+                    existing.UpdateMessageRecord(msg);
+                    continue;
+                }
+
+                AddOrUpdateMessageInternal(msg);
+                anyAdded = true;
+            }
+
+            if (anyAdded)
+            {
+                UpdateDateHeaders();
+                RequestScrollToBottom();
+            }
         }
 
         if (Dispatcher.UIThread.CheckAccess())
@@ -1715,66 +1771,66 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     public void AddOrUpdateMessage(ChatMessage msg)
     {
-        void Apply()
+        PostToUi(() => AddOrUpdateMessageInternal(msg));
+    }
+
+    internal void AddOrUpdateMessageInternal(ChatMessage msg)
+    {
+        var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
+        if (existing is not null)
         {
-            var existing = Messages.FirstOrDefault(m => IsSameMessage(m, msg));
-            if (existing is not null)
-            {
-                existing.UpdateMessageRecord(msg);
-                return;
-            }
-
-            if (EnableMessageMerging && MessageMergeThresholdSeconds > 0 && Messages.Count > 0)
-            {
-                var insertIdx = 0;
-                while (insertIdx < Messages.Count && Messages[insertIdx].Timestamp <= msg.Timestamp)
-                {
-                    insertIdx++;
-                }
-
-                if (insertIdx > 0)
-                {
-                    var prevBubble = Messages[insertIdx - 1];
-                    if (prevBubble.CanMergeWith(msg, EnableMessageMerging, MessageMergeThresholdSeconds))
-                    {
-                        prevBubble.MergeMessage(msg);
-                        MessageProcessed?.Invoke(msg);
-                        return;
-                    }
-                }
-            }
-
-            var displayName = GetSenderDisplayName(msg);
-            var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, displayName);
-            bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
-            bubble.ReplyRequested = ReplyToMessage;
-            bubble.EditRequested = StartEditingMessage;
-            bubble.DeleteRequested = b => _ = DeleteMessageAsync(b);
-            var index = 0;
-            while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
-            {
-                index++;
-            }
-            Messages.Insert(index, bubble);
-
-            if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
-            {
-                OldestMessageTimestamp = bubble.Timestamp;
-            }
-
-            if (msg.Direction == MessageDirection.Inbound)
-            {
-                string pJid = IsGroupChat ? msg.SenderJid : RemoteJid.BareJid.ToString();
-                _participantReadMarkers[pJid] = (msg.Id, msg.Timestamp);
-                _ = _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), pJid, msg.Id, msg.Timestamp);
-            }
-
-            UpdateReadMarkersOnBubbles();
-
-            MessageProcessed?.Invoke(msg);
+            existing.UpdateMessageRecord(msg);
+            return;
         }
 
-        PostToUi(Apply);
+        if (EnableMessageMerging && MessageMergeThresholdSeconds > 0 && Messages.Count > 0)
+        {
+            var insertIdx = 0;
+            while (insertIdx < Messages.Count && Messages[insertIdx].Timestamp <= msg.Timestamp)
+            {
+                insertIdx++;
+            }
+
+            if (insertIdx > 0)
+            {
+                var prevBubble = Messages[insertIdx - 1];
+                if (prevBubble.CanMergeWith(msg, EnableMessageMerging, MessageMergeThresholdSeconds))
+                {
+                    prevBubble.MergeMessage(msg);
+                    MessageProcessed?.Invoke(msg);
+                    return;
+                }
+            }
+        }
+
+        var displayName = GetSenderDisplayName(msg);
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, displayName);
+        bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
+        bubble.ReplyRequested = ReplyToMessage;
+        bubble.EditRequested = StartEditingMessage;
+        bubble.DeleteRequested = b => _ = DeleteMessageAsync(b);
+        var index = 0;
+        while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
+        {
+            index++;
+        }
+        Messages.Insert(index, bubble);
+
+        if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
+        {
+            OldestMessageTimestamp = bubble.Timestamp;
+        }
+
+        if (msg.Direction == MessageDirection.Inbound)
+        {
+            string pJid = IsGroupChat ? msg.SenderJid : RemoteJid.BareJid.ToString();
+            _participantReadMarkers[pJid] = (msg.Id, msg.Timestamp);
+            _ = _messageRepo.SaveReadMarkerAsync(_accountJid, RemoteJid.ToString(), pJid, msg.Id, msg.Timestamp);
+        }
+
+        UpdateReadMarkersOnBubbles();
+
+        MessageProcessed?.Invoke(msg);
     }
 
     public string GetSenderDisplayName(ChatMessage msg) => GetSenderDisplayName(msg.SenderJid, msg.Direction);
