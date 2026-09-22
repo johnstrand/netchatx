@@ -37,6 +37,9 @@ public sealed class XmppClient : IAsyncDisposable
         }
     }
 
+    public bool IsConnected => State == XmppClientState.Ready || State == XmppClientState.Connected;
+    public bool IsReady => State == XmppClientState.Ready;
+
     public event Action<XmppClientState>? StateChanged;
     private readonly System.Collections.Concurrent.ConcurrentQueue<MessageStanza> _earlyMessageBuffer = new();
     private Func<MessageStanza, Task>? _messageReceived;
@@ -74,7 +77,9 @@ public sealed class XmppClient : IAsyncDisposable
             throw new InvalidOperationException($"Cannot connect while in state {State}");
 
         State = XmppClientState.Connecting;
+        _sessionCts?.Dispose();
         _sessionCts = new CancellationTokenSource();
+        StreamFeatures = null;
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionCts.Token);
 
         var host = _options.Host ?? _options.Jid.Domain;
@@ -281,6 +286,9 @@ public sealed class XmppClient : IAsyncDisposable
 
     public async Task<IqStanza> SendIqAsync(IqStanza iq, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
+        if (State == XmppClientState.Disconnected || State == XmppClientState.Disconnecting)
+            throw new InvalidOperationException($"Cannot send IQ while client is {State}.");
+
         if (string.IsNullOrEmpty(iq.Id))
             iq.Id = Guid.NewGuid().ToString("N");
 
@@ -388,6 +396,12 @@ public sealed class XmppClient : IAsyncDisposable
         finally
         {
             State = XmppClientState.Disconnected;
+            try { await _transport.CloseAsync(); } catch { }
+            foreach (var (_, tcs) in _pendingIqs)
+            {
+                tcs.TrySetException(new IOException("Connection closed."));
+            }
+            _pendingIqs.Clear();
         }
     }
 
