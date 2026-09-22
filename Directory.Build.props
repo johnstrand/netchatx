@@ -1,9 +1,9 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.0</Version>
-    <AssemblyVersion>$(Version).0</AssemblyVersion>
-    <FileVersion>$(Version).0</FileVersion>
-    <InformationalVersion>$(Version)</InformationalVersion>
+    <Version>0.7.0</Version>
+    <AssemblyVersion>0.7.0.0</AssemblyVersion>
+    <FileVersion>0.7.0.0</FileVersion>
+    <InformationalVersion>0.7.0</InformationalVersion>
     <Authors>John Strand and NetChatx Contributors</Authors>
     <Company>NetChatx</Company>
     <Product>NetChatx</Product>
