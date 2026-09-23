@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -24,6 +25,7 @@ public partial class MainChatView : UserControl
     private GridSplitter? _sidebarSplitter;
     private Control? _sidebarGrid;
     private double _savedSidebarWidth = 300;
+    private bool _wasNearBottom = true;
 
     public MainChatView()
     {
@@ -70,6 +72,7 @@ public partial class MainChatView : UserControl
         if (_messagesScrollViewer is not null)
         {
             _messagesScrollViewer.SizeChanged += OnMessagesScrollViewerSizeChanged;
+            _messagesScrollViewer.PropertyChanged += OnMessagesScrollViewerPropertyChanged;
         }
 
         if (DataContext is MainChatViewModel vm)
@@ -125,6 +128,7 @@ public partial class MainChatView : UserControl
         if (_messagesScrollViewer is not null)
         {
             _messagesScrollViewer.SizeChanged -= OnMessagesScrollViewerSizeChanged;
+            _messagesScrollViewer.PropertyChanged -= OnMessagesScrollViewerPropertyChanged;
         }
 
         UpdateActiveConversation(null);
@@ -246,7 +250,28 @@ public partial class MainChatView : UserControl
         });
     }
 
-    private bool IsNearBottom(double threshold = 60.0)
+    private void OnMessagesScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ScrollViewer.OffsetProperty)
+        {
+            _wasNearBottom = IsNearBottom(200.0);
+        }
+        else if (e.Property == ScrollViewer.ExtentProperty)
+        {
+            if (_currentConversation is null) return;
+            if (_currentConversation.IsLoadingOlderHistory || _currentConversation.IsLoadingHistory || _currentConversation.IsSyncing)
+            {
+                return;
+            }
+
+            if (_wasNearBottom)
+            {
+                ScrollToLatestMessage();
+            }
+        }
+    }
+
+    private bool IsNearBottom(double threshold = 200.0)
     {
         _messagesScrollViewer ??= this.FindControl<ScrollViewer>("MessagesScrollViewer");
         if (_messagesScrollViewer is null) return true;
@@ -521,6 +546,7 @@ public partial class MainChatView : UserControl
             if (result is not null && result.Bytes.Length > 0)
             {
                 conv.StageImageAttachment(result.Bytes, result.FileName);
+                ScrollToLatestMessage();
                 return true;
             }
         }
@@ -565,6 +591,7 @@ public partial class MainChatView : UserControl
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms);
                 conv.StageImageAttachment(ms.ToArray(), file.Name);
+                ScrollToLatestMessage();
             }
         }
         catch
@@ -633,6 +660,7 @@ public partial class MainChatView : UserControl
                 {
                     var bytes = await File.ReadAllBytesAsync(localPath);
                     _currentConversation.StageImageAttachment(bytes, file.Name);
+                    ScrollToLatestMessage();
                     break;
                 }
                 catch
@@ -663,12 +691,19 @@ public partial class MainChatView : UserControl
 
     public void ScrollToLatestMessage()
     {
+        _wasNearBottom = true;
         Dispatcher.UIThread.Post(() =>
         {
             _messagesScrollViewer ??= this.FindControl<ScrollViewer>("MessagesScrollViewer");
             if (_messagesScrollViewer is null) return;
 
             _messagesScrollViewer.ScrollToEnd();
-        }, DispatcherPriority.Normal);
+
+            // Run follow-up pass at Loaded priority to ensure newly measured layouts and images are accounted for
+            Dispatcher.UIThread.Post(() =>
+            {
+                _messagesScrollViewer?.ScrollToEnd();
+            }, DispatcherPriority.Loaded);
+        }, DispatcherPriority.Loaded);
     }
 }

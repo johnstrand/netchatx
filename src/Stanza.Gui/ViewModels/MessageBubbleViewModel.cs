@@ -29,6 +29,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private GifAnimationPlayer? _gifPlayer;
 
     public Func<MessageBubbleViewModel, string, Task>? ToggleReactionHandler { get; set; }
+    public event Action? ImageLoaded;
 
     [ObservableProperty]
     private string _id = Guid.NewGuid().ToString("N");
@@ -105,6 +106,18 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SenderDisplayName))]
     private string _senderName = "Me";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatar))]
+    private Bitmap? _avatar;
+
+    public bool HasAvatar => Avatar is not null;
+
+    [ObservableProperty]
+    private string _initials = string.Empty;
+
+    [ObservableProperty]
+    private IBrush? _avatarBackgroundBrush;
 
     private string? _senderDisplayName;
 
@@ -448,6 +461,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                     {
                         IsGif = true;
                     }
+
+                    ImageLoaded?.Invoke();
                 });
             }
             else
@@ -608,12 +623,62 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         return elem.ToXmlString(indent: true);
     }
 
+    public static string EnsureImageAtBottom(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return body;
+        var matches = ImageUrlRegex.Matches(body);
+        if (matches.Count == 0) return body;
+
+        var textWithoutUrls = ImageUrlRegex.Replace(body, string.Empty).Trim();
+        var urls = string.Join("\n", matches.Select(m => m.Value));
+
+        if (string.IsNullOrEmpty(textWithoutUrls)) return urls;
+        return $"{textWithoutUrls}\n{urls}";
+    }
+
+    public static bool HasImageContent(ChatMessage msg)
+    {
+        if (msg is null) return false;
+
+        if (!string.IsNullOrWhiteSpace(msg.Body) && ImageUrlRegex.IsMatch(msg.Body))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(msg.RawXml))
+        {
+            try
+            {
+                var elem = Stanza.Core.Xml.XmppElement.Parse(msg.RawXml);
+                var oobUrl = Stanza.Protocol.Xeps.Sharing.Xep0066OutOfBandData.ExtractOobUrl(elem);
+                if (!string.IsNullOrWhiteSpace(oobUrl) && ImageUrlRegex.IsMatch(oobUrl))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Soft failure parsing raw XML
+            }
+        }
+
+        return false;
+    }
+
+    public static IEnumerable<ChatMessage> OrderGroupedMessages(IEnumerable<ChatMessage> messages)
+    {
+        return messages.OrderBy(m => HasImageContent(m) ? 1 : 0);
+    }
+
     public static MessageBubbleViewModel FromChatMessage(
         ChatMessage msg,
         string accountJid = "",
         SettingsRepository? settingsRepo = null,
         IEnumerable<string>? quickEmojis = null,
-        string? senderDisplayName = null)
+        string? senderDisplayName = null,
+        Bitmap? avatar = null,
+        string? initials = null,
+        IBrush? avatarBackgroundBrush = null)
     {
         var effectiveSenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid;
         var effectiveSenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
@@ -623,7 +688,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         var isAction = msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase) ||
                         msg.Body.Equals("/me", StringComparison.OrdinalIgnoreCase);
 
-        var displayBody = msg.Body;
+        var displayBody = EnsureImageAtBottom(msg.Body);
         string? actionText = null;
 
         if (isAction)
@@ -643,6 +708,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             Timestamp = msg.Timestamp,
             SenderName = effectiveSenderName,
             SenderDisplayName = effectiveSenderDisplayName,
+            Avatar = avatar,
+            Initials = !string.IsNullOrEmpty(initials) ? initials : Helpers.AvatarHelper.GetInitials(effectiveSenderDisplayName),
+            AvatarBackgroundBrush = avatarBackgroundBrush ?? Helpers.AvatarHelper.GetAvatarColorBrush(msg.SenderJid),
             RemoteJid = msg.RemoteJid ?? string.Empty,
             IsEncrypted = msg.IsEncrypted,
             EncryptionType = msg.EncryptionType,
@@ -802,11 +870,24 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             LatestTimestamp = msg.Timestamp;
         }
 
+        // The function that groups messages in a chatbox always keeps the image on the bottom, regardless of order
+        var ordered = OrderGroupedMessages(MergedMessages).ToList();
+        MergedMessages.Clear();
+        MergedMessages.AddRange(ordered);
+
         Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
         IsRead = MergedMessages.All(m => m.IsRead);
         UpdateRawXml();
 
         ExtractImageUrl(Body);
+        if (!HasImage)
+        {
+            foreach (var m in MergedMessages)
+            {
+                ExtractOobImageUrl(m.RawXml);
+                if (HasImage) break;
+            }
+        }
         ExtractLinks(Body);
         if (HasImage && ImageThumbnail is null && ShowInlinePreviews && AutoDownloadMedia)
         {
@@ -839,17 +920,29 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
             if (MergedMessages.Count > 0)
             {
+                var ordered = OrderGroupedMessages(MergedMessages).ToList();
+                MergedMessages.Clear();
+                MergedMessages.AddRange(ordered);
+
                 var first = MergedMessages[0];
                 Id = first.Id;
                 StanzaId = first.StanzaId;
                 OriginId = first.OriginId;
                 ReplaceId = first.ReplaceId;
-                Timestamp = first.Timestamp;
+                Timestamp = MergedMessages.Min(m => m.Timestamp);
                 Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
                 LatestTimestamp = MergedMessages.Max(m => m.Timestamp);
                 IsRead = MergedMessages.All(m => m.IsRead);
                 UpdateRawXml();
                 ExtractImageUrl(Body);
+                if (!HasImage)
+                {
+                    foreach (var m in MergedMessages)
+                    {
+                        ExtractOobImageUrl(m.RawXml);
+                        if (HasImage) break;
+                    }
+                }
                 ExtractLinks(Body);
             }
             else
@@ -914,6 +1007,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         {
             ReplaceId = msg.ReplaceId;
             IsEdited = true;
+            var ordered = OrderGroupedMessages(MergedMessages).ToList();
+            MergedMessages.Clear();
+            MergedMessages.AddRange(ordered);
             Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
             ExtractImageUrl(Body);
             ExtractLinks(Body);
@@ -938,6 +1034,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         ReplaceId = originalId;
         if (MergedMessages.Count > 0)
         {
+            var ordered = OrderGroupedMessages(MergedMessages).ToList();
+            MergedMessages.Clear();
+            MergedMessages.AddRange(ordered);
             Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
             UpdateRawXml();
         }
