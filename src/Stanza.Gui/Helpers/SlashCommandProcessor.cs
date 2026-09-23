@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 
 namespace Stanza.Gui.Helpers;
@@ -25,6 +25,8 @@ public sealed class SlashCommandResult
     public string? StatusShow { get; init; }
     public string? StatusMessage { get; init; }
     public string? SystemOutput { get; init; }
+    public bool IsInvalid { get; init; }
+    public bool IsError => IsInvalid;
 }
 
 public static class SlashCommandProcessor
@@ -80,7 +82,8 @@ public static class SlashCommandProcessor
             _ => new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = $"Unknown command: /{commandName}. Type /help for available commands."
+                SystemOutput = $"Unknown command: /{commandName}. Type /help for available commands.",
+                IsInvalid = true
             }
         };
     }
@@ -92,7 +95,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Usage: /me <action>"
+                SystemOutput = "Usage: /me <action>",
+                IsInvalid = true
             };
         }
 
@@ -124,7 +128,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Usage: /status <available|away|dnd|xa> [status message]"
+                SystemOutput = "Usage: /status <available|away|dnd|xa> [status message]",
+                IsInvalid = true
             };
         }
 
@@ -146,7 +151,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Invalid status mode. Valid options: available, away, dnd, xa."
+                SystemOutput = "Invalid status mode. Valid options: available, away, dnd, xa.",
+                IsInvalid = true
             };
         }
 
@@ -165,7 +171,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "The /topic command can only be used in group chats."
+                SystemOutput = "The /topic command can only be used in group chats.",
+                IsInvalid = true
             };
         }
 
@@ -174,7 +181,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Usage: /topic <new subject>"
+                SystemOutput = "Usage: /topic <new subject>",
+                IsInvalid = true
             };
         }
 
@@ -192,7 +200,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Usage: /join <room_jid>"
+                SystemOutput = "Usage: /join <room_jid>",
+                IsInvalid = true
             };
         }
 
@@ -210,7 +219,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Usage: /msg <jid> [message]"
+                SystemOutput = "Usage: /msg <jid> [message]",
+                IsInvalid = true
             };
         }
 
@@ -233,7 +243,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "The /nick command can only be used in group chats."
+                SystemOutput = "The /nick command can only be used in group chats.",
+                IsInvalid = true
             };
         }
 
@@ -242,7 +253,8 @@ public static class SlashCommandProcessor
             return new SlashCommandResult
             {
                 Type = SlashCommandResultType.SystemMessage,
-                SystemOutput = "Usage: /nick <new_nickname>"
+                SystemOutput = "Usage: /nick <new_nickname>",
+                IsInvalid = true
             };
         }
 
