@@ -33,6 +33,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
     private readonly Func<byte[], string, Task>? _onAvatarChanged;
     private readonly Func<Task>? _onAvatarRemoved;
+    private readonly Func<Task>? _onAvatarSyncRequested;
     private bool _isInitializing;
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
@@ -244,7 +245,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<bool, IReadOnlyList<EmoticonMapping>>? onEmoticonSettingsChanged = null,
         IStartupService? startupService = null,
         Func<byte[], string, Task>? onAvatarChanged = null,
-        Func<Task>? onAvatarRemoved = null)
+        Func<Task>? onAvatarRemoved = null,
+        Func<Task>? onAvatarSyncRequested = null)
     {
         _settingsRepo = settingsRepo;
         _startupService = startupService ?? new StartupService();
@@ -264,6 +266,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onEmoticonSettingsChanged = onEmoticonSettingsChanged;
         _onAvatarChanged = onAvatarChanged;
         _onAvatarRemoved = onAvatarRemoved;
+        _onAvatarSyncRequested = onAvatarSyncRequested;
+    }
+
+    [RelayCommand]
+    public async Task SyncAvatarAsync()
+    {
+        AvatarStatusMessage = "Syncing avatar from server...";
+        if (_onAvatarSyncRequested is not null)
+        {
+            await _onAvatarSyncRequested();
+            AvatarStatusMessage = HasUserAvatar ? "Avatar synced from server!" : "No avatar found on server.";
+        }
     }
 
     public async Task SetAvatarBytesAsync(byte[] bytes, string mimeType)

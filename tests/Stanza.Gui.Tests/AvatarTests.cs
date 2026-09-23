@@ -281,4 +281,49 @@ public class AvatarTests : IDisposable
         Assert.Equal(hash, conv.AvatarHash);
         Assert.NotNull(conv.Avatar);
     }
+
+    [AvaloniaFact]
+    public async Task SettingsViewModel_SyncAvatarCommand_InvokesCallbackAndUpdatesStatus()
+    {
+        var syncInvoked = false;
+        var vm = new SettingsViewModel(
+            new SettingsRepository(_dbContext),
+            "alice@example.com",
+            onAvatarSyncRequested: () => { syncInvoked = true; return Task.CompletedTask; }
+        );
+
+        await vm.SyncAvatarAsync();
+
+        Assert.True(syncInvoked);
+        Assert.Equal("No avatar found on server.", vm.AvatarStatusMessage);
+
+        // When HasUserAvatar is true after sync
+        await vm.SetAvatarBytesAsync(SamplePngBytes, "image/png");
+        await vm.SyncAvatarAsync();
+        Assert.Equal("Avatar synced from server!", vm.AvatarStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task MainChatViewModel_HandleAvatarUpdatedAsync_OwnJid_UpdatesUserAvatar()
+    {
+        var vm = CreateMainChatViewModel("user@example.com");
+        await vm.InitializeAsync();
+
+        Assert.False(vm.HasUserAvatar);
+
+        var hash = AvatarHelper.ComputeSha1(SamplePngBytes);
+        await vm.HandleAvatarUpdatedAsync(new AvatarChangedEventArgs
+        {
+            Jid = Jid.Parse("user@example.com"),
+            Hash = hash,
+            Data = SamplePngBytes,
+            MimeType = "image/png"
+        });
+
+        Assert.True(vm.HasUserAvatar);
+        Assert.Equal(hash, vm.UserAvatarHash);
+        Assert.NotNull(vm.UserAvatar);
+        Assert.True(vm.Settings.HasUserAvatar);
+        Assert.Equal(hash, vm.Settings.UserAvatarHash);
+    }
 }

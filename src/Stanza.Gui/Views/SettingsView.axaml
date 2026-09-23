@@ -747,6 +747,7 @@
 
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked" />
+                                                <Button Content="🔄 Sync from Server" Command="{Binding SyncAvatarCommand}" Classes="image-btn" />
                                                 <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}" Classes="icon-btn subtle" />
                                             </StackPanel>
                                         </StackPanel>

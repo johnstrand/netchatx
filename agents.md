@@ -55,6 +55,10 @@ When your task is complete, committed, and ready:
    ```bash
    git worktree prune
    ```
+5. Or run the workspace cleanup script to automatically remove worktrees whose remote branch was deleted:
+   ```powershell
+   pwsh ./scripts/cleanup-workspaces.ps1
+   ```
 
 ---
 
