@@ -177,11 +177,11 @@
 
         <!-- ================= LEFT COLUMN: SIDEBAR ================= -->
         <Grid x:Name="SidebarGrid" Grid.Column="0" RowDefinitions="Auto,Auto,*,Auto"
-              Background="#0B0F19"
+              Background="#182436"
               IsVisible="{Binding IsSidebarOpen}">
 
             <!-- Row 0: App Branding Header -->
-            <Border Grid.Row="0" Padding="16,14,14,14" Background="#0B0F19"
+            <Border Grid.Row="0" Padding="16,14,14,14" Background="#182436"
                     BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <!-- Logo & Brand -->
@@ -201,7 +201,7 @@
             </Border>
 
             <!-- Row 1: Search Bar & New Chat Button -->
-            <Border Grid.Row="1" Padding="12,10" Background="#0B0F19" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
+            <Border Grid.Row="1" Padding="12,10" Background="#182436" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                 <Grid ColumnDefinitions="*,Auto">
                     <Border Grid.Column="0" Background="#131C2D" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="18" Padding="10,0">
                         <Grid ColumnDefinitions="Auto,*">
@@ -226,7 +226,7 @@
             <!-- Row 2: Search Results or Tabs (Chats & Contacts) -->
             <!-- Search Results View -->
             <Grid Grid.Row="2" RowDefinitions="Auto,*" IsVisible="{Binding IsSearching}">
-                <Border Grid.Row="0" Padding="12,6" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
+                <Border Grid.Row="0" Padding="12,6" Background="#182436" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding SearchResultsHeader}" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
                         <Button Grid.Column="1" Content="✕" Command="{Binding CloseSearchCommand}" ToolTip.Tip="Close Search (Esc)" Classes="icon-btn subtle" />
@@ -275,7 +275,7 @@
                                         </Border>
                                         <Ellipse Width="10" Height="10"
                                                  Fill="{Binding PresenceShow, Converter={StaticResource PresenceToBrush}}"
-                                                 Stroke="#0B0F19"
+                                                 Stroke="#182436"
                                                  StrokeThickness="2"
                                                  Margin="0,0,1,1"
                                                  HorizontalAlignment="Right" VerticalAlignment="Bottom" />
@@ -320,7 +320,7 @@
                                             </Border>
                                             <Ellipse Width="10" Height="10"
                                                      Fill="{Binding PresenceShow, Converter={StaticResource PresenceToBrush}}"
-                                                     Stroke="#0B0F19"
+                                                     Stroke="#182436"
                                                      StrokeThickness="2"
                                                      Margin="0,0,1,1"
                                                      HorizontalAlignment="Right" VerticalAlignment="Bottom" />
@@ -345,7 +345,7 @@
             </TabControl>
 
             <!-- Row 3: Bottom User Profile & Controls Bar -->
-            <Border Grid.Row="3" Padding="12,10" Background="#0F172A"
+            <Border Grid.Row="3" Padding="12,10" Background="#182436"
                     BorderBrush="#1E293B" BorderThickness="0,1,0,0">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                     <!-- User Avatar with Presence Dot -->
@@ -365,7 +365,7 @@
                                 </Border>
                                 <Ellipse Width="10" Height="10"
                                          Fill="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
-                                         Stroke="#0F172A"
+                                         Stroke="#182436"
                                          StrokeThickness="2"
                                          Margin="0,0,1,1"
                                          HorizontalAlignment="Right" VerticalAlignment="Bottom" />
