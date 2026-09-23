@@ -555,7 +555,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
             },
             onAvatarChanged: async (bytes, mime) => await SetUserAvatarFromBytesAsync(bytes, mime),
-            onAvatarRemoved: async () => await RemoveUserAvatarAsync());
+            onAvatarRemoved: async () => await RemoveUserAvatarAsync(),
+            onAvatarSyncRequested: async () => await SyncOwnAvatarFromServerAsync());
     }
 
     public async Task InitializeAsync()
@@ -770,6 +771,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             // Soft failure on initial presence
         }
+
+        // Asynchronously check and sync own avatar from server if missing locally or updated remotely
+        _ = SyncOwnAvatarFromServerAsync();
 
         // Load account settings
         try
@@ -2263,9 +2267,60 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
     }
 
+    public async Task SyncOwnAvatarFromServerAsync(CancellationToken ct = default)
+    {
+        if (_avatarManager is null) return;
+
+        try
+        {
+            var result = await _avatarManager.SyncOwnAvatarAsync(ct).ConfigureAwait(false);
+            if (result is not null && result.Data.Length > 0)
+            {
+                if (!string.Equals(UserAvatarHash, result.Hash, StringComparison.OrdinalIgnoreCase) || UserAvatar is null)
+                {
+                    await _avatarRepo.SaveAvatarAsync(AccountJid, result.Hash, result.MimeType, result.Data, ct).ConfigureAwait(false);
+                    var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(result.Data);
+                    if (bmp is not null)
+                    {
+                        _avatarCache[AccountJid] = (result.Hash, bmp);
+
+                        PostToUi(() =>
+                        {
+                            ApplyAvatarToContactAndConversation(AccountJid, bmp, result.Hash);
+                            Settings.AvatarStatusMessage = "Avatar synced from server!";
+                        });
+
+                        try
+                        {
+                            await SetPresenceAsync(UserPresence).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            // Soft failure broadcasting presence
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure syncing own avatar
+        }
+    }
+
     private void ApplyAvatarToContactAndConversation(string bareJid, Avalonia.Media.Imaging.Bitmap? bitmap, string? hash)
     {
         Jid.TryParse(bareJid, out var targetJid);
+
+        if (string.Equals(AccountJid, bareJid, StringComparison.OrdinalIgnoreCase) ||
+            (targetJid is not null && Jid.TryParse(AccountJid, out var myJid) && myJid.EqualsBare(targetJid)))
+        {
+            UserAvatar = bitmap;
+            UserAvatarHash = hash;
+            Settings.UserAvatar = bitmap;
+            Settings.UserAvatarHash = hash;
+            _avatarManager?.SetCurrentAvatarHash(hash);
+        }
 
         var contact = Contacts.FirstOrDefault(c => string.Equals(c.ContactJid, bareJid, StringComparison.OrdinalIgnoreCase) ||
             (targetJid is not null && Jid.TryParse(c.ContactJid, out var cj) && cj.EqualsBare(targetJid)));

@@ -71,11 +71,11 @@ public sealed class Xep0153VCardAvatar : XepFeatureBase
         return ValueTask.FromResult(true);
     }
 
-    public async Task<(byte[] Data, string MimeType)?> FetchVCardAvatarAsync(Jid targetJid, CancellationToken ct = default)
+    public async Task<(byte[] Data, string MimeType)?> FetchVCardAvatarAsync(Jid? targetJid = null, CancellationToken ct = default)
     {
         if (Client is null) throw new InvalidOperationException("Client not attached.");
 
-        var iq = IqStanza.CreateGet(targetJid.BareJid);
+        var iq = targetJid is not null ? IqStanza.CreateGet(targetJid.BareJid) : IqStanza.CreateGet();
         iq.RawElement.Child(new XmppElement("vCard", NsVCard));
 
         try

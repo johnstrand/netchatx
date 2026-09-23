@@ -93,7 +93,50 @@ public sealed class AvatarManager : IXepFeature
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
-    public async Task<AvatarDataResult?> FetchAvatarAsync(Jid contactJid, string? knownHash = null, CancellationToken ct = default)
+    public async Task<AvatarDataResult?> SyncOwnAvatarAsync(CancellationToken ct = default)
+    {
+        if (_client is null) throw new InvalidOperationException("AvatarManager is not attached to an XmppClient.");
+
+        // 1. Query PEP metadata for own avatar (XEP-0084)
+        try
+        {
+            var meta = await UserAvatarXep.FetchAvatarMetadataAsync(null, ct).ConfigureAwait(false);
+            if (meta is not null && !string.IsNullOrEmpty(meta.Id))
+            {
+                var pepData = await UserAvatarXep.FetchAvatarDataAsync(null, meta.Id, ct).ConfigureAwait(false);
+                if (pepData is not null && pepData.Length > 0)
+                {
+                    var hash = ComputeSha1(pepData);
+                    SetCurrentAvatarHash(hash);
+                    return new AvatarDataResult(pepData, meta.MimeType, hash);
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to vCard
+        }
+
+        // 2. Query own vCard (XEP-0153 / XEP-0054)
+        try
+        {
+            var vCardResult = await VCardAvatarXep.FetchVCardAvatarAsync(null, ct).ConfigureAwait(false);
+            if (vCardResult.HasValue && vCardResult.Value.Data.Length > 0)
+            {
+                var hash = ComputeSha1(vCardResult.Value.Data);
+                SetCurrentAvatarHash(hash);
+                return new AvatarDataResult(vCardResult.Value.Data, vCardResult.Value.MimeType, hash);
+            }
+        }
+        catch
+        {
+            // Soft failure fetching vCard
+        }
+
+        return null;
+    }
+
+    public async Task<AvatarDataResult?> FetchAvatarAsync(Jid? contactJid = null, string? knownHash = null, CancellationToken ct = default)
     {
         if (_client is null) throw new InvalidOperationException("AvatarManager is not attached to an XmppClient.");
 

@@ -86,12 +86,66 @@ public sealed class Xep0084UserAvatar : XepFeatureBase
         return ValueTask.FromResult(true);
     }
 
-    public async Task<byte[]?> FetchAvatarDataAsync(Jid targetJid, string hash, CancellationToken ct = default)
+    public async Task<AvatarMetadata?> FetchAvatarMetadataAsync(Jid? targetJid = null, CancellationToken ct = default)
+    {
+        if (Client is null) throw new InvalidOperationException("Client not attached.");
+
+        var iq = targetJid is not null ? IqStanza.CreateGet(targetJid.BareJid) : IqStanza.CreateGet();
+        var pubsub = new XmppElement("pubsub", NsPubSub)
+            .Child(new XmppElement("items").Attr("node", NsMetadata));
+        iq.RawElement.Child(pubsub);
+
+        try
+        {
+            var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
+            if (resultIq.IsError) return null;
+
+            var items = resultIq.RawElement
+                .Element("pubsub", NsPubSub)?
+                .Element("items");
+
+            if (items is null || items.GetAttr("node") != NsMetadata) return null;
+
+            var item = items.Element("item");
+            if (item is null) return null;
+
+            var metadata = item.Element("metadata", NsMetadata);
+            if (metadata is null) return null;
+
+            var info = metadata.Element("info");
+            if (info is null) return null;
+
+            var id = info.GetAttr("id");
+            if (string.IsNullOrEmpty(id)) return null;
+
+            var mime = info.GetAttr("type") ?? "image/png";
+            var bytesStr = info.GetAttr("bytes");
+            long.TryParse(bytesStr, out var bytes);
+
+            int? width = null;
+            if (int.TryParse(info.GetAttr("width"), out var w)) width = w;
+
+            int? height = null;
+            if (int.TryParse(info.GetAttr("height"), out var h)) height = h;
+
+            var url = info.GetAttr("url");
+
+            return new AvatarMetadata(id, mime, bytes, width, height, url);
+        }
+        catch
+        {
+            // Soft failure fetching avatar metadata
+        }
+
+        return null;
+    }
+
+    public async Task<byte[]?> FetchAvatarDataAsync(Jid? targetJid, string hash, CancellationToken ct = default)
     {
         if (Client is null) throw new InvalidOperationException("Client not attached.");
         ArgumentException.ThrowIfNullOrWhiteSpace(hash);
 
-        var iq = IqStanza.CreateGet(targetJid.BareJid);
+        var iq = targetJid is not null ? IqStanza.CreateGet(targetJid.BareJid) : IqStanza.CreateGet();
         var pubsub = new XmppElement("pubsub", NsPubSub)
             .Child(new XmppElement("items")
                 .Attr("node", NsData)

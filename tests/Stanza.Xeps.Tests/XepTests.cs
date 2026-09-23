@@ -827,5 +827,144 @@ public class XepTests
         Assert.NotEmpty(sha1);
         Assert.Equal(40, sha1.Length);
     }
+
+    [Fact]
+    public async Task Xep0084_FetchAvatarMetadata_ConstructsQueryAndParsesResult()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        var xep = new Xep0084UserAvatar();
+        await xep.AttachAsync(client);
+        await client.ConnectAsync();
+
+        server.OnIqReceived += async iq =>
+        {
+            if (iq.IsGet && iq.RawElement.Element("pubsub", Xep0084UserAvatar.NsPubSub)?
+                .Element("items")?.GetAttr("node") == Xep0084UserAvatar.NsMetadata)
+            {
+                var result = iq.CreateResult();
+                var pubsub = new XmppElement("pubsub", Xep0084UserAvatar.NsPubSub)
+                    .Child(new XmppElement("items").Attr("node", Xep0084UserAvatar.NsMetadata)
+                        .Child(new XmppElement("item").Attr("id", "meta_hash_123")
+                            .Child(new XmppElement("metadata", Xep0084UserAvatar.NsMetadata)
+                                .Child(new XmppElement("info")
+                                    .Attr("id", "meta_hash_123")
+                                    .Attr("type", "image/png")
+                                    .Attr("bytes", "4096")
+                                    .Attr("width", "64")
+                                    .Attr("height", "64")))));
+                result.RawElement.Child(pubsub);
+                await server.InjectStanzaAsync(result);
+            }
+        };
+
+        var meta = await xep.FetchAvatarMetadataAsync();
+
+        Assert.NotNull(meta);
+        Assert.Equal("meta_hash_123", meta.Id);
+        Assert.Equal("image/png", meta.MimeType);
+        Assert.Equal(4096, meta.Bytes);
+        Assert.Equal(64, meta.Width);
+        Assert.Equal(64, meta.Height);
+    }
+
+    [Fact]
+    public async Task Xep0153_FetchOwnVCardAvatar_ParsesResult()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        var xep = new Xep0153VCardAvatar();
+        await xep.AttachAsync(client);
+        await client.ConnectAsync();
+
+        var sampleBytes = "avatar_bytes"u8.ToArray();
+        var base64 = Convert.ToBase64String(sampleBytes);
+
+        server.OnIqReceived += async iq =>
+        {
+            if (iq.IsGet && iq.RawElement.Element("vCard", Xep0153VCardAvatar.NsVCard) is not null)
+            {
+                var result = iq.CreateResult();
+                var vcard = new XmppElement("vCard", Xep0153VCardAvatar.NsVCard)
+                    .Child(new XmppElement("PHOTO")
+                        .Child(new XmppElement("TYPE") { Value = "image/png" })
+                        .Child(new XmppElement("BINVAL") { Value = base64 }));
+                result.RawElement.Child(vcard);
+                await server.InjectStanzaAsync(result);
+            }
+        };
+
+        var result = await xep.FetchVCardAvatarAsync();
+
+        Assert.NotNull(result);
+        Assert.Equal("image/png", result.Value.MimeType);
+        Assert.Equal(sampleBytes, result.Value.Data);
+    }
+
+    [Fact]
+    public async Task AvatarManager_SyncOwnAvatar_SucceedsViaVCardFallback()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        var manager = new AvatarManager();
+        await manager.AttachAsync(client);
+        await client.ConnectAsync();
+
+        var sampleBytes = "vcard_avatar_data"u8.ToArray();
+        var base64 = Convert.ToBase64String(sampleBytes);
+
+        server.OnIqReceived += async iq =>
+        {
+            // If PEP metadata query, return error so it falls back to vCard
+            if (iq.IsGet && iq.RawElement.Element("pubsub", Xep0084UserAvatar.NsPubSub) is not null)
+            {
+                var err = iq.CreateError("item-not-found");
+                await server.InjectStanzaAsync(err);
+            }
+            // If vCard query, return vCard photo
+            else if (iq.IsGet && iq.RawElement.Element("vCard", Xep0153VCardAvatar.NsVCard) is not null)
+            {
+                var result = iq.CreateResult();
+                var vcard = new XmppElement("vCard", Xep0153VCardAvatar.NsVCard)
+                    .Child(new XmppElement("PHOTO")
+                        .Child(new XmppElement("TYPE") { Value = "image/jpeg" })
+                        .Child(new XmppElement("BINVAL") { Value = base64 }));
+                result.RawElement.Child(vcard);
+                await server.InjectStanzaAsync(result);
+            }
+        };
+
+        var syncResult = await manager.SyncOwnAvatarAsync();
+
+        Assert.NotNull(syncResult);
+        Assert.Equal(sampleBytes, syncResult.Data);
+        Assert.Equal("image/jpeg", syncResult.MimeType);
+        Assert.Equal(AvatarManager.ComputeSha1(sampleBytes), syncResult.Hash);
+        Assert.Equal(syncResult.Hash, manager.VCardAvatarXep.CurrentAvatarHash);
+    }
 }
 
