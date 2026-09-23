@@ -1,0 +1,40 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Stanza.Gui.ViewModels"
+        xmlns:views="using:Stanza.Gui.Views"
+        x:Class="Stanza.Gui.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Stanza - XMPP Client"
+        Icon="/Assets/stanza-logo.ico"
+        Width="1050" Height="700"
+        MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen"
+        Background="#080C14">
+
+    <Window.DataTemplates>
+        <DataTemplate DataType="{x:Type vm:LoginViewModel}">
+            <views:LoginView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MainChatViewModel}">
+            <views:MainChatView />
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid RowDefinitions="*,Auto">
+        <!-- Main Content Area -->
+        <ContentControl Grid.Row="0" Content="{Binding CurrentView}" />
+
+        <!-- Global Status Bar -->
+        <Border Grid.Row="1" Background="#0A0E17"
+                BorderBrush="#1E293B" BorderThickness="0,1,0,0"
+                Padding="14,5">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center" FontSize="11" Foreground="#94A3B8" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Image Source="/Assets/stanza-logo.png" Width="14" Height="14" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding AppVersionDisplay}" VerticalAlignment="Center" FontSize="11" Foreground="#64748B" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

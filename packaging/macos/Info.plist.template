@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>NetChatx</string>
+    <string>Stanza</string>
     <key>CFBundleDisplayName</key>
-    <string>NetChatx</string>
+    <string>Stanza</string>
     <key>CFBundleIdentifier</key>
-    <string>com.netchatx.desktop</string>
+    <string>com.stanza.desktop</string>
     <key>CFBundleVersion</key>
     <string>__VERSION__</string>
     <key>CFBundleShortVersionString</key>
@@ -17,9 +17,9 @@
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleExecutable</key>
-    <string>NetChatx.Gui</string>
+    <string>Stanza</string>
     <key>CFBundleIconFile</key>
-    <string>netchatx.icns</string>
+    <string>stanza.icns</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>

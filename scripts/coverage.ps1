@@ -5,7 +5,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 Write-Host "==> Running tests with code coverage ($Configuration)..." -ForegroundColor Cyan
-dotnet test NetChatx.slnx --configuration $Configuration --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+dotnet test Stanza.slnx --configuration $Configuration --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Tests failed!" -ForegroundColor Red

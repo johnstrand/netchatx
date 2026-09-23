@@ -4,7 +4,7 @@ set -euo pipefail
 CONFIGURATION="${1:-Debug}"
 
 echo "==> Running tests with code coverage ($CONFIGURATION)..."
-dotnet test NetChatx.slnx --configuration "$CONFIGURATION" --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+dotnet test Stanza.slnx --configuration "$CONFIGURATION" --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
 echo "==> Generating coverage reports..."
 if command -v reportgenerator &> /dev/null; then

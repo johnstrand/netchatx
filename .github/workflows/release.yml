@@ -97,7 +97,7 @@ jobs:
       - name: Publish Windows App
         shell: pwsh
         run: |
-          dotnet publish src/NetChatx.Gui/NetChatx.Gui.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/win-x64
+          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/win-x64
 
       - name: Package Windows Artifacts
         shell: pwsh
@@ -128,7 +128,7 @@ jobs:
 
       - name: Publish Linux App
         run: |
-          dotnet publish src/NetChatx.Gui/NetChatx.Gui.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/linux-x64
+          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/linux-x64
 
       - name: Package Linux Artifacts
         run: |
@@ -162,7 +162,7 @@ jobs:
 
       - name: Publish macOS App
         run: |
-          dotnet publish src/NetChatx.Gui/NetChatx.Gui.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/${{ matrix.rid }}
+          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/${{ matrix.rid }}
 
       - name: Package macOS Artifacts
         run: |
@@ -220,11 +220,11 @@ jobs:
           PREV_TAG="${{ needs.calculate-and-tag-version.outputs.previous_tag }}"
           if [ -n "$PREV_TAG" ]; then
             gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
-              --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+              --title "Stanza ${{ needs.calculate-and-tag-version.outputs.tag }}" \
               --generate-notes \
               --notes-start-tag "$PREV_TAG"
           else
             gh release create "${{ needs.calculate-and-tag-version.outputs.tag }}" release-assets/* \
-              --title "NetChatx ${{ needs.calculate-and-tag-version.outputs.tag }}" \
+              --title "Stanza ${{ needs.calculate-and-tag-version.outputs.tag }}" \
               --generate-notes
           fi

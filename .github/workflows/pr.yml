@@ -26,7 +26,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Run tests with Code Coverage
-        run: dotnet test NetChatx.slnx --configuration Release --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+        run: dotnet test Stanza.slnx --configuration Release --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
       - name: Generate Code Coverage Report
         uses: danielpalme/ReportGenerator-GitHub-Action@5.4.4
@@ -34,7 +34,7 @@ jobs:
           reports: 'TestResults/**/coverage.cobertura.xml'
           targetdir: 'coveragereport'
           reporttypes: 'MarkdownSummaryGithub;Html;Cobertura;Badges'
-          title: 'NetChatx Code Coverage'
+          title: 'Stanza Code Coverage'
 
       - name: Publish Coverage to GitHub Step Summary
         if: always()

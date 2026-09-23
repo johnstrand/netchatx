@@ -1,6 +1,6 @@
-# NetChatx
+# Stanza
 
-**NetChatx** is a modern, cross-platform XMPP desktop client written in C# targeting **.NET 10** and powered by **Avalonia UI 11**. It is engineered for responsiveness, low memory usage, extensive protocol compliance (Modern Client Compliance Suite / XEP-0459), and **OMEMO (XEP-0384)** end-to-end encryption.
+**Stanza** is a modern, cross-platform XMPP desktop client written in C# targeting **.NET 10** and powered by **Avalonia UI 11**. It is engineered for responsiveness, low memory usage, extensive protocol compliance (Modern Client Compliance Suite / XEP-0459), and **OMEMO (XEP-0384)** end-to-end encryption.
 
 ---
 
@@ -19,7 +19,7 @@
 - **Rich Media & In-Chat Previews**:
   - **Clipboard Image Pasting**: Directly paste screenshots or copied images (`Ctrl+V` / `Cmd+V`) using native Windows clipboard interop (`PNG` & `CF_DIB`) and cross-platform clipboard providers.
   - **File Attachments**: Pick and send images via the 📎 attachment button.
-  - **XEP-0363 HTTP File Upload**: Automatically uploads media to server-hosted HTTP upload slots; seamlessly falls back to local media caching (`%AppData%/NetChatx/media/`) when offline or on servers without HTTP upload.
+  - **XEP-0363 HTTP File Upload**: Automatically uploads media to server-hosted HTTP upload slots; seamlessly falls back to local media caching (`%AppData%/Stanza/media/`) when offline or on servers without HTTP upload.
   - **Asynchronous Thumbnail Rendering**: Non-blocking image loading and caching with loading indicators; automatically hides raw URLs for image-only messages and opens images in the system's default viewer on click.
 - **Robust Message Archive & History**:
   - **XEP-0313 MAM v2**: Automatic bidirectional history synchronization and RSM pagination.
@@ -37,7 +37,7 @@
 
 ## Supported Specifications & XEP Matrix
 
-NetChatx complies with the **Modern Client Compliance Suite (XEP-0459)**:
+Stanza complies with the **Modern Client Compliance Suite (XEP-0459)**:
 
 | Category | Specification | Description |
 | :--- | :--- | :--- |
@@ -67,20 +67,20 @@ NetChatx complies with the **Modern Client Compliance Suite (XEP-0459)**:
 ## Project Structure
 
 ```
-NetChatx/
-├── NetChatx.slnx
+Stanza/
+├── Stanza.slnx
 ├── src/
-│   ├── NetChatx.Core/              # XMPP protocol engine, RFC 7622 JID, streaming XML lexer, SASL, Pipelines transport
-│   ├── NetChatx.Protocol.Xeps/     # Modular XEP features (XEP-0198, MAM, Carbons, MUC, HTTP Upload, OMEMO)
-│   ├── NetChatx.Storage/           # SQLite repositories for messages, roster, accounts, and OMEMO sessions
-│   └── NetChatx.Gui/               # Avalonia UI 11 desktop application (MVVM, Views, ViewModels, Clipboard & Media helpers)
+│   ├── Stanza.Core/              # XMPP protocol engine, RFC 7622 JID, streaming XML lexer, SASL, Pipelines transport
+│   ├── Stanza.Protocol.Xeps/     # Modular XEP features (XEP-0198, MAM, Carbons, MUC, HTTP Upload, OMEMO)
+│   ├── Stanza.Storage/           # SQLite repositories for messages, roster, accounts, and OMEMO sessions
+│   └── Stanza.Gui/               # Avalonia UI 11 desktop application (MVVM, Views, ViewModels, Clipboard & Media helpers)
 │
 └── tests/
-    ├── NetChatx.Core.Tests/        # Core protocol, JID parsing, XML streaming, SASL unit tests
-    ├── NetChatx.Gui.Tests/         # ViewModels, message paging, image extraction, and clipboard unit tests
-    ├── NetChatx.Storage.Tests/     # SQLite repository and persistence tests
-    ├── NetChatx.Xeps.Tests/        # XEP feature suite & OMEMO encryption tests
-    └── NetChatx.MockServer/        # In-memory loopback XMPP test server harness
+    ├── Stanza.Core.Tests/        # Core protocol, JID parsing, XML streaming, SASL unit tests
+    ├── Stanza.Gui.Tests/         # ViewModels, message paging, image extraction, and clipboard unit tests
+    ├── Stanza.Storage.Tests/     # SQLite repository and persistence tests
+    ├── Stanza.Xeps.Tests/        # XEP feature suite & OMEMO encryption tests
+    └── Stanza.MockServer/        # In-memory loopback XMPP test server harness
 ```
 
 ---
@@ -91,16 +91,16 @@ NetChatx/
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (or later)
 
 ### Run the GUI Application
-To start NetChatx:
+To start Stanza:
 ```bash
-dotnet run --project src/NetChatx.Gui/NetChatx.Gui.csproj
+dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
 ```
 
 ### Running Tests & Code Coverage
-NetChatx includes an in-memory loopback XMPP mock server (`NetChatx.MockServer`), allowing end-to-end protocol and UI logic testing without an external XMPP server:
+Stanza includes an in-memory loopback XMPP mock server (`Stanza.MockServer`), allowing end-to-end protocol and UI logic testing without an external XMPP server:
 
 ```bash
-dotnet test NetChatx.slnx
+dotnet test Stanza.slnx
 ```
 
 To run tests with code coverage and generate HTML & Cobertura reports locally:
@@ -114,7 +114,7 @@ pwsh ./scripts/coverage.ps1
 
 Or directly via the .NET CLI:
 ```bash
-dotnet test NetChatx.slnx --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+dotnet test Stanza.slnx --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
 reportgenerator -reports:TestResults/**/coverage.cobertura.xml -targetdir:coveragereport "-reporttypes:MarkdownSummaryGithub;Html;Cobertura;Badges"
 ```
 The resulting reports will be generated in `coveragereport/`:
@@ -124,25 +124,25 @@ The resulting reports will be generated in `coveragereport/`:
 
 ### Building for Release
 ```bash
-dotnet build NetChatx.slnx -c Release
+dotnet build Stanza.slnx -c Release
 ```
 
 ---
 
 ## Releases & Installation Packages
 
-NetChatx features an automated, run-on-demand GitHub Actions release pipeline ([`.github/workflows/release.yml`](.github/workflows/release.yml)) that produces self-contained, native installation packages for 64-bit systems:
+Stanza features an automated, run-on-demand GitHub Actions release pipeline ([`.github/workflows/release.yml`](.github/workflows/release.yml)) that produces self-contained, native installation packages for 64-bit systems:
 
 ### Platform Packages
 - **Windows (`win-x64`)**:
-  - **Inno Setup Installer (`.exe`)**: `NetChatx-v{version}-win-x64-installer.exe` featuring Start Menu & Desktop shortcuts, uninstaller, and icon associations.
-  - **Portable Archive (`.zip`)**: `NetChatx-v{version}-win-x64.zip` for instant portable execution.
+  - **Inno Setup Installer (`.exe`)**: `Stanza-v{version}-win-x64-installer.exe` featuring Start Menu & Desktop shortcuts, uninstaller, and icon associations.
+  - **Portable Archive (`.zip`)**: `Stanza-v{version}-win-x64.zip` for instant portable execution.
 - **Linux (`linux-x64`)**:
-  - **Debian Package (`.deb`)**: `NetChatx-v{version}-linux-x64.deb` installing to `/usr/lib/netchatx` with `/usr/bin/netchatx` launcher, desktop launcher entry, and hi-res hicolor app icon.
-  - **Tarball Archive (`.tar.gz`)**: `NetChatx-v{version}-linux-x64.tar.gz` for portable installation across all Linux distributions.
+  - **Debian Package (`.deb`)**: `Stanza-v{version}-linux-x64.deb` installing to `/usr/lib/stanza` with `/usr/bin/stanza` launcher, desktop launcher entry, and hi-res hicolor app icon.
+  - **Tarball Archive (`.tar.gz`)**: `Stanza-v{version}-linux-x64.tar.gz` for portable installation across all Linux distributions.
 - **macOS / OSX (`osx-arm64` & `osx-x64`)**:
-  - **DMG Disk Image (`.dmg`)**: `NetChatx-v{version}-osx-{arch}.dmg` with drag-to-Applications installer, retina `.icns` bundle icons, and ad-hoc code signing for Apple Silicon and Intel Macs.
-  - **App Bundle ZIP (`.zip`)**: `NetChatx-v{version}-osx-{arch}.zip` containing the signed `NetChatx.app`.
+  - **DMG Disk Image (`.dmg`)**: `Stanza-v{version}-osx-{arch}.dmg` with drag-to-Applications installer, retina `.icns` bundle icons, and ad-hoc code signing for Apple Silicon and Intel Macs.
+  - **App Bundle ZIP (`.zip`)**: `Stanza-v{version}-osx-{arch}.zip` containing the signed `Stanza.app`.
 
 ### Versioning & Git Labels
 - **Rolling Minor/Major Versioning**: The release workflow automatically increments the minor version (`0.1.0` $\rightarrow$ `0.2.0` $\dots \rightarrow$ `0.9.0`). When the minor version reaches `10`, it resets to `0` and increments the major version (`0.9.0` $\rightarrow$ `1.0.0`, `1.9.0` $\rightarrow$ `2.0.0`).

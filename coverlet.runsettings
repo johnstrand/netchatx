@@ -5,8 +5,8 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <Include>[NetChatx.*]*</Include>
-          <Exclude>[NetChatx.MockServer]*,[*.Tests]*</Exclude>
+          <Include>[Stanza.*]*</Include>
+          <Exclude>[Stanza.MockServer]*,[*.Tests]*</Exclude>
           <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
           <ExcludeByFile>**/obj/**,**/*.g.cs,**/*.g.i.cs</ExcludeByFile>
           <SingleHit>false</SingleHit>
