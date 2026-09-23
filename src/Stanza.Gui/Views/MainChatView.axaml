@@ -730,7 +730,7 @@
 
                                                         <!-- Manual download button if auto-download off and not yet loaded -->
                                                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,8"
-                                                                    IsVisible="{Binding ImageThumbnail, Converter={x:Static ObjectConverters.IsNull}}">
+                                                                    IsVisible="{Binding ShowManualDownloadButton}">
                                                             <Button Content="📥 Load Image Preview" Command="{Binding LoadMediaCommand}"
                                                                     Classes="accent" FontSize="11" Padding="8,4" />
                                                         </StackPanel>

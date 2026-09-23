@@ -56,7 +56,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         ExtractImageUrl(value);
         ExtractLinks(value);
         UpdateDisplayText();
-        if (HasImage)
+        OnPropertyChanged(nameof(IsPreviewVisible));
+        if (HasImage && ImageThumbnail is null && !IsLoadingImage && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = LoadThumbnailAsync();
         }
@@ -189,6 +190,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private string? _imageUrl;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewVisible))]
+    [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
     private bool _hasImage;
 
     [ObservableProperty]
@@ -201,9 +204,11 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private bool _isUnstyled;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
     private Bitmap? _imageThumbnail;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
     private bool _isLoadingImage;
 
     public ObservableCollection<ReactionCountViewModel> Reactions { get; } = [];
@@ -224,6 +229,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     public static bool AutoDownloadMedia { get; set; } = true;
 
     public bool IsPreviewVisible => HasImage && ShowInlinePreviews;
+    public bool ShowManualDownloadButton => HasImage && ImageThumbnail is null && !IsLoadingImage;
 
     public IBrush BubbleBackground => Direction == MessageDirection.Outbound
         ? DirectionToBackgroundConverter.OutboundBrush
@@ -432,14 +438,14 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     public async Task LoadThumbnailAsync()
     {
-        if (string.IsNullOrEmpty(ImageUrl) || ImageThumbnail is not null) return;
+        if (string.IsNullOrEmpty(ImageUrl) || ImageThumbnail is not null || IsLoadingImage) return;
         IsLoadingImage = true;
         try
         {
             var (bmp, gifFrames) = await AsyncImageLoader.LoadImageOrGifAsync(ImageUrl);
             if (bmp is not null)
             {
-                Dispatcher.UIThread.Post(() =>
+                void Apply()
                 {
                     _gifPlayer?.Dispose();
                     _gifPlayer = null;
@@ -455,24 +461,47 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                             ImageThumbnail = nextFrame;
                         });
                     }
-                    else if (ImageUrl.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
-                             ImageUrl.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) ||
-                             ImageUrl.Contains("giphy.com", StringComparison.OrdinalIgnoreCase))
+                    else if (ImageUrl?.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) == true ||
+                             ImageUrl?.Contains("tenor.com", StringComparison.OrdinalIgnoreCase) == true ||
+                             ImageUrl?.Contains("giphy.com", StringComparison.OrdinalIgnoreCase) == true)
                     {
                         IsGif = true;
                     }
 
                     ImageLoaded?.Invoke();
-                });
+                }
+
+                if (Dispatcher.UIThread.CheckAccess())
+                {
+                    Apply();
+                }
+                else
+                {
+                    Dispatcher.UIThread.Post(Apply);
+                }
+            }
+            else
+            {
+                if (Dispatcher.UIThread.CheckAccess())
+                {
+                    IsLoadingImage = false;
+                }
+                else
+                {
+                    Dispatcher.UIThread.Post(() => IsLoadingImage = false);
+                }
+            }
+        }
+        catch
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                IsLoadingImage = false;
             }
             else
             {
                 Dispatcher.UIThread.Post(() => IsLoadingImage = false);
             }
-        }
-        catch
-        {
-            Dispatcher.UIThread.Post(() => IsLoadingImage = false);
         }
     }
 
@@ -889,7 +918,11 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             }
         }
         ExtractLinks(Body);
-        if (HasImage && ImageThumbnail is null && ShowInlinePreviews && AutoDownloadMedia)
+        UpdateDisplayText();
+        OnPropertyChanged(nameof(IsPreviewVisible));
+        OnPropertyChanged(nameof(DisplayText));
+        OnPropertyChanged(nameof(IsOnlyImage));
+        if (HasImage && ImageThumbnail is null && !IsLoadingImage && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = LoadThumbnailAsync();
         }
@@ -908,8 +941,8 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     {
         var match = MergedMessages.FirstOrDefault(m =>
             m.Id == messageOrStanzaId ||
-            m.StanzaId == messageOrStanzaId ||
-            m.OriginId == messageOrStanzaId);
+            (!string.IsNullOrEmpty(m.StanzaId) && m.StanzaId == messageOrStanzaId) ||
+            (!string.IsNullOrEmpty(m.OriginId) && m.OriginId == messageOrStanzaId));
 
         if (match is not null)
         {
@@ -944,6 +977,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                     }
                 }
                 ExtractLinks(Body);
+                UpdateDisplayText();
+                OnPropertyChanged(nameof(IsPreviewVisible));
+                OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(IsOnlyImage));
             }
             else
             {
@@ -953,6 +990,14 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 ReplaceId = null;
                 LatestTimestamp = Timestamp;
                 RawXml = null;
+                Body = string.Empty;
+                HasImage = false;
+                ImageUrl = null;
+                ImageThumbnail = null;
+                UpdateDisplayText();
+                OnPropertyChanged(nameof(IsPreviewVisible));
+                OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(IsOnlyImage));
             }
             return true;
         }
@@ -1013,6 +1058,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             Body = string.Join("\n", MergedMessages.Select(m => m.Body).Where(b => !string.IsNullOrEmpty(b)));
             ExtractImageUrl(Body);
             ExtractLinks(Body);
+            UpdateDisplayText();
+            OnPropertyChanged(nameof(IsPreviewVisible));
+            OnPropertyChanged(nameof(DisplayText));
+            OnPropertyChanged(nameof(IsOnlyImage));
         }
     }
 
@@ -1047,6 +1096,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         }
         ExtractImageUrl(Body);
         ExtractLinks(Body);
+        UpdateDisplayText();
+        OnPropertyChanged(nameof(IsPreviewVisible));
+        OnPropertyChanged(nameof(DisplayText));
+        OnPropertyChanged(nameof(IsOnlyImage));
     }
 
     public void Dispose()
