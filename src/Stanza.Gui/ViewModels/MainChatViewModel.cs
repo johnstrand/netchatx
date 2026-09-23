@@ -79,6 +79,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var best = resources.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
             contact.PresenceShow = best.Show;
             contact.StatusMessage = best.Status;
+
+            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(contact.ContactJid, out var cj) && c.RemoteJid.EqualsBare(cj));
+            if (conv is not null)
+            {
+                conv.PresenceShow = best.Show;
+            }
         }
     }
 
@@ -1515,10 +1521,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
         else
         {
             var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
-            if (contact?.Avatar is not null)
+            if (contact is not null)
             {
-                newConv.Avatar = contact.Avatar;
-                newConv.AvatarHash = contact.AvatarHash;
+                newConv.PresenceShow = contact.PresenceShow;
+                if (contact.Avatar is not null && newConv.Avatar is null)
+                {
+                    newConv.Avatar = contact.Avatar;
+                    newConv.AvatarHash = contact.AvatarHash;
+                }
             }
         }
 
@@ -1741,6 +1751,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
             {
                 contact.PresenceShow = aggregateShow;
                 contact.StatusMessage = aggregateStatus;
+            }
+
+            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(senderBare, out var sbJid) && c.RemoteJid.EqualsBare(sbJid));
+            if (conv is not null)
+            {
+                conv.PresenceShow = aggregateShow;
             }
         });
 

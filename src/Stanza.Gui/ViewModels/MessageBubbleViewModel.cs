@@ -106,6 +106,18 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(SenderDisplayName))]
     private string _senderName = "Me";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatar))]
+    private Bitmap? _avatar;
+
+    public bool HasAvatar => Avatar is not null;
+
+    [ObservableProperty]
+    private string _initials = string.Empty;
+
+    [ObservableProperty]
+    private IBrush? _avatarBackgroundBrush;
+
     private string? _senderDisplayName;
 
     public string SenderDisplayName
@@ -613,7 +625,10 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         string accountJid = "",
         SettingsRepository? settingsRepo = null,
         IEnumerable<string>? quickEmojis = null,
-        string? senderDisplayName = null)
+        string? senderDisplayName = null,
+        Bitmap? avatar = null,
+        string? initials = null,
+        IBrush? avatarBackgroundBrush = null)
     {
         var effectiveSenderName = msg.Direction == MessageDirection.Outbound ? "Me" : msg.SenderJid;
         var effectiveSenderDisplayName = !string.IsNullOrWhiteSpace(senderDisplayName)
@@ -643,6 +658,9 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             Timestamp = msg.Timestamp,
             SenderName = effectiveSenderName,
             SenderDisplayName = effectiveSenderDisplayName,
+            Avatar = avatar,
+            Initials = !string.IsNullOrEmpty(initials) ? initials : Helpers.AvatarHelper.GetInitials(effectiveSenderDisplayName),
+            AvatarBackgroundBrush = avatarBackgroundBrush ?? Helpers.AvatarHelper.GetAvatarColorBrush(msg.SenderJid),
             RemoteJid = msg.RemoteJid ?? string.Empty,
             IsEncrypted = msg.IsEncrypted,
             EncryptionType = msg.EncryptionType,

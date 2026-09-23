@@ -103,6 +103,45 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasAvatar))]
     private Avalonia.Media.Imaging.Bitmap? _avatar;
 
+    partial void OnAvatarChanged(Avalonia.Media.Imaging.Bitmap? value)
+    {
+        if (!IsGroupChat)
+        {
+            foreach (var msg in Messages)
+            {
+                if (msg.Direction == MessageDirection.Inbound)
+                {
+                    msg.Avatar = value;
+                }
+            }
+        }
+    }
+
+    [ObservableProperty]
+    private string? _lastMessageSnippet;
+
+    [ObservableProperty]
+    private string? _lastMessageTime;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOnline))]
+    [NotifyPropertyChangedFor(nameof(PresenceStatusText))]
+    private string _presenceShow = "offline";
+
+    public bool IsOnline => PresenceShow switch
+    {
+        "available" or "online" or "chat" or "away" or "dnd" or "xa" => true,
+        _ => false
+    };
+
+    public string PresenceStatusText => PresenceShow switch
+    {
+        "available" or "online" or "chat" => "Online",
+        "away" or "xa" => "Away",
+        "dnd" => "Do Not Disturb",
+        _ => "Offline"
+    };
+
     [ObservableProperty]
     private string? _avatarHash;
 
@@ -1850,6 +1889,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (existing is not null)
         {
             existing.UpdateMessageRecord(msg);
+            UpdateLastMessageSnippetAndTime(msg);
             return;
         }
 
@@ -1867,6 +1907,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 if (prevBubble.CanMergeWith(msg, EnableMessageMerging, MessageMergeThresholdSeconds))
                 {
                     prevBubble.MergeMessage(msg);
+                    UpdateLastMessageSnippetAndTime(msg);
                     MessageProcessed?.Invoke(msg);
                     return;
                 }
@@ -1874,7 +1915,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         var displayName = GetSenderDisplayName(msg);
-        var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, displayName);
+        var bubbleAvatar = msg.Direction == MessageDirection.Inbound && !IsGroupChat ? Avatar : null;
+        var bubbleInitials = msg.Direction == MessageDirection.Inbound && !IsGroupChat ? Initials : null;
+        var bubbleBrush = msg.Direction == MessageDirection.Inbound && !IsGroupChat ? AvatarBackgroundBrush : null;
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, displayName, bubbleAvatar, bubbleInitials, bubbleBrush);
         bubble.ToggleReactionHandler = (b, emoji) => ToggleReactionAsync(b, emoji);
         bubble.ReplyRequested = ReplyToMessage;
         bubble.EditRequested = StartEditingMessage;
@@ -1899,8 +1943,39 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         UpdateReadMarkersOnBubbles();
+        UpdateLastMessageSnippetAndTime(msg);
 
         MessageProcessed?.Invoke(msg);
+    }
+
+    public void UpdateLastMessageSnippetAndTime(ChatMessage? msg = null)
+    {
+        if (msg is not null)
+        {
+            var snippet = msg.Body;
+            if (msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase))
+            {
+                var action = msg.Body.Length > 4 ? msg.Body[4..].Trim() : string.Empty;
+                snippet = $"* {GetSenderDisplayName(msg)} {action}";
+            }
+            LastMessageSnippet = snippet;
+            var local = msg.Timestamp.ToLocalTime();
+            LastMessageTime = local.Date == DateTime.Today
+                ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
+                : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
+        }
+        else
+        {
+            var last = Messages.LastOrDefault();
+            if (last is not null)
+            {
+                LastMessageSnippet = !string.IsNullOrWhiteSpace(last.DisplayText) ? last.DisplayText : (last.HasImage ? "📷 Image" : last.Body);
+                var local = (last.LatestTimestamp != default ? last.LatestTimestamp : last.Timestamp).ToLocalTime();
+                LastMessageTime = local.Date == DateTime.Today
+                    ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
+                    : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
+            }
+        }
     }
 
     public string GetSenderDisplayName(ChatMessage msg) => GetSenderDisplayName(msg.SenderJid, msg.Direction);
