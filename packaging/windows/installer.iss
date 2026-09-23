@@ -1,11 +1,11 @@
-; Inno Setup Script for NetChatx
-#define MyAppName "NetChatx"
+; Inno Setup Script for Stanza
+#define MyAppName "Stanza"
 #ifndef MyAppVersion
   #define MyAppVersion "0.1.0"
 #endif
-#define MyAppPublisher "NetChatx"
-#define MyAppURL "https://github.com/johnstrand/netchatx"
-#define MyAppExeName "NetChatx.Gui.exe"
+#define MyAppPublisher "Stanza"
+#define MyAppURL "https://github.com/johnstrand/stanza"
+#define MyAppExeName "Stanza.exe"
 #ifndef SourceDir
   #define SourceDir "publish\win-x64"
 #endif
@@ -14,7 +14,7 @@
 #endif
 
 #ifndef SetupIcon
-  #define SetupIcon "..\..\src\NetChatx.Gui\Assets\netchatx-logo.ico"
+  #define SetupIcon "..\..\src\Stanza.Gui\Assets\stanza-logo.ico"
 #endif
 
 [Setup]
@@ -32,7 +32,7 @@ VersionInfoCompany={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=NetChatx-v{#MyAppVersion}-win-x64-installer
+OutputBaseFilename=Stanza-v{#MyAppVersion}-win-x64-installer
 SetupIconFile={#SetupIcon}
 Compression=lzma2/max
 SolidCompression=yes
@@ -45,10 +45,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "autostart"; Description: "Launch NetChatx on Windows startup"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "autostart"; Description: "Launch Stanza on Windows startup"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "NetChatx"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: autostart; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "Stanza"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: autostart; Flags: uninsdeletevalue
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

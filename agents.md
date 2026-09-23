@@ -1,6 +1,6 @@
-# NetChatx Agent Guidelines (`agents.md`)
+# Stanza Agent Guidelines (`agents.md`)
 
-Welcome, AI Agent! This document contains instructions, operational rules, and project-specific conventions for working on the **NetChatx** repository. Follow these guidelines carefully to maintain code quality, repository cleanliness, and development velocity.
+Welcome, AI Agent! This document contains instructions, operational rules, and project-specific conventions for working on the **Stanza** repository. Follow these guidelines carefully to maintain code quality, repository cleanliness, and development velocity.
 
 ---
 
@@ -59,22 +59,22 @@ When your task is complete, committed, and ready:
 
 ## 2. Project Overview & Architecture
 
-**NetChatx** is a cross-platform XMPP client built on **.NET 10** and **Avalonia UI 11**.
+**Stanza** is a cross-platform XMPP client built on **.NET 10** and **Avalonia UI 11**.
 
 ```
-NetChatx/
-├── NetChatx.slnx                  # Solution file
+Stanza/
+├── Stanza.slnx                    # Solution file
 ├── src/
-│   ├── NetChatx.Core/             # RFC 6120/6121 XMPP engine, RFC 7622 JID parser, System.IO.Pipelines transport, XML streaming
-│   ├── NetChatx.Protocol.Xeps/    # XEP implementations (XEP-0198, MAM, Carbons, MUC, HTTP Upload, OMEMO XEP-0384)
-│   ├── NetChatx.Storage/          # SQLite repositories (messages, roster, accounts, OMEMO keys/sessions)
-│   └── NetChatx.Gui/              # Avalonia UI 11 desktop app (MVVM, Views, ViewModels, native platform interop)
+│   ├── Stanza.Core/               # RFC 6120/6121 XMPP engine, RFC 7622 JID parser, System.IO.Pipelines transport, XML streaming
+│   ├── Stanza.Protocol.Xeps/      # XEP implementations (XEP-0198, MAM, Carbons, MUC, HTTP Upload, OMEMO XEP-0384)
+│   ├── Stanza.Storage/            # SQLite repositories (messages, roster, accounts, OMEMO keys/sessions)
+│   └── Stanza.Gui/                # Avalonia UI 11 desktop app (MVVM, Views, ViewModels, native platform interop)
 └── tests/
-    ├── NetChatx.Core.Tests/       # Protocol, parsing, and pipeline tests
-    ├── NetChatx.Gui.Tests/        # ViewModel and UI helper tests
-    ├── NetChatx.Storage.Tests/    # SQLite persistence tests
-    ├── NetChatx.Xeps.Tests/       # XEP feature suite & cryptographic tests
-    └── NetChatx.MockServer/       # In-memory loopback XMPP test server harness
+    ├── Stanza.Core.Tests/         # Protocol, parsing, and pipeline tests
+    ├── Stanza.Gui.Tests/          # ViewModel and UI helper tests
+    ├── Stanza.Storage.Tests/      # SQLite persistence tests
+    ├── Stanza.Xeps.Tests/         # XEP feature suite & cryptographic tests
+    └── Stanza.MockServer/         # In-memory loopback XMPP test server harness
 ```
 
 ---
@@ -85,14 +85,14 @@ Always verify your changes by building the solution and executing tests before m
 
 ### 3.1 Build Solution
 ```bash
-dotnet build NetChatx.slnx
+dotnet build Stanza.slnx
 ```
 
 ### 3.2 Run Test Suite
 ```bash
-dotnet test NetChatx.slnx
+dotnet test Stanza.slnx
 ```
-*(Tests utilize `NetChatx.MockServer`, an in-memory loopback server, requiring no external network dependencies.)*
+*(Tests utilize `Stanza.MockServer`, an in-memory loopback server, requiring no external network dependencies.)*
 
 ### 3.3 Run Code Coverage (Optional / Verification)
 - **PowerShell**:
@@ -106,7 +106,7 @@ dotnet test NetChatx.slnx
 
 ### 3.4 Running the Application
 ```bash
-dotnet run --project src/NetChatx.Gui/NetChatx.Gui.csproj
+dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
 ```
 
 ---
@@ -116,16 +116,16 @@ dotnet run --project src/NetChatx.Gui/NetChatx.Gui.csproj
 1. **Target Runtime & Language**:
    - Target **.NET 10** (`net10.0`) and C# 13.
    - Nullable reference types are enabled (`<Nullable>enable</Nullable>`). Ensure no warnings (`CS8600`, `CS8602`, etc.) are introduced.
-   - Use file-scoped namespaces (`namespace NetChatx.Core;`).
+   - Use file-scoped namespaces (`namespace Stanza.Core;`).
    - Use primary constructors, pattern matching, and target-typed `new()` where it improves clarity.
 
 2. **Asynchronous & Resource Patterns**:
    - Always accept and thread through `CancellationToken` for asynchronous I/O and network operations.
-   - In library code (`NetChatx.Core`, `NetChatx.Protocol.Xeps`, `NetChatx.Storage`), use `.ConfigureAwait(false)` on awaited tasks.
+   - In library code (`Stanza.Core`, `Stanza.Protocol.Xeps`, `Stanza.Storage`), use `.ConfigureAwait(false)` on awaited tasks.
    - Properly dispose of unmanaged resources and streams using `await using` or `using`.
 
 3. **MVVM & UI Thread Safety**:
-   - `NetChatx.Gui` uses `CommunityToolkit.Mvvm` (`ObservableObject`, `[ObservableProperty]`, `[RelayCommand]`).
+   - `Stanza.Gui` uses `CommunityToolkit.Mvvm` (`ObservableObject`, `[ObservableProperty]`, `[RelayCommand]`).
    - All network stanzas, cryptographic computations, and disk I/O **must remain off the UI thread**.
    - Dispatch to UI thread only when mutating observable collections or properties bound to the UI (e.g., via `Dispatcher.UIThread`).
 

@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Stanza.Gui.ViewModels"
+             x:Class="Stanza.Gui.Views.LoginView"
+             x:DataType="vm:LoginViewModel">
+
+    <Grid>
+        <Grid.Background>
+            <RadialGradientBrush Center="50%,30%" GradientOrigin="50%,30%" RadiusX="80%" RadiusY="80%">
+                <GradientStop Color="#151D33" Offset="0.0" />
+                <GradientStop Color="#070A11" Offset="1.0" />
+            </RadialGradientBrush>
+        </Grid.Background>
+
+        <!-- Centered Login Card -->
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                Width="440"
+                Padding="36,32"
+                CornerRadius="20"
+                Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                BoxShadow="0 24 60 0 #60000000, 0 0 35 0 #1800F0FF">
+
+            <StackPanel Spacing="16">
+                <!-- Branding Header -->
+                <StackPanel HorizontalAlignment="Center" Spacing="10" Margin="0,0,0,12">
+                    <Border Width="88" Height="88" CornerRadius="22" ClipToBounds="True"
+                            HorizontalAlignment="Center"
+                            BoxShadow="0 8 26 0 #4000C8FF">
+                        <Image Source="/Assets/stanza-logo.png" Width="88" Height="88" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel Spacing="3" HorizontalAlignment="Center">
+                        <TextBlock Text="Stanza" FontSize="26" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                        <TextBlock Text="Modern Cross-Platform XMPP Client" Classes="muted" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Error Banner -->
+                <Border Background="#2B141D" BorderBrush="#F43F5E" BorderThickness="1"
+                        CornerRadius="8" Padding="12,8"
+                        IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#FDA4AF" TextWrapping="Wrap" FontSize="12" />
+                </Border>
+
+                <!-- Status Banner -->
+                <Border Background="#10233D" BorderBrush="#00F0FF" BorderThickness="1"
+                        CornerRadius="8" Padding="12,8"
+                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="#67E8F9" TextWrapping="Wrap" FontSize="12" />
+                </Border>
+
+                <!-- JID Input -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Jabber ID (JID)" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                    <TextBox x:Name="JidTextBox" Text="{Binding Jid}" Watermark="username@domain.tld" IsEnabled="{Binding !IsConnecting}"
+                             Height="38" VerticalContentAlignment="Center" />
+                </StackPanel>
+
+                <!-- Password Input -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Password" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                    <TextBox x:Name="PasswordTextBox" Text="{Binding Password}" PasswordChar="•" Watermark="Account password" IsEnabled="{Binding !IsConnecting}"
+                             Height="38" VerticalContentAlignment="Center" />
+                </StackPanel>
+
+                <!-- Advanced Connection Options -->
+                <Button Content="Advanced Connection Options ▼" HorizontalAlignment="Left"
+                        Command="{Binding ToggleAdvancedCommand}" Margin="0,4"
+                        Foreground="#00F0FF"
+                        Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" />
+
+                <StackPanel Spacing="12" IsVisible="{Binding ShowAdvanced}">
+                    <Grid ColumnDefinitions="*,100">
+                        <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                            <TextBlock Text="Custom Host" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox Text="{Binding Host}" Watermark="xmpp.example.com"
+                                     Height="36" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="Port" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox Text="{Binding Port}" Watermark="5222"
+                                     Height="36" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                    <CheckBox IsChecked="{Binding UseDirectTls}" Content="Direct TLS (Port 5223)" />
+                </StackPanel>
+
+                <!-- Connect Button -->
+                <Button x:Name="ConnectButton" Content="Connect" HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Padding="0"
+                        Height="42"
+                        Command="{Binding ConnectCommand}"
+                        IsEnabled="{Binding !IsConnecting}"
+                        Classes="accent"
+                        Margin="0,8,0,0" />
+
+                <!-- Progress Bar -->
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}" Height="4" Margin="0,4,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

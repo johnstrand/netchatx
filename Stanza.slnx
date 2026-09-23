@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Stanza.Core/Stanza.Core.csproj" />
+    <Project Path="src/Stanza.Gui/Stanza.Gui.csproj" />
+    <Project Path="src/Stanza.Protocol.Xeps/Stanza.Protocol.Xeps.csproj" />
+    <Project Path="src/Stanza.Storage/Stanza.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Stanza.Core.Tests/Stanza.Core.Tests.csproj" />
+    <Project Path="tests/Stanza.Gui.Tests/Stanza.Gui.Tests.csproj" />
+    <Project Path="tests/Stanza.MockServer/Stanza.MockServer.csproj" />
+    <Project Path="tests/Stanza.Storage.Tests/Stanza.Storage.Tests.csproj" />
+    <Project Path="tests/Stanza.Xeps.Tests/Stanza.Xeps.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -6,5 +6,5 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 CONFIGURATION="${1:-Debug}"
 
-echo "==> Running NetChatx.Gui ($CONFIGURATION)..."
-dotnet run --project "$REPO_ROOT/src/NetChatx.Gui/NetChatx.Gui.csproj" --configuration "$CONFIGURATION"
+echo "==> Running Stanza.Gui ($CONFIGURATION)..."
+dotnet run --project "$REPO_ROOT/src/Stanza.Gui/Stanza.Gui.csproj" --configuration "$CONFIGURATION"

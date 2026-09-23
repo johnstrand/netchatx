@@ -7,7 +7,7 @@ OUTPUT_DIR="${3:-dist}"
 
 mkdir -p "${OUTPUT_DIR}"
 
-TAR_NAME="NetChatx-v${VERSION}-linux-x64.tar.gz"
+TAR_NAME="Stanza-v${VERSION}-linux-x64.tar.gz"
 echo "Creating Linux tarball: ${OUTPUT_DIR}/${TAR_NAME}..."
 tar -czvf "${OUTPUT_DIR}/${TAR_NAME}" -C "${PUBLISH_DIR}" .
 
@@ -15,42 +15,42 @@ echo "Creating Debian (.deb) package..."
 DEB_DIR="deb-package"
 rm -rf "${DEB_DIR}"
 mkdir -p "${DEB_DIR}/DEBIAN"
-mkdir -p "${DEB_DIR}/usr/lib/netchatx"
+mkdir -p "${DEB_DIR}/usr/lib/stanza"
 mkdir -p "${DEB_DIR}/usr/bin"
 mkdir -p "${DEB_DIR}/usr/share/applications"
 mkdir -p "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps"
 
 # Copy published files
-cp -r "${PUBLISH_DIR}"/* "${DEB_DIR}/usr/lib/netchatx/"
-chmod +x "${DEB_DIR}/usr/lib/netchatx/NetChatx.Gui"
+cp -r "${PUBLISH_DIR}"/* "${DEB_DIR}/usr/lib/stanza/"
+chmod +x "${DEB_DIR}/usr/lib/stanza/Stanza"
 
 # Create symlink
-ln -sf /usr/lib/netchatx/NetChatx.Gui "${DEB_DIR}/usr/bin/netchatx"
+ln -sf /usr/lib/stanza/Stanza "${DEB_DIR}/usr/bin/stanza"
 
 # Copy desktop and icon files
-cp packaging/linux/netchatx.desktop "${DEB_DIR}/usr/share/applications/"
-cp src/NetChatx.Gui/Assets/netchatx-logo.png "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/netchatx.png"
+cp packaging/linux/stanza.desktop "${DEB_DIR}/usr/share/applications/"
+cp src/Stanza.Gui/Assets/stanza-logo.png "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/stanza.png"
 
 # Generate control file
 cat <<EOF > "${DEB_DIR}/DEBIAN/control"
-Package: netchatx
+Package: stanza
 Version: ${VERSION}
 Section: net
 Priority: optional
 Architecture: amd64
-Maintainer: NetChatx Contributors
+Maintainer: Stanza Contributors
 Description: Modern cross-platform XMPP/Jabber client
- NetChatx is a fast, lightweight, and modern cross-platform desktop XMPP client built with .NET and Avalonia.
+ Stanza is a fast, lightweight, and modern cross-platform desktop XMPP client built with .NET and Avalonia.
 EOF
 
 # Permissions
 chmod -R 0755 "${DEB_DIR}"
 chmod 0644 "${DEB_DIR}/DEBIAN/control"
-chmod 0644 "${DEB_DIR}/usr/share/applications/netchatx.desktop"
-chmod 0644 "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/netchatx.png"
-chmod 0755 "${DEB_DIR}/usr/lib/netchatx/NetChatx.Gui"
+chmod 0644 "${DEB_DIR}/usr/share/applications/stanza.desktop"
+chmod 0644 "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/stanza.png"
+chmod 0755 "${DEB_DIR}/usr/lib/stanza/Stanza"
 
-DEB_NAME="NetChatx-v${VERSION}-linux-x64.deb"
+DEB_NAME="Stanza-v${VERSION}-linux-x64.deb"
 dpkg-deb --build "${DEB_DIR}" "${OUTPUT_DIR}/${DEB_NAME}"
 rm -rf "${DEB_DIR}"
 

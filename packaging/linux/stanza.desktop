@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Stanza
+Comment=Modern cross-platform XMPP/Jabber client
+Exec=/usr/bin/stanza %u
+Icon=stanza
+Terminal=false
+Type=Application
+Categories=Network;InstantMessaging;Chat;
+Keywords=xmpp;jabber;chat;messaging;
+StartupWMClass=Stanza
+MimeType=x-scheme-handler/xmpp;

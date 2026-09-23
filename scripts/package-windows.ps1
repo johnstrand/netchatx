@@ -14,7 +14,7 @@ if (-not (Test-Path $OutputDir)) {
 $PublishDir = (Resolve-Path $PublishDir).Path
 $OutputDir = (Resolve-Path $OutputDir).Path
 
-$zipName = "NetChatx-v${Version}-win-x64.zip"
+$zipName = "Stanza-v${Version}-win-x64.zip"
 $zipPath = Join-Path $OutputDir $zipName
 Write-Host "Creating Windows portable ZIP: $zipPath..."
 Compress-Archive -Path "$PublishDir\*" -DestinationPath $zipPath -Force
@@ -29,7 +29,7 @@ if (Get-Command iscc -ErrorAction SilentlyContinue) {
 
 if ($isccPath) {
     $issPath = (Resolve-Path "packaging\windows\installer.iss").Path
-    $iconPath = (Resolve-Path "src\NetChatx.Gui\Assets\netchatx-logo.ico").Path
+    $iconPath = (Resolve-Path "src\Stanza.Gui\Assets\stanza-logo.ico").Path
     Write-Host "Compiling Inno Setup installer using $isccPath..."
     Write-Host "  SourceDir: $PublishDir"
     Write-Host "  OutputDir: $OutputDir"
