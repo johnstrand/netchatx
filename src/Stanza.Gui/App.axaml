@@ -10,6 +10,9 @@
                 <TrayIcon.Menu>
                     <NativeMenu>
                         <NativeMenuItem Header="Open Stanza" Click="OnTrayOpenClick" />
+                        <NativeMenuItem Header="Settings..." Click="OnTraySettingsClick" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Start with Windows" ToggleType="CheckBox" Click="OnTrayAutostartClick" />
                         <NativeMenuItemSeparator />
                         <NativeMenuItem Header="Status">
                             <NativeMenu>

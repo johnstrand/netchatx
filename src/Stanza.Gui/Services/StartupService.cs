@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.Versioning;
 
@@ -20,6 +20,24 @@ public class StartupService : IStartupService
         if (!string.IsNullOrWhiteSpace(_customExePath))
         {
             return _customExePath;
+        }
+
+        var baseDir = AppContext.BaseDirectory;
+        if (OperatingSystem.IsWindows())
+        {
+            var stanzaExe = Path.Combine(baseDir, "Stanza.exe");
+            if (File.Exists(stanzaExe))
+            {
+                return stanzaExe;
+            }
+        }
+        else
+        {
+            var stanzaBin = Path.Combine(baseDir, "Stanza");
+            if (File.Exists(stanzaBin))
+            {
+                return stanzaBin;
+            }
         }
 
         return Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "Stanza";
@@ -86,25 +104,88 @@ public class StartupService : IStartupService
     [SupportedOSPlatform("windows")]
     private bool IsWindowsStartupEnabled()
     {
-        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
-        var val = key?.GetValue("Stanza") as string;
-        return !string.IsNullOrWhiteSpace(val);
+        // 1. Check HKCU Run first
+        using var hkcuKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
+        var val = hkcuKey?.GetValue("Stanza") as string;
+        if (!string.IsNullOrWhiteSpace(val))
+        {
+            return IsStartupApproved("Stanza");
+        }
+
+        // 2. Check HKLM Run (e.g. machine-wide or installer entry)
+        using var hklmKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
+        var hklmVal = hklmKey?.GetValue("Stanza") as string;
+        if (!string.IsNullOrWhiteSpace(hklmVal))
+        {
+            return IsStartupApproved("Stanza");
+        }
+
+        return false;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool IsStartupApproved(string valueName)
+    {
+        try
+        {
+            using var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", false);
+            if (approvedKey?.GetValue(valueName) is byte[] bytes && bytes.Length > 0)
+            {
+                // In Windows StartupApproved:
+                // An even number / 0x02 indicates enabled.
+                // An odd number / 0x01 or 0x03 indicates disabled by user in Task Manager.
+                return (bytes[0] & 1) == 0;
+            }
+        }
+        catch
+        {
+            // Fallback gracefully on read errors
+        }
+        return true;
     }
 
     [SupportedOSPlatform("windows")]
     private bool SetWindowsStartupEnabled(bool enable)
     {
-        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
+        using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
         if (key is null) return false;
 
         if (enable)
         {
             var exePath = GetExecutablePath();
             key.SetValue("Stanza", $"\"{exePath}\"");
+
+            // Ensure not marked as disabled in StartupApproved
+            try
+            {
+                using var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", true);
+                if (approvedKey?.GetValue("Stanza") is byte[] bytes && bytes.Length > 0)
+                {
+                    bytes[0] = 0x02;
+                    approvedKey.SetValue("Stanza", bytes, Microsoft.Win32.RegistryValueKind.Binary);
+                }
+            }
+            catch
+            {
+                // Best-effort
+            }
         }
         else
         {
             key.DeleteValue("Stanza", false);
+
+            try
+            {
+                using var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", true);
+                approvedKey?.DeleteValue("Stanza", false);
+            }
+            catch
+            {
+                // Best-effort
+            }
         }
 
         return true;
