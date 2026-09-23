@@ -413,81 +413,88 @@
                       IsVisible="{Binding IsSidebarOpen}" />
 
         <!-- ================= CENTER COLUMN: CONVERSATION PANE ================= -->
-        <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Background="#080C14">
+        <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Background="#131e2d">
 
             <!-- Top Chat Header (Active Conversation) -->
-            <Border Grid.Row="0" Padding="16,10" Background="#0F172A"
-                    BorderBrush="#1E293B" BorderThickness="0,0,0,1"
-                    IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
-                    <!-- Toggle/Restore Sidebar Button -->
-                    <Button Grid.Column="0"
-                            Content="{Binding SidebarToggleIcon}"
-                            ToolTip.Tip="{Binding SidebarToggleTooltip}"
-                            Command="{Binding ToggleSidebarCommand}"
-                            Classes="icon-btn subtle"
-                            Margin="0,0,8,0"
-                            VerticalAlignment="Center" />
-                    <!-- Contact Avatar with Live Presence Dot -->
-                    <Panel Grid.Column="1" Width="38" Height="38" Margin="0,0,12,0" VerticalAlignment="Center">
-                        <Border Width="38" Height="38" CornerRadius="19"
-                                ClipToBounds="True" Background="{Binding ActiveConversation.AvatarBackgroundBrush}">
-                            <Panel>
-                                <Image Source="{Binding ActiveConversation.Avatar}" Width="38" Height="38" Stretch="UniformToFill" IsVisible="{Binding ActiveConversation.HasAvatar}" />
-                                <TextBlock Text="{Binding ActiveConversation.Initials}" IsVisible="{Binding !ActiveConversation.HasAvatar}"
-                                           Foreground="White" FontSize="14" FontWeight="SemiBold"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Panel>
+            <StackPanel Grid.Row="0" Background="#131e2d"
+                        IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Border Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+                        <!-- Toggle/Restore Sidebar Button -->
+                        <Button Grid.Column="0"
+                                Content="{Binding SidebarToggleIcon}"
+                                ToolTip.Tip="{Binding SidebarToggleTooltip}"
+                                Command="{Binding ToggleSidebarCommand}"
+                                Classes="icon-btn subtle"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center" />
+                        <!-- Contact Avatar with Live Presence Dot -->
+                        <Panel Grid.Column="1" Width="38" Height="38" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <Border Width="38" Height="38" CornerRadius="19"
+                                    ClipToBounds="True" Background="{Binding ActiveConversation.AvatarBackgroundBrush}">
+                                <Panel>
+                                    <Image Source="{Binding ActiveConversation.Avatar}" Width="38" Height="38" Stretch="UniformToFill" IsVisible="{Binding ActiveConversation.HasAvatar}" />
+                                    <TextBlock Text="{Binding ActiveConversation.Initials}" IsVisible="{Binding !ActiveConversation.HasAvatar}"
+                                               Foreground="White" FontSize="14" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Border>
+                            <Ellipse Width="10" Height="10"
+                                     Fill="{Binding ActiveConversation.PresenceShow, Converter={StaticResource PresenceToBrush}}"
+                                     Stroke="#131e2d"
+                                     StrokeThickness="2"
+                                     Margin="0,0,1,1"
+                                     HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                        </Panel>
+                        <!-- Contact Name & Presence Subtitle -->
+                        <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ActiveConversation.Title}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ActiveConversation.PresenceStatusText}"
+                                       FontSize="11"
+                                       Foreground="{Binding ActiveConversation.PresenceShow, Converter={StaticResource PresenceToBrush}}" />
+                        </StackPanel>
+                        <!-- Encryption Badge -->
+                        <Border Grid.Column="3" Background="#11243A" BorderBrush="#00F0FF" BorderThickness="1"
+                                CornerRadius="12" Padding="8,4" Margin="0,0,10,0"
+                                IsVisible="{Binding ActiveConversation.IsEncrypted}" VerticalAlignment="Center">
+                            <TextBlock Text="🔒 OMEMO" FontSize="11" FontWeight="SemiBold" Foreground="#67E8F9" />
                         </Border>
-                        <Ellipse Width="10" Height="10"
-                                 Fill="{Binding ActiveConversation.PresenceShow, Converter={StaticResource PresenceToBrush}}"
-                                 Stroke="#0F172A"
-                                 StrokeThickness="2"
-                                 Margin="0,0,1,1"
-                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" />
-                    </Panel>
-                    <!-- Contact Name & Presence Subtitle -->
-                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ActiveConversation.Title}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding ActiveConversation.PresenceStatusText}"
-                                   FontSize="11"
-                                   Foreground="{Binding ActiveConversation.PresenceShow, Converter={StaticResource PresenceToBrush}}" />
-                    </StackPanel>
-                    <!-- Encryption Badge -->
-                    <Border Grid.Column="3" Background="#11243A" BorderBrush="#00F0FF" BorderThickness="1"
-                            CornerRadius="12" Padding="8,4" Margin="0,0,10,0"
-                            IsVisible="{Binding ActiveConversation.IsEncrypted}" VerticalAlignment="Center">
-                        <TextBlock Text="🔒 OMEMO" FontSize="11" FontWeight="SemiBold" Foreground="#67E8F9" />
-                    </Border>
-                    <!-- Sync Button -->
-                    <Button Grid.Column="4"
-                            Content="{Binding ActiveConversation.SyncButtonIcon}"
-                            ToolTip.Tip="{Binding ActiveConversation.SyncButtonText}"
-                            Command="{Binding ActiveConversation.SyncArchiveCommand}"
-                            IsEnabled="{Binding !ActiveConversation.IsSyncing}"
-                            Classes="icon-btn"
-                            Margin="0,0,8,0"
-                            VerticalAlignment="Center" />
-                    <!-- Details & Security Menu (⋮) -->
-                    <Button Grid.Column="5"
-                            Content="⋮"
-                            ToolTip.Tip="Details &amp; Security"
-                            Command="{Binding ToggleDetailsCommand}"
-                            Classes="icon-btn"
-                            FontSize="15"
-                            VerticalAlignment="Center" />
-                </Grid>
-            </Border>
+                        <!-- Sync Button -->
+                        <Button Grid.Column="4"
+                                Content="{Binding ActiveConversation.SyncButtonIcon}"
+                                ToolTip.Tip="{Binding ActiveConversation.SyncButtonText}"
+                                Command="{Binding ActiveConversation.SyncArchiveCommand}"
+                                IsEnabled="{Binding !ActiveConversation.IsSyncing}"
+                                Classes="icon-btn"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center" />
+                        <!-- Details & Security Menu (⋮) -->
+                        <Button Grid.Column="5"
+                                Content="⋮"
+                                ToolTip.Tip="Details &amp; Security"
+                                Command="{Binding ToggleDetailsCommand}"
+                                Classes="icon-btn"
+                                FontSize="15"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- HR Divider -->
+                <Rectangle Height="1" Fill="#1E293B" Margin="16,0" HorizontalAlignment="Stretch" />
+            </StackPanel>
 
             <!-- Top Header Bar when no active conversation and sidebar is collapsed -->
-            <Border Grid.Row="0" Padding="14,10" Background="#0F172A"
-                    BorderBrush="#1E293B" BorderThickness="0,0,0,1"
-                    IsVisible="{Binding ShowEmptyStateHeader}">
-                <Button Content="▶"
-                        ToolTip.Tip="Restore Sidebar (Ctrl+B)"
-                        Command="{Binding RestoreSidebarCommand}"
-                        Classes="icon-btn" />
-            </Border>
+            <StackPanel Grid.Row="0" Background="#131e2d"
+                        IsVisible="{Binding ShowEmptyStateHeader}">
+                <Border Padding="14,10">
+                    <Button Content="▶"
+                            ToolTip.Tip="Restore Sidebar (Ctrl+B)"
+                            Command="{Binding RestoreSidebarCommand}"
+                            Classes="icon-btn" />
+                </Border>
+                <!-- HR Divider -->
+                <Rectangle Height="1" Fill="#1E293B" Margin="16,0" HorizontalAlignment="Stretch" />
+            </StackPanel>
 
             <!-- Center: Messages Scroll Area -->
             <Grid Grid.Row="1" IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -935,7 +942,7 @@
             </Border>
 
             <!-- Bottom Message Input Bar with Floating Pill and Previews -->
-            <Border Grid.Row="3" Padding="16,8,16,14" Background="#080C14"
+            <Border Grid.Row="3" Padding="16,8,16,14" Background="#131e2d"
                     IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <StackPanel Spacing="8">
                     <!-- Pending Image Preview Bar -->
