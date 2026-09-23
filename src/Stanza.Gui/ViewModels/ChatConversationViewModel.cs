@@ -315,6 +315,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PostToUi(() =>
         {
             var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, "System");
+            bubble.ImageLoaded += OnBubbleImageLoaded;
             var index = 0;
             while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
             {
@@ -1239,6 +1240,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PendingImagePreview = previewBitmap;
         IsPendingImageGif = isGif;
         HasPendingImage = true;
+        RequestScrollToBottom();
     }
 
     [RelayCommand]
@@ -1251,6 +1253,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PendingImageSizeText = null;
         IsPendingImageGif = false;
         HasPendingImage = false;
+        RequestScrollToBottom();
     }
 
     public async Task<string?> UploadOrCacheImageAsync(byte[] imageBytes, string? fileName = null)
@@ -1405,72 +1408,83 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         ClearPendingImage();
         CancelReplyingMessage();
 
-        string? imageUrl = null;
-        if (imageToSend is not null && imageToSend.Length > 0)
+        var shouldSendTextMessage = hasText;
+        if (hasText && (textToSend.StartsWith('/') || textToSend.StartsWith("//")))
         {
-            imageUrl = await UploadOrCacheImageAsync(imageToSend, imageFileName);
-        }
-
-        string body;
-        if (!string.IsNullOrEmpty(imageUrl))
-        {
-            body = !string.IsNullOrEmpty(textToSend)
-                ? $"{imageUrl}\n{textToSend}"
-                : imageUrl;
-        }
-        else
-        {
-            body = textToSend;
-        }
-
-        if (string.IsNullOrWhiteSpace(body)) return;
-
-        // Process slash command if no image attachment and message starts with / or //
-        if (string.IsNullOrEmpty(imageUrl) && (body.StartsWith('/') || body.StartsWith("//")))
-        {
-            var commandResult = SlashCommandProcessor.Process(body, IsGroupChat);
+            var commandResult = SlashCommandProcessor.Process(textToSend, IsGroupChat);
 
             if (SlashCommandHandler is not null && await SlashCommandHandler(commandResult))
             {
-                _localPauseCts?.Cancel();
-                _localPauseCts = null;
-                SendLocalChatState(ChatState.Active);
-                return;
+                shouldSendTextMessage = false;
             }
-
-            switch (commandResult.Type)
+            else
             {
-                case SlashCommandResultType.Handled:
-                    _localPauseCts?.Cancel();
-                    _localPauseCts = null;
-                    SendLocalChatState(ChatState.Active);
-                    return;
+                switch (commandResult.Type)
+                {
+                    case SlashCommandResultType.Handled:
+                        shouldSendTextMessage = false;
+                        break;
 
-                case SlashCommandResultType.SystemMessage:
-                    if (!string.IsNullOrEmpty(commandResult.SystemOutput))
-                    {
-                        AddSystemMessage(commandResult.SystemOutput);
-                    }
-                    _localPauseCts?.Cancel();
-                    _localPauseCts = null;
-                    SendLocalChatState(ChatState.Active);
-                    return;
+                    case SlashCommandResultType.SystemMessage:
+                        if (!string.IsNullOrEmpty(commandResult.SystemOutput))
+                        {
+                            AddSystemMessage(commandResult.SystemOutput);
+                        }
+                        shouldSendTextMessage = false;
+                        break;
 
-                case SlashCommandResultType.ClearChat:
-                    ClearMessages();
-                    _localPauseCts?.Cancel();
-                    _localPauseCts = null;
-                    SendLocalChatState(ChatState.Active);
-                    return;
+                    case SlashCommandResultType.ClearChat:
+                        ClearMessages();
+                        shouldSendTextMessage = false;
+                        break;
 
-                case SlashCommandResultType.SendMessage:
-                    if (!string.IsNullOrEmpty(commandResult.MessageText))
-                    {
-                        body = commandResult.MessageText;
-                    }
-                    break;
+                    case SlashCommandResultType.SendMessage:
+                        if (!string.IsNullOrEmpty(commandResult.MessageText))
+                        {
+                            textToSend = commandResult.MessageText;
+                        }
+                        break;
+                }
             }
         }
+
+        DateTimeOffset? firstMsgTime = null;
+        if (shouldSendTextMessage && !string.IsNullOrWhiteSpace(textToSend))
+        {
+            var chatMsg = await SendOutboundMessageAsync(textToSend, imageUrl: null, wasEmoticonReplaced: wasEmoticonReplaced);
+            if (chatMsg is not null)
+            {
+                firstMsgTime = chatMsg.Timestamp;
+            }
+        }
+
+        if (hasPendingImage && imageToSend is not null && imageToSend.Length > 0)
+        {
+            var imageUrl = await UploadOrCacheImageAsync(imageToSend, imageFileName);
+            if (!string.IsNullOrEmpty(imageUrl))
+            {
+                DateTimeOffset? explicitTimestamp = null;
+                if (firstMsgTime.HasValue)
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    explicitTimestamp = now > firstMsgTime.Value ? now : firstMsgTime.Value.AddMilliseconds(10);
+                }
+                await SendOutboundMessageAsync(imageUrl, imageUrl: imageUrl, wasEmoticonReplaced: false, explicitTimestamp: explicitTimestamp);
+            }
+        }
+
+        _localPauseCts?.Cancel();
+        _localPauseCts = null;
+        SendLocalChatState(ChatState.Active);
+    }
+
+    private async Task<ChatMessage?> SendOutboundMessageAsync(
+        string body,
+        string? imageUrl = null,
+        bool wasEmoticonReplaced = false,
+        DateTimeOffset? explicitTimestamp = null)
+    {
+        if (_client is null || string.IsNullOrWhiteSpace(body)) return null;
 
         var stanza = new MessageStanza(
             to: RemoteJid,
@@ -1514,7 +1528,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             SenderJid = _client.BoundJid?.ToString() ?? _accountJid,
             Body = body,
             Direction = MessageDirection.Outbound,
-            Timestamp = DateTimeOffset.UtcNow,
+            Timestamp = explicitTimestamp ?? DateTimeOffset.UtcNow,
             IsEncrypted = IsEncrypted,
             EncryptionType = IsEncrypted ? "OMEMO" : null,
             StanzaId = stanza.Id,
@@ -1540,15 +1554,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     PostToUi(() => ShowEmoticonBanner = true);
                 }
             }
+
+            return chatMsg;
         }
         catch
         {
             // Soft failure sending message stanza
+            return null;
         }
-
-        _localPauseCts?.Cancel();
-        _localPauseCts = null;
-        SendLocalChatState(ChatState.Active);
     }
 
     public async Task SendImageAsync(byte[] imageBytes, string? fileName = null)
@@ -1906,6 +1919,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 var prevBubble = Messages[insertIdx - 1];
                 if (prevBubble.CanMergeWith(msg, EnableMessageMerging, MessageMergeThresholdSeconds))
                 {
+                    prevBubble.ImageLoaded -= OnBubbleImageLoaded;
+                    prevBubble.ImageLoaded += OnBubbleImageLoaded;
                     prevBubble.MergeMessage(msg);
                     UpdateLastMessageSnippetAndTime(msg);
                     MessageProcessed?.Invoke(msg);
@@ -1923,6 +1938,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         bubble.ReplyRequested = ReplyToMessage;
         bubble.EditRequested = StartEditingMessage;
         bubble.DeleteRequested = b => _ = DeleteMessageAsync(b);
+        bubble.ImageLoaded += OnBubbleImageLoaded;
         var index = 0;
         while (index < Messages.Count && Messages[index].Timestamp <= bubble.Timestamp)
         {
@@ -2067,6 +2083,11 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         PostToUi(Apply);
+    }
+
+    private void OnBubbleImageLoaded()
+    {
+        RequestScrollToBottom();
     }
 
     private static void PostToUi(Action action)

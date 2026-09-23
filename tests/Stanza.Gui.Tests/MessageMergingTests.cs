@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using Stanza.Core;
@@ -738,5 +738,170 @@ public class MessageMergingTests : IDisposable
 
         // Reset static setting
         MessageBubbleViewModel.ShowInlinePreviews = true;
+    }
+
+    [Fact]
+    public void MergeMessage_ImageArrivesBeforeTextMessage_KeepsImageOnBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_1",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/cat.png",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now,
+            RawXml = "<message xmlns='jabber:client'><x xmlns='jabber:x:oob'><url>https://example.com/cat.png</url></x><body>https://example.com/cat.png</body></message>"
+        };
+
+        var textMsg = new ChatMessage
+        {
+            Id = "msg_txt_2",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "Look at this cute cat!",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(1)
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        // Image arrives first
+        var bubble = MessageBubbleViewModel.FromChatMessage(imgMsg);
+        Assert.True(bubble.HasImage);
+        Assert.True(bubble.IsOnlyImage);
+
+        // Text arrives second and merges
+        bubble.MergeMessage(textMsg);
+
+        // Image must be kept on the bottom regardless of arrival order
+        Assert.True(bubble.HasImage);
+        Assert.Equal("https://example.com/cat.png", bubble.ImageUrl);
+        Assert.Equal("Look at this cute cat!", bubble.DisplayText);
+        Assert.Equal("Look at this cute cat!\nhttps://example.com/cat.png", bubble.Body);
+        Assert.False(bubble.IsOnlyImage);
+    }
+
+    [Fact]
+    public void MergeMessage_TextArrivesBeforeImageMessage_KeepsImageOnBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var textMsg = new ChatMessage
+        {
+            Id = "msg_txt_1",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "Look at this cute cat!",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now
+        };
+
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_2",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/cat.png",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(1),
+            RawXml = "<message xmlns='jabber:client'><x xmlns='jabber:x:oob'><url>https://example.com/cat.png</url></x><body>https://example.com/cat.png</body></message>"
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        // Text arrives first
+        var bubble = MessageBubbleViewModel.FromChatMessage(textMsg);
+        Assert.False(bubble.HasImage);
+        Assert.Equal("Look at this cute cat!", bubble.DisplayText);
+
+        // Image arrives second and merges
+        bubble.MergeMessage(imgMsg);
+
+        // Image must be kept on the bottom
+        Assert.True(bubble.HasImage);
+        Assert.Equal("https://example.com/cat.png", bubble.ImageUrl);
+        Assert.Equal("Look at this cute cat!", bubble.DisplayText);
+        Assert.Equal("Look at this cute cat!\nhttps://example.com/cat.png", bubble.Body);
+        Assert.False(bubble.IsOnlyImage);
+    }
+
+    [Fact]
+    public void MergeMessage_MultipleInterleavedTextAndImage_KeepsImageAtBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var textMsg1 = new ChatMessage
+        {
+            Id = "msg_txt_1",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "First line of text",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now
+        };
+
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_2",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/photo.jpg",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(1)
+        };
+
+        var textMsg2 = new ChatMessage
+        {
+            Id = "msg_txt_3",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "Second line of text",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(2)
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(textMsg1);
+        bubble.MergeMessage(imgMsg);
+        bubble.MergeMessage(textMsg2);
+
+        // Both text messages should precede the image URL
+        Assert.Equal("First line of text\nSecond line of text\nhttps://example.com/photo.jpg", bubble.Body);
+        Assert.Equal("First line of text\nSecond line of text", bubble.DisplayText);
+        Assert.Equal("https://example.com/photo.jpg", bubble.ImageUrl);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_FromChatMessage_SingleMessageWithImageOnTop_RearrangesImageToBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var msg = new ChatMessage
+        {
+            Id = "msg_single",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/photo.jpg\nCaption text below",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+
+        // Body must ensure image is at the bottom
+        Assert.Equal("Caption text below\nhttps://example.com/photo.jpg", bubble.Body);
+        Assert.Equal("Caption text below", bubble.DisplayText);
+        Assert.Equal("https://example.com/photo.jpg", bubble.ImageUrl);
+        Assert.True(bubble.HasImage);
     }
 }
