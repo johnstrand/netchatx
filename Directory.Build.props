@@ -11,5 +11,6 @@
     <PackageProjectUrl>https://github.com/johnstrand/stanza</PackageProjectUrl>
     <RepositoryUrl>https://github.com/johnstrand/stanza</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 </Project>
