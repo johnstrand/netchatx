@@ -873,6 +873,32 @@
                                         VerticalAlignment="Center" />
                             </Grid>
                         </Border>
+
+                        <!-- Dismissible Invalid Slash Command Banner -->
+                        <Border HorizontalAlignment="Center"
+                                Background="#0F172A"
+                                BorderBrush="#00F0FF"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="12,6"
+                                Margin="0,8,0,0"
+                                IsVisible="{Binding ActiveConversation.ShowSlashCommandWarning}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Text="⚠️" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding ActiveConversation.SlashCommandWarningText}"
+                                               FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="✕"
+                                        Command="{Binding ActiveConversation.DismissSlashCommandWarningCommand}"
+                                        ToolTip.Tip="Dismiss"
+                                        Classes="icon-btn subtle"
+                                        FontSize="11"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
