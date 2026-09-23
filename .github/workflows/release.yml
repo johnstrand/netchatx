@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      publish_to_winget:
+        description: 'Publish Windows installer to WinGet (JohnStrand.Stanza) via wingetcreate'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -228,3 +233,26 @@ jobs:
               --title "Stanza ${{ needs.calculate-and-tag-version.outputs.tag }}" \
               --generate-notes
           fi
+
+  publish-winget:
+    name: Publish to WinGet
+    needs: [calculate-and-tag-version, publish-release]
+    runs-on: windows-latest
+    if: ${{ !inputs.dry_run && inputs.publish_to_winget != false }}
+    environment: winget
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.calculate-and-tag-version.outputs.commit_sha }}
+
+      - name: Publish WinGet Package
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $ver = "${{ needs.calculate-and-tag-version.outputs.version }}"
+          $tag = "${{ needs.calculate-and-tag-version.outputs.tag }}"
+          $installerUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/Stanza-v${ver}-win-x64-installer.exe"
+          ./scripts/publish-winget.ps1 -Version "$ver" -InstallerUrl "$installerUrl" -Repo "${{ github.repository }}"
+

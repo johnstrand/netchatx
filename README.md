@@ -135,6 +135,7 @@ Stanza features an automated, run-on-demand GitHub Actions release pipeline ([`.
 
 ### Platform Packages
 - **Windows (`win-x64`)**:
+  - **WinGet Package**: Install directly via `winget install JohnStrand.Stanza` (or `winget install stanza`).
   - **Inno Setup Installer (`.exe`)**: `Stanza-v{version}-win-x64-installer.exe` featuring Start Menu & Desktop shortcuts, uninstaller, and icon associations.
   - **Portable Archive (`.zip`)**: `Stanza-v{version}-win-x64.zip` for instant portable execution.
 - **Linux (`linux-x64`)**:
