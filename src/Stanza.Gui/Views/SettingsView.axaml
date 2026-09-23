@@ -652,8 +652,8 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- ================= TAB 4: SYSTEM & NOTIFICATIONS ================= -->
-                <TabItem Header="🔔 System">
+                <!-- ================= TAB 4: SYSTEM & STARTUP ================= -->
+                <TabItem Header="⚙️ System &amp; Startup">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- System & Startup Switch -->
@@ -665,7 +665,7 @@
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
                                             <TextBlock Text="Launch on System Boot" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                            <TextBlock Text="Automatically launch Stanza when your system boots or you log in."
+                                            <TextBlock Text="Automatically launch Stanza in the background when your system boots or you log in."
                                                        Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
                                         </StackPanel>
                                         <ToggleSwitch Grid.Column="1"

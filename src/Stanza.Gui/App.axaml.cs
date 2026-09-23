@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Stanza.Gui.Services;
 using Stanza.Gui.ViewModels;
 using Stanza.Gui.Views;
 
@@ -10,6 +11,8 @@ namespace Stanza.Gui;
 
 public partial class App : Application
 {
+    private readonly IStartupService _startupService = new StartupService();
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -27,6 +30,7 @@ public partial class App : Application
             _ = mainVm.InitializeAsync();
         }
 
+        UpdateTrayAutostartState();
         base.OnFrameworkInitializationCompleted();
     }
 
@@ -43,6 +47,35 @@ public partial class App : Application
         }
     }
 
+    public void UpdateTrayAutostartState()
+    {
+        try
+        {
+            var icons = TrayIcon.GetIcons(this);
+            if (icons is { Count: > 0 } && icons[0].Menu is NativeMenu menu)
+            {
+                var isEnabled = _startupService.IsStartupEnabled();
+                foreach (var item in menu.Items)
+                {
+                    if (item is NativeMenuItem menuItem &&
+                        (menuItem.Header == "Start with Windows" || menuItem.Header == "Start on System Boot"))
+                    {
+                        if (!OperatingSystem.IsWindows() && menuItem.Header == "Start with Windows")
+                        {
+                            menuItem.Header = "Start on System Boot";
+                        }
+                        menuItem.IsChecked = isEnabled;
+                        break;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignore in environments where tray is unavailable
+        }
+    }
+
     private MainChatViewModel? GetMainChatViewModel()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
@@ -56,12 +89,37 @@ public partial class App : Application
 
     private void OnTrayIconClicked(object? sender, EventArgs e)
     {
+        UpdateTrayAutostartState();
         ShowMainWindow();
     }
 
     private void OnTrayOpenClick(object? sender, EventArgs e)
     {
         ShowMainWindow();
+    }
+
+    private void OnTraySettingsClick(object? sender, EventArgs e)
+    {
+        ShowMainWindow();
+        var chatVm = GetMainChatViewModel();
+        chatVm?.Settings.Open();
+    }
+
+    private void OnTrayAutostartClick(object? sender, EventArgs e)
+    {
+        var newState = !_startupService.IsStartupEnabled();
+        _startupService.SetStartupEnabled(newState);
+
+        if (sender is NativeMenuItem item)
+        {
+            item.IsChecked = newState;
+        }
+
+        var chatVm = GetMainChatViewModel();
+        if (chatVm?.Settings is not null)
+        {
+            chatVm.Settings.LaunchOnStartup = newState;
+        }
     }
 
     private async void OnTrayStatusOnlineClick(object? sender, EventArgs e)

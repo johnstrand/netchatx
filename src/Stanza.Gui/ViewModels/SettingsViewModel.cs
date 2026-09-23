@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -248,7 +248,23 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             NotificationPopupsEnabled = await _settingsRepo.GetNotificationPopupsEnabledAsync(_accountJid);
             IconFlashingEnabled = await _settingsRepo.GetIconFlashingEnabledAsync(_accountJid);
-            LaunchOnStartup = await _settingsRepo.GetLaunchOnStartupAsync(_accountJid);
+
+            var osAutostart = _startupService.IsStartupEnabled();
+            var dbAutostart = await _settingsRepo.GetLaunchOnStartupAsync(_accountJid);
+            if (dbAutostart && !osAutostart)
+            {
+                _startupService.SetStartupEnabled(true);
+                LaunchOnStartup = true;
+            }
+            else
+            {
+                LaunchOnStartup = osAutostart;
+                if (osAutostart != dbAutostart)
+                {
+                    await _settingsRepo.SetLaunchOnStartupAsync(_accountJid, osAutostart);
+                }
+            }
+
             EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
             MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
             AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
@@ -710,6 +726,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public void Open()
     {
         IsOpen = true;
+        var osAutostart = _startupService.IsStartupEnabled();
+        if (LaunchOnStartup != osAutostart)
+        {
+            LaunchOnStartup = osAutostart;
+        }
     }
 
     [RelayCommand]

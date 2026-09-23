@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -684,6 +684,87 @@ public class NotificationAndSettingsTests : IDisposable
         // 4. Toggle back to false
         vm2.LaunchOnStartup = false;
         Assert.False(mockStartupService2.IsStartupEnabled());
+        Assert.False(await _settingsRepo.GetLaunchOnStartupAsync(account));
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_LaunchOnStartup_SyncsFromOsStartupStateWhenEnabledByInstaller()
+    {
+        var account = "installer_autostart_user@test.org";
+        // Simulate installer writing the registry/desktop entry beforehand
+        var mockStartupService = new MockStartupService { IsEnabled = true };
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            startupService: mockStartupService);
+
+        // Before LoadSettingsAsync, default DB is false
+        Assert.False(await _settingsRepo.GetLaunchOnStartupAsync(account));
+
+        // When loading settings, it should detect OS-level autostart and sync
+        await vm.LoadSettingsAsync();
+
+        Assert.True(vm.LaunchOnStartup);
+        Assert.True(mockStartupService.IsStartupEnabled());
+        Assert.True(await _settingsRepo.GetLaunchOnStartupAsync(account));
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_Open_DetectsExternalOsStartupChange()
+    {
+        var account = "external_toggle_user@test.org";
+        var mockStartupService = new MockStartupService { IsEnabled = false };
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            startupService: mockStartupService);
+        await vm.LoadSettingsAsync();
+
+        Assert.False(vm.LaunchOnStartup);
+
+        // Simulate external change (e.g. user toggles in Windows Task Manager or Settings)
+        mockStartupService.IsEnabled = true;
+
+        // When user opens Settings dialog, it should refresh from OS startup state
+        vm.Open();
+
+        Assert.True(vm.IsOpen);
+        Assert.True(vm.LaunchOnStartup);
+        Assert.True(await _settingsRepo.GetLaunchOnStartupAsync(account));
+
+        // Now simulate user turning it off in Task Manager
+        mockStartupService.IsEnabled = false;
+
+        vm.Close();
+        Assert.False(vm.IsOpen);
+
+        vm.Open();
+        Assert.False(vm.LaunchOnStartup);
+        Assert.False(await _settingsRepo.GetLaunchOnStartupAsync(account));
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_ResetDefaults_DisablesAutostart()
+    {
+        var account = "reset_autostart_user@test.org";
+        var mockStartupService = new MockStartupService();
+
+        var vm = new SettingsViewModel(
+            _settingsRepo,
+            account,
+            startupService: mockStartupService);
+
+        vm.LaunchOnStartup = true;
+        Assert.True(mockStartupService.IsStartupEnabled());
+        Assert.True(await _settingsRepo.GetLaunchOnStartupAsync(account));
+
+        // Reset defaults
+        await vm.ResetDefaultsAsync();
+
+        Assert.False(vm.LaunchOnStartup);
+        Assert.False(mockStartupService.IsStartupEnabled());
         Assert.False(await _settingsRepo.GetLaunchOnStartupAsync(account));
     }
 
