@@ -102,15 +102,25 @@
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                     <!-- User Status Dot & Avatar with Logo Icon -->
                     <Panel Grid.Column="0" Width="34" Height="34" VerticalAlignment="Center" Margin="0,0,10,0">
-                        <Border Width="34" Height="34" CornerRadius="9" ClipToBounds="True">
-                            <Image Source="/Assets/stanza-logo.png" Width="34" Height="34" Stretch="UniformToFill" />
-                        </Border>
-                        <Ellipse Width="10" Height="10"
-                                 Fill="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
-                                 Stroke="#0F172A"
-                                 StrokeThickness="2"
-                                 Margin="0,0,1,1"
-                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                        <Button Command="{Binding OpenProfileSettingsCommand}"
+                                ToolTip.Tip="Profile &amp; Avatar Settings"
+                                Classes="image-btn"
+                                Width="34" Height="34" Padding="0" Cursor="Hand">
+                            <Panel Width="34" Height="34">
+                                <Border Width="34" Height="34" CornerRadius="9" ClipToBounds="True" Background="#1E293B">
+                                    <Panel>
+                                        <Image Source="{Binding UserAvatar}" Width="34" Height="34" Stretch="UniformToFill" IsVisible="{Binding HasUserAvatar}" />
+                                        <Image Source="/Assets/stanza-logo.png" Width="34" Height="34" Stretch="UniformToFill" IsVisible="{Binding !HasUserAvatar}" />
+                                    </Panel>
+                                </Border>
+                                <Ellipse Width="10" Height="10"
+                                         Fill="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
+                                         Stroke="#0F172A"
+                                         StrokeThickness="2"
+                                         Margin="0,0,1,1"
+                                         HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                            </Panel>
+                        </Button>
                     </Panel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding UserBoundJid}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis" />
@@ -193,12 +203,22 @@
                              SelectedItem="{Binding ActiveConversation, Mode=TwoWay}">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
-                                <Grid ColumnDefinitions="*,Auto" Margin="4,2">
-                                    <StackPanel Grid.Column="0" Spacing="2">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                                    <Border Grid.Column="0" Width="32" Height="32" CornerRadius="16"
+                                            ClipToBounds="True" Background="{Binding AvatarBackgroundBrush}"
+                                            Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <Panel>
+                                            <Image Source="{Binding Avatar}" Width="32" Height="32" Stretch="UniformToFill" IsVisible="{Binding HasAvatar}" />
+                                            <TextBlock Text="{Binding Initials}" IsVisible="{Binding !HasAvatar}"
+                                                       Foreground="White" FontSize="12" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Panel>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding RemoteJid}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="🔒" IsVisible="{Binding IsEncrypted}" FontSize="12" VerticalAlignment="Center" Margin="4,0" />
+                                    <TextBlock Grid.Column="2" Text="🔒" IsVisible="{Binding IsEncrypted}" FontSize="12" VerticalAlignment="Center" Margin="4,0" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -215,18 +235,32 @@
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                         Background="Transparent" BorderThickness="0" Padding="4,2">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <!-- Online indicator -->
-                                        <Ellipse Grid.Column="0" Width="10" Height="10"
-                                                 Fill="{Binding PresenceShow, Converter={StaticResource PresenceToBrush}}"
-                                                 Margin="0,0,8,0" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" Spacing="2">
+                                        <!-- Avatar circle with presence dot -->
+                                        <Panel Grid.Column="0" Width="34" Height="34" Margin="0,0,10,0" VerticalAlignment="Center">
+                                            <Border Width="34" Height="34" CornerRadius="17" ClipToBounds="True" Background="{Binding AvatarBackgroundBrush}">
+                                                <Panel>
+                                                    <Image Source="{Binding Avatar}" Width="34" Height="34" Stretch="UniformToFill" IsVisible="{Binding HasAvatar}" />
+                                                    <TextBlock Text="{Binding Initials}" IsVisible="{Binding !HasAvatar}"
+                                                               Foreground="White" FontSize="12" FontWeight="SemiBold"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Panel>
+                                            </Border>
+                                            <Ellipse Width="10" Height="10"
+                                                     Fill="{Binding PresenceShow, Converter={StaticResource PresenceToBrush}}"
+                                                     Stroke="#0F172A"
+                                                     StrokeThickness="2"
+                                                     Margin="0,0,1,1"
+                                                     HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                                        </Panel>
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding ContactJid}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                         <!-- Unread badge -->
                                         <Border Grid.Column="2" Background="{StaticResource StanzaCyberGradient}"
                                                 CornerRadius="10" Padding="6,2"
-                                                IsVisible="{Binding UnreadCount}" Margin="4,0,0,0">
+                                                IsVisible="{Binding UnreadCount}" Margin="4,0,0,0"
+                                                VerticalAlignment="Center">
                                             <TextBlock Text="{Binding UnreadCount}" Foreground="White" FontSize="10" FontWeight="Bold" />
                                         </Border>
                                     </Grid>
@@ -266,7 +300,7 @@
             <Border Grid.Row="0" Padding="16,10" Background="#0F172A"
                     BorderBrush="#1E293B" BorderThickness="0,0,0,1"
                     IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
                     <!-- Toggle/Restore Sidebar Button -->
                     <Button Grid.Column="0"
                             Content="{Binding SidebarToggleIcon}"
@@ -275,18 +309,29 @@
                             Classes="icon-btn subtle"
                             Margin="0,0,8,0"
                             VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <!-- Contact Avatar -->
+                    <Border Grid.Column="1" Width="36" Height="36" CornerRadius="18"
+                            ClipToBounds="True" Background="{Binding ActiveConversation.AvatarBackgroundBrush}"
+                            Margin="0,0,10,0" VerticalAlignment="Center">
+                        <Panel>
+                            <Image Source="{Binding ActiveConversation.Avatar}" Width="36" Height="36" Stretch="UniformToFill" IsVisible="{Binding ActiveConversation.HasAvatar}" />
+                            <TextBlock Text="{Binding ActiveConversation.Initials}" IsVisible="{Binding !ActiveConversation.HasAvatar}"
+                                       Foreground="White" FontSize="13" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Panel>
+                    </Border>
+                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="{Binding ActiveConversation.Title}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
                         <TextBlock Text="{Binding ActiveConversation.RemoteJid}" Classes="muted" FontSize="11" />
                     </StackPanel>
                     <!-- Encryption Badge -->
-                    <Border Grid.Column="2" Background="#11243A" BorderBrush="#00F0FF" BorderThickness="1"
+                    <Border Grid.Column="3" Background="#11243A" BorderBrush="#00F0FF" BorderThickness="1"
                             CornerRadius="12" Padding="8,4" Margin="0,0,10,0"
                             IsVisible="{Binding ActiveConversation.IsEncrypted}" VerticalAlignment="Center">
                         <TextBlock Text="🔒 OMEMO Active" FontSize="11" FontWeight="SemiBold" Foreground="#67E8F9" />
                     </Border>
                     <!-- Sync Button -->
-                    <Button Grid.Column="3"
+                    <Button Grid.Column="4"
                             Content="{Binding ActiveConversation.SyncButtonIcon}"
                             ToolTip.Tip="{Binding ActiveConversation.SyncButtonText}"
                             Command="{Binding ActiveConversation.SyncArchiveCommand}"
@@ -295,7 +340,7 @@
                             Margin="0,0,8,0"
                             VerticalAlignment="Center" />
                     <!-- Toggle Details Button -->
-                    <Button Grid.Column="4"
+                    <Button Grid.Column="5"
                             Content="ℹ"
                             ToolTip.Tip="Details &amp; Security"
                             Command="{Binding ToggleDetailsCommand}"
@@ -861,11 +906,26 @@
                                 Classes="icon-btn subtle" />
                     </Grid>
 
-                    <!-- Contact Details -->
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Contact JID" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
-                        <TextBlock Text="{Binding ActiveConversation.RemoteJid}" FontSize="13" Foreground="#F1F5F9" TextWrapping="Wrap" />
-                    </StackPanel>
+                    <!-- Contact Details Card -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center">
+                            <Border Width="64" Height="64" CornerRadius="32" ClipToBounds="True"
+                                    Background="{Binding ActiveConversation.AvatarBackgroundBrush}"
+                                    HorizontalAlignment="Center"
+                                    BoxShadow="0 4 16 0 #20000000">
+                                <Panel>
+                                    <Image Source="{Binding ActiveConversation.Avatar}" Width="64" Height="64" Stretch="UniformToFill" IsVisible="{Binding ActiveConversation.HasAvatar}" />
+                                    <TextBlock Text="{Binding ActiveConversation.Initials}" IsVisible="{Binding !ActiveConversation.HasAvatar}"
+                                               Foreground="White" FontSize="22" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Border>
+                            <StackPanel Spacing="3" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding ActiveConversation.Title}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Text="{Binding ActiveConversation.RemoteJid}" Classes="muted" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
                     <Separator Background="#1E293B" Height="1" />
 

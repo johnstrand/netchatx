@@ -715,6 +715,50 @@
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
+
+                <!-- ================= TAB 5: PROFILE & AVATAR ================= -->
+                <TabItem Header="👤 Profile">
+                    <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <StackPanel Spacing="14" Margin="0,0,6,0">
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="14">
+                                    <TextBlock Text="USER PROFILE &amp; AVATAR" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                        <!-- Big Avatar Preview -->
+                                        <Border Grid.Column="0" Width="80" Height="80" CornerRadius="40" ClipToBounds="True"
+                                                Background="{Binding UserAvatarBackgroundBrush}"
+                                                BorderBrush="#00F0FF" BorderThickness="2"
+                                                Margin="0,0,18,0">
+                                            <Panel>
+                                                <Image Source="{Binding UserAvatar}" Width="80" Height="80" Stretch="UniformToFill"
+                                                       IsVisible="{Binding HasUserAvatar}" />
+                                                <TextBlock Text="{Binding UserInitials}"
+                                                           IsVisible="{Binding !HasUserAvatar}"
+                                                           Foreground="White" FontWeight="Bold" FontSize="26"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Panel>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="{Binding AccountJid}" FontWeight="SemiBold" FontSize="14" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Upload a custom picture to represent you across XMPP chats (supports XEP-0084 &amp; XEP-0153)."
+                                                       Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
+
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked" />
+                                                <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}" Classes="icon-btn subtle" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding AvatarStatusMessage}" Foreground="#10B981" FontSize="11"
+                                               IsVisible="{Binding AvatarStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
             </TabControl>
 
             <!-- Modal Action Buttons (Footer) -->

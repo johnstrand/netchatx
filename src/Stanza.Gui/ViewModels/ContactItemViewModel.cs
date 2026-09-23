@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Stanza.Storage.Models;
 
 namespace Stanza.Gui.ViewModels;
@@ -12,6 +12,8 @@ public sealed partial class ContactItemViewModel : ViewModelBase
     private string _contactJid = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayName))]
+    [NotifyPropertyChangedFor(nameof(Initials))]
     private string? _name;
 
     [ObservableProperty]
@@ -28,6 +30,19 @@ public sealed partial class ContactItemViewModel : ViewModelBase
 
     [ObservableProperty]
     private string? _lastMessagePreview;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatar))]
+    private Avalonia.Media.Imaging.Bitmap? _avatar;
+
+    [ObservableProperty]
+    private string? _avatarHash;
+
+    public bool HasAvatar => Avatar is not null;
+
+    public string Initials => Helpers.AvatarHelper.GetInitials(DisplayName);
+
+    public Avalonia.Media.IBrush AvatarBackgroundBrush => Helpers.AvatarHelper.GetAvatarColorBrush(ContactJid);
 
     public string DisplayName => !string.IsNullOrWhiteSpace(Name) ? Name : ContactJid;
 

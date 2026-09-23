@@ -33,6 +33,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly AccountRepository _accountRepo;
     private readonly OmemoRepository _omemoRepo;
     private readonly SettingsRepository _settingsRepo;
+    private readonly AvatarRepository _avatarRepo;
+    private Stanza.Protocol.Xeps.Avatars.AvatarManager? _avatarManager;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Hash, Avalonia.Media.Imaging.Bitmap Bitmap)> _avatarCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<Task> _onDisconnectRequested;
     private readonly INotificationService _notificationService;
     private readonly ISystemResumeWatcher _resumeWatcher;
@@ -92,6 +95,19 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusMessage = "Online with Stanza";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUserAvatar))]
+    private Avalonia.Media.Imaging.Bitmap? _userAvatar;
+
+    [ObservableProperty]
+    private string? _userAvatarHash;
+
+    public bool HasUserAvatar => UserAvatar != null;
+
+    public string UserInitials => Helpers.AvatarHelper.GetInitials(UserBoundJid ?? AccountJid);
+
+    public Avalonia.Media.IBrush UserAvatarBackgroundBrush => Helpers.AvatarHelper.GetAvatarColorBrush(UserBoundJid ?? AccountJid);
 
     [ObservableProperty]
     private bool _isAccountSyncing;
@@ -439,6 +455,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         _accountRepo = new AccountRepository(_dbContext);
         _omemoRepo = new OmemoRepository(_dbContext);
         _settingsRepo = new SettingsRepository(_dbContext);
+        _avatarRepo = new AvatarRepository(_dbContext);
 
         _accountJid = client.Options.Jid.BareJid.ToString();
         _userBoundJid = client.BoundJid.ToString();
@@ -536,7 +553,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 {
                     conv.UpdateEmoticonSettings(autoReplace, mappings);
                 }
-            });
+            },
+            onAvatarChanged: async (bytes, mime) => await SetUserAvatarFromBytesAsync(bytes, mime),
+            onAvatarRemoved: async () => await RemoveUserAvatarAsync());
     }
 
     public async Task InitializeAsync()
@@ -573,6 +592,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
         await _retraction.AttachAsync(_client);
         await _styling.AttachAsync(_client);
         await _ping.AttachAsync(_client);
+
+        _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
+        await _avatarManager.AttachAsync(_client);
+        _avatarManager.AvatarUpdated += async args =>
+        {
+            await HandleAvatarUpdatedAsync(args);
+        };
 
         _client.StateChanged += state =>
         {
@@ -693,6 +719,46 @@ public sealed partial class MainChatViewModel : ViewModelBase
             // Soft failure reading presence settings
         }
 
+        // Load user avatar and all cached avatars from SQLite before sending initial presence
+        try
+        {
+            var myAvatar = await _avatarRepo.GetAvatarAsync(AccountJid);
+            if (myAvatar is not null)
+            {
+                var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(myAvatar.Data);
+                if (bmp is not null)
+                {
+                    UserAvatar = bmp;
+                    UserAvatarHash = myAvatar.Hash;
+                    Settings.UserAvatar = bmp;
+                    Settings.UserAvatarHash = myAvatar.Hash;
+                    _avatarCache[AccountJid] = (myAvatar.Hash, bmp);
+                    _avatarManager?.SetCurrentAvatarHash(myAvatar.Hash);
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure loading user avatar
+        }
+
+        try
+        {
+            var allAvatars = await _avatarRepo.GetAllAvatarsAsync();
+            foreach (var (jid, rec) in allAvatars)
+            {
+                var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(rec.Data);
+                if (bmp is not null)
+                {
+                    _avatarCache[jid] = (rec.Hash, bmp);
+                }
+            }
+        }
+        catch
+        {
+            // Soft failure loading avatar cache
+        }
+
         UserPresence = initialPresence;
 
         // Send initial presence per RFC 6121 to signal availability and release queued offline messages
@@ -745,6 +811,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             var item = ContactItemViewModel.FromRosterContact(c);
             ApplyPresenceToContact(item);
+            if (_avatarCache.TryGetValue(item.ContactJid, out var av))
+            {
+                item.Avatar = av.Bitmap;
+                item.AvatarHash = av.Hash;
+            }
             Contacts.Add(item);
         }
 
@@ -761,7 +832,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 var existing = Contacts.FirstOrDefault(x => x.ContactJid.Equals(kvp.Key, StringComparison.OrdinalIgnoreCase));
                 if (existing is null)
                 {
-                    Contacts.Add(new ContactItemViewModel
+                    var newContact = new ContactItemViewModel
                     {
                         AccountJid = AccountJid,
                         ContactJid = kvp.Key,
@@ -769,12 +840,23 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         Subscription = "none",
                         UnreadCount = kvp.Value.unreadCount,
                         LastMessagePreview = kvp.Value.lastPreview
-                    });
+                    };
+                    if (_avatarCache.TryGetValue(newContact.ContactJid, out var av))
+                    {
+                        newContact.Avatar = av.Bitmap;
+                        newContact.AvatarHash = av.Hash;
+                    }
+                    Contacts.Add(newContact);
                 }
                 else
                 {
                     existing.UnreadCount = kvp.Value.unreadCount;
                     existing.LastMessagePreview = kvp.Value.lastPreview;
+                    if (existing.Avatar is null && _avatarCache.TryGetValue(existing.ContactJid, out var av))
+                    {
+                        existing.Avatar = av.Bitmap;
+                        existing.AvatarHash = av.Hash;
+                    }
                 }
             }
 
@@ -1030,12 +1112,22 @@ public sealed partial class MainChatViewModel : ViewModelBase
                                     Subscription = sub
                                 };
                                 ApplyPresenceToContact(newItem);
+                                if (_avatarCache.TryGetValue(newItem.ContactJid, out var av))
+                                {
+                                    newItem.Avatar = av.Bitmap;
+                                    newItem.AvatarHash = av.Hash;
+                                }
                                 Contacts.Add(newItem);
                             }
                             else
                             {
                                 existing.Name = name;
                                 existing.Subscription = sub;
+                                if (existing.Avatar is null && _avatarCache.TryGetValue(existing.ContactJid, out var av))
+                                {
+                                    existing.Avatar = av.Bitmap;
+                                    existing.AvatarHash = av.Hash;
+                                }
                             }
                         }
                     }
@@ -1409,6 +1501,22 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
             });
         };
+
+        var bare = remoteJid.ToBareString();
+        if (_avatarCache.TryGetValue(bare, out var av))
+        {
+            newConv.Avatar = av.Bitmap;
+            newConv.AvatarHash = av.Hash;
+        }
+        else
+        {
+            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
+            if (contact?.Avatar is not null)
+            {
+                newConv.Avatar = contact.Avatar;
+                newConv.AvatarHash = contact.AvatarHash;
+            }
+        }
 
         Conversations.Add(newConv);
         return newConv;
@@ -2018,6 +2126,162 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public void CancelClosePrompt()
     {
         IsClosePromptOpen = false;
+    }
+
+    [RelayCommand]
+    public void OpenProfileSettings()
+    {
+        Settings.SelectedTabIndex = 4; // Tab: 👤 Profile
+        Settings.Open();
+    }
+
+    public async Task SetUserAvatarFromBytesAsync(byte[] bytes, string mimeType = "image/png")
+    {
+        var hash = Helpers.AvatarHelper.ComputeSha1(bytes);
+        await _avatarRepo.SaveAvatarAsync(AccountJid, hash, mimeType, bytes);
+        var bitmap = Helpers.AvatarHelper.CreateBitmapFromBytes(bytes);
+
+        PostToUi(() =>
+        {
+            UserAvatar = bitmap;
+            UserAvatarHash = hash;
+            Settings.UserAvatar = bitmap;
+            Settings.UserAvatarHash = hash;
+        });
+
+        if (bitmap is not null)
+        {
+            _avatarCache[AccountJid] = (hash, bitmap);
+        }
+
+        if (_avatarManager is not null)
+        {
+            await _avatarManager.PublishAvatarAsync(bytes, mimeType);
+        }
+    }
+
+    public async Task RemoveUserAvatarAsync()
+    {
+        await _avatarRepo.DeleteAvatarAsync(AccountJid);
+        _avatarCache.TryRemove(AccountJid, out _);
+
+        PostToUi(() =>
+        {
+            UserAvatar = null;
+            UserAvatarHash = null;
+            Settings.UserAvatar = null;
+            Settings.UserAvatarHash = null;
+        });
+
+        if (_avatarManager is not null)
+        {
+            await _avatarManager.ClearAvatarAsync();
+        }
+    }
+
+    internal async Task HandleAvatarUpdatedAsync(Stanza.Protocol.Xeps.Avatars.AvatarChangedEventArgs args)
+    {
+        var bareJid = args.Jid.ToBareString();
+        if (string.IsNullOrEmpty(bareJid)) return;
+
+        if (args.IsCleared)
+        {
+            await _avatarRepo.DeleteAvatarAsync(bareJid);
+            _avatarCache.TryRemove(bareJid, out _);
+
+            PostToUi(() =>
+            {
+                ApplyAvatarToContactAndConversation(bareJid, null, null);
+            });
+            return;
+        }
+
+        if (string.IsNullOrEmpty(args.Hash)) return;
+
+        // If data is directly provided in event args
+        if (args.Data is not null && args.Data.Length > 0)
+        {
+            var mime = !string.IsNullOrWhiteSpace(args.MimeType) ? args.MimeType : "image/png";
+            await _avatarRepo.SaveAvatarAsync(bareJid, args.Hash, mime, args.Data);
+            var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(args.Data);
+            if (bmp is not null)
+            {
+                _avatarCache[bareJid] = (args.Hash, bmp);
+                PostToUi(() =>
+                {
+                    ApplyAvatarToContactAndConversation(bareJid, bmp, args.Hash);
+                });
+                return;
+            }
+        }
+
+        // Check in-memory cache
+        if (_avatarCache.TryGetValue(bareJid, out var cached) &&
+            string.Equals(cached.Hash, args.Hash, StringComparison.OrdinalIgnoreCase))
+        {
+            PostToUi(() =>
+            {
+                ApplyAvatarToContactAndConversation(bareJid, cached.Bitmap, args.Hash);
+            });
+            return;
+        }
+
+        // Check SQLite by hash
+        var existingRecord = await _avatarRepo.GetAvatarByHashAsync(args.Hash);
+        if (existingRecord is not null)
+        {
+            var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(existingRecord.Data);
+            if (bmp is not null)
+            {
+                await _avatarRepo.SaveAvatarAsync(bareJid, args.Hash, existingRecord.MimeType, existingRecord.Data);
+                _avatarCache[bareJid] = (args.Hash, bmp);
+                PostToUi(() =>
+                {
+                    ApplyAvatarToContactAndConversation(bareJid, bmp, args.Hash);
+                });
+                return;
+            }
+        }
+
+        // Fetch from network
+        if (_avatarManager is not null)
+        {
+            var fetchResult = await _avatarManager.FetchAvatarAsync(args.Jid, args.Hash);
+            if (fetchResult is not null)
+            {
+                await _avatarRepo.SaveAvatarAsync(bareJid, fetchResult.Hash, fetchResult.MimeType, fetchResult.Data);
+                var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(fetchResult.Data);
+                if (bmp is not null)
+                {
+                    _avatarCache[bareJid] = (fetchResult.Hash, bmp);
+                    PostToUi(() =>
+                    {
+                        ApplyAvatarToContactAndConversation(bareJid, bmp, fetchResult.Hash);
+                    });
+                }
+            }
+        }
+    }
+
+    private void ApplyAvatarToContactAndConversation(string bareJid, Avalonia.Media.Imaging.Bitmap? bitmap, string? hash)
+    {
+        Jid.TryParse(bareJid, out var targetJid);
+
+        var contact = Contacts.FirstOrDefault(c => string.Equals(c.ContactJid, bareJid, StringComparison.OrdinalIgnoreCase) ||
+            (targetJid is not null && Jid.TryParse(c.ContactJid, out var cj) && cj.EqualsBare(targetJid)));
+        if (contact is not null)
+        {
+            contact.Avatar = bitmap;
+            contact.AvatarHash = hash;
+        }
+
+        var conv = Conversations.FirstOrDefault(cv => string.Equals(cv.RemoteJid.ToBareString(), bareJid, StringComparison.OrdinalIgnoreCase) ||
+            (targetJid is not null && cv.RemoteJid.EqualsBare(targetJid)));
+        if (conv is not null)
+        {
+            conv.Avatar = bitmap;
+            conv.AvatarHash = hash;
+        }
     }
 
     private static void PostToUi(Action action)

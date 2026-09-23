@@ -111,3 +111,13 @@ CREATE TABLE IF NOT EXISTS account_settings (
     value TEXT NOT NULL,
     PRIMARY KEY (account_jid, key)
 );
+
+CREATE TABLE IF NOT EXISTS user_avatars (
+    jid TEXT PRIMARY KEY,
+    hash TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    data BLOB NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_avatars_hash ON user_avatars(hash);

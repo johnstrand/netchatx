@@ -92,10 +92,25 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private string _id;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Initials))]
     private string _title;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AvatarBackgroundBrush))]
     private Jid _remoteJid;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatar))]
+    private Avalonia.Media.Imaging.Bitmap? _avatar;
+
+    [ObservableProperty]
+    private string? _avatarHash;
+
+    public bool HasAvatar => Avatar is not null;
+
+    public string Initials => Helpers.AvatarHelper.GetInitials(Title);
+
+    public Avalonia.Media.IBrush AvatarBackgroundBrush => Helpers.AvatarHelper.GetAvatarColorBrush(RemoteJid?.ToString() ?? Title);
 
     [ObservableProperty]
     private bool _isGroupChat;
