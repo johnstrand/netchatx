@@ -31,6 +31,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<int>? _onChatInputMaxLinesChanged;
     private readonly Action<string>? _onCloseActionChanged;
     private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
+    private readonly Func<byte[], string, Task>? _onAvatarChanged;
+    private readonly Func<Task>? _onAvatarRemoved;
     private bool _isInitializing;
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
@@ -181,6 +183,25 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _launchOnStartup = SettingsRepository.DefaultLaunchOnStartup;
 
+    // --- Profile & Avatar ---
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUserAvatar))]
+    private Avalonia.Media.Imaging.Bitmap? _userAvatar;
+
+    [ObservableProperty]
+    private string? _userAvatarHash;
+
+    [ObservableProperty]
+    private string? _avatarStatusMessage;
+
+    public bool HasUserAvatar => UserAvatar != null;
+
+    public string AccountJid => _accountJid;
+
+    public string UserInitials => Helpers.AvatarHelper.GetInitials(_accountJid);
+
+    public Avalonia.Media.IBrush UserAvatarBackgroundBrush => Helpers.AvatarHelper.GetAvatarColorBrush(_accountJid);
+
     public IReadOnlyList<string> AvailableFontFamilies => CuratedFontFamilies;
     public IReadOnlyList<string> AvailableThemeModes => ThemeModes;
     public IReadOnlyList<string> AvailableCloseActionOptions => CloseActionOptions;
@@ -221,7 +242,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<int>? onChatInputMaxLinesChanged = null,
         Action<string>? onCloseActionChanged = null,
         Action<bool, IReadOnlyList<EmoticonMapping>>? onEmoticonSettingsChanged = null,
-        IStartupService? startupService = null)
+        IStartupService? startupService = null,
+        Func<byte[], string, Task>? onAvatarChanged = null,
+        Func<Task>? onAvatarRemoved = null)
     {
         _settingsRepo = settingsRepo;
         _startupService = startupService ?? new StartupService();
@@ -239,6 +262,35 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onChatInputMaxLinesChanged = onChatInputMaxLinesChanged;
         _onCloseActionChanged = onCloseActionChanged;
         _onEmoticonSettingsChanged = onEmoticonSettingsChanged;
+        _onAvatarChanged = onAvatarChanged;
+        _onAvatarRemoved = onAvatarRemoved;
+    }
+
+    public async Task SetAvatarBytesAsync(byte[] bytes, string mimeType)
+    {
+        var hash = Helpers.AvatarHelper.ComputeSha1(bytes);
+        var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(bytes);
+        UserAvatar = bmp;
+        UserAvatarHash = hash;
+        AvatarStatusMessage = "Avatar updated successfully!";
+
+        if (_onAvatarChanged is not null)
+        {
+            await _onAvatarChanged(bytes, mimeType);
+        }
+    }
+
+    [RelayCommand]
+    public async Task RemoveAvatarAsync()
+    {
+        UserAvatar = null;
+        UserAvatarHash = null;
+        AvatarStatusMessage = "Avatar removed.";
+
+        if (_onAvatarRemoved is not null)
+        {
+            await _onAvatarRemoved();
+        }
     }
 
     public async Task LoadSettingsAsync()

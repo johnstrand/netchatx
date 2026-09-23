@@ -1,4 +1,4 @@
-﻿using Stanza.Storage.Models;
+using Stanza.Storage.Models;
 using Stanza.Storage.Repositories;
 using Xunit.Abstractions;
 
@@ -802,6 +802,77 @@ public class StorageTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(defaultPath));
         Assert.EndsWith("stanza.db", defaultPath, StringComparison.OrdinalIgnoreCase);
         Assert.True(Directory.Exists(Path.GetDirectoryName(defaultPath)));
+    }
+
+    [Fact]
+    public async Task AvatarRepository_SaveAndGetAvatar_ReturnsCorrectRecord()
+    {
+        var repo = new AvatarRepository(_context);
+        var jid = "alice@example.com";
+        var hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+        var data = new byte[] { 1, 2, 3, 4, 5 };
+        var mime = "image/png";
+
+        await repo.SaveAvatarAsync(jid, hash, mime, data);
+
+        var retrieved = await repo.GetAvatarAsync(jid);
+        Assert.NotNull(retrieved);
+        Assert.Equal(jid, retrieved.Jid);
+        Assert.Equal(hash, retrieved.Hash);
+        Assert.Equal(mime, retrieved.MimeType);
+        Assert.Equal(data, retrieved.Data);
+
+        var byHash = await repo.GetAvatarByHashAsync(hash);
+        Assert.NotNull(byHash);
+        Assert.Equal(jid, byHash.Jid);
+        Assert.Equal(data, byHash.Data);
+    }
+
+    [Fact]
+    public async Task AvatarRepository_UpsertAvatar_UpdatesExistingRecord()
+    {
+        var repo = new AvatarRepository(_context);
+        var jid = "bob@example.com";
+        var hash1 = "1111111111111111111111111111111111111111";
+        var data1 = new byte[] { 10, 20 };
+        await repo.SaveAvatarAsync(jid, hash1, "image/jpeg", data1);
+
+        var hash2 = "2222222222222222222222222222222222222222";
+        var data2 = new byte[] { 30, 40, 50 };
+        await repo.SaveAvatarAsync(jid, hash2, "image/png", data2);
+
+        var updated = await repo.GetAvatarAsync(jid);
+        Assert.NotNull(updated);
+        Assert.Equal(hash2, updated.Hash);
+        Assert.Equal("image/png", updated.MimeType);
+        Assert.Equal(data2, updated.Data);
+    }
+
+    [Fact]
+    public async Task AvatarRepository_DeleteAvatar_RemovesRecord()
+    {
+        var repo = new AvatarRepository(_context);
+        var jid = "charlie@example.com";
+        await repo.SaveAvatarAsync(jid, "3333333333333333333333333333333333333333", "image/png", [1, 2]);
+
+        Assert.NotNull(await repo.GetAvatarAsync(jid));
+
+        await repo.DeleteAvatarAsync(jid);
+        Assert.Null(await repo.GetAvatarAsync(jid));
+    }
+
+    [Fact]
+    public async Task AvatarRepository_GetAllAvatars_ReturnsAllRecords()
+    {
+        var repo = new AvatarRepository(_context);
+        await repo.SaveAvatarAsync("user1@example.com", "hash1", "image/png", [1]);
+        await repo.SaveAvatarAsync("user2@example.com", "hash2", "image/jpeg", [2]);
+
+        var all = await repo.GetAllAvatarsAsync();
+        Assert.True(all.ContainsKey("user1@example.com"));
+        Assert.True(all.ContainsKey("user2@example.com"));
+        Assert.Equal("hash1", all["user1@example.com"].Hash);
+        Assert.Equal("hash2", all["user2@example.com"].Hash);
     }
 
     public void Dispose()

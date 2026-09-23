@@ -1,4 +1,4 @@
-﻿namespace Stanza.Storage.Models;
+namespace Stanza.Storage.Models;
 
 public enum MessageDirection
 {
@@ -62,4 +62,13 @@ public sealed class AccountProfile
     public int Port { get; set; } = 5222;
     public bool UseDirectTls { get; set; } = false;
     public bool IsActive { get; set; } = true;
+}
+
+public sealed class AvatarRecord
+{
+    public required string Jid { get; set; }
+    public required string Hash { get; set; }
+    public required string MimeType { get; set; }
+    public required byte[] Data { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

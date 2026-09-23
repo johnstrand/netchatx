@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Transport;
@@ -8,6 +8,7 @@ using Stanza.Protocol.Xeps.Core;
 using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Muc;
 using Stanza.Protocol.Xeps.Omemo;
+using Stanza.Protocol.Xeps.Avatars;
 using Stanza.Protocol.Xeps.Resilience;
 using Xunit;
 
@@ -660,4 +661,171 @@ public class XepTests
         Assert.True(Xep0393MessageStyling.IsUnstyled(elem));
         Assert.NotNull(elem.Element("unstyled", "urn:xmpp:styling:0"));
     }
+
+    [Fact]
+    public async Task Xep0084_AvatarMetadataReceived_FiresCorrectly()
+    {
+        var xep = new Xep0084UserAvatar();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+        await xep.AttachAsync(client);
+
+        Jid? updatedJid = null;
+        AvatarMetadata? receivedMeta = null;
+        xep.AvatarMetadataReceived += (j, m) =>
+        {
+            updatedJid = j;
+            receivedMeta = m;
+        };
+
+        var eventMsg = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com")
+            .Attr("to", "alice@mock.example.com")
+            .Child(new XmppElement("event", "http://jabber.org/protocol/pubsub#event")
+                .Child(new XmppElement("items")
+                    .Attr("node", "urn:xmpp:avatar:metadata")
+                    .Child(new XmppElement("item")
+                        .Attr("id", "111f4b3c50d7b0df729d299bc6f8e817b0e37c50")
+                        .Child(new XmppElement("metadata", "urn:xmpp:avatar:metadata")
+                            .Child(new XmppElement("info")
+                                .Attr("id", "111f4b3c50d7b0df729d299bc6f8e817b0e37c50")
+                                .Attr("type", "image/png")
+                                .Attr("bytes", "12345")
+                                .Attr("width", "64")
+                                .Attr("height", "64"))))));
+
+        await xep.OnIncomingElementAsync(client, eventMsg);
+
+        Assert.NotNull(updatedJid);
+        Assert.Equal("bob@mock.example.com", updatedJid.ToBareString());
+        Assert.NotNull(receivedMeta);
+        Assert.Equal("111f4b3c50d7b0df729d299bc6f8e817b0e37c50", receivedMeta.Id);
+        Assert.Equal("image/png", receivedMeta.MimeType);
+        Assert.Equal(12345, receivedMeta.Bytes);
+        Assert.Equal(64, receivedMeta.Width);
+        Assert.Equal(64, receivedMeta.Height);
+    }
+
+    [Fact]
+    public async Task Xep0084_AvatarMetadataCleared_FiresWhenEmptyMetadata()
+    {
+        var xep = new Xep0084UserAvatar();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+        await xep.AttachAsync(client);
+
+        Jid? clearedJid = null;
+        xep.AvatarMetadataCleared += j => clearedJid = j;
+
+        var clearMsg = new XmppElement("message")
+            .Attr("from", "bob@mock.example.com")
+            .Attr("to", "alice@mock.example.com")
+            .Child(new XmppElement("event", "http://jabber.org/protocol/pubsub#event")
+                .Child(new XmppElement("items")
+                    .Attr("node", "urn:xmpp:avatar:metadata")
+                    .Child(new XmppElement("item")
+                        .Attr("id", "clear-item")
+                        .Child(new XmppElement("metadata", "urn:xmpp:avatar:metadata")))));
+
+        await xep.OnIncomingElementAsync(client, clearMsg);
+
+        Assert.NotNull(clearedJid);
+        Assert.Equal("bob@mock.example.com", clearedJid.ToBareString());
+    }
+
+    [Fact]
+    public async Task Xep0153_AvatarHashReceived_FiresFromPresence()
+    {
+        var xep = new Xep0153VCardAvatar();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+        await xep.AttachAsync(client);
+
+        Jid? senderJid = null;
+        string? receivedHash = null;
+        xep.AvatarHashReceived += (j, h) =>
+        {
+            senderJid = j;
+            receivedHash = h;
+        };
+
+        var pres = new XmppElement("presence")
+            .Attr("from", "bob@mock.example.com/phone")
+            .Attr("to", "alice@mock.example.com")
+            .Child(new XmppElement("x", "vcard-temp:x:update")
+                .Child(new XmppElement("photo") { Value = "abc123hash" }));
+
+        await xep.OnIncomingElementAsync(client, pres);
+
+        Assert.NotNull(senderJid);
+        Assert.Equal("bob@mock.example.com", senderJid.ToBareString());
+        Assert.Equal("abc123hash", receivedHash);
+    }
+
+    [Fact]
+    public async Task Xep0153_OutgoingPresence_InjectsAvatarHash()
+    {
+        var xep = new Xep0153VCardAvatar();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+        await xep.AttachAsync(client);
+
+        xep.CurrentAvatarHash = "current_sha1_hash";
+
+        var pres = new XmppElement("presence");
+        await xep.OnOutgoingElementAsync(client, pres);
+
+        var updateX = pres.Element("x", "vcard-temp:x:update");
+        Assert.NotNull(updateX);
+        var photo = updateX.Element("photo");
+        Assert.NotNull(photo);
+        Assert.Equal("current_sha1_hash", photo.Value);
+    }
+
+    [Fact]
+    public async Task AvatarManager_Coordination_Works()
+    {
+        var manager = new AvatarManager();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "pass"
+        }, new LoopbackTransport());
+        await manager.AttachAsync(client);
+
+        AvatarChangedEventArgs? args = null;
+        manager.AvatarUpdated += a => args = a;
+
+        // Simulate incoming presence update
+        var pres = new XmppElement("presence")
+            .Attr("from", "carol@mock.example.com/desktop")
+            .Child(new XmppElement("x", "vcard-temp:x:update")
+                .Child(new XmppElement("photo") { Value = "sha1_of_carol" }));
+
+        await manager.VCardAvatarXep.OnIncomingElementAsync(client, pres);
+
+        Assert.NotNull(args);
+        Assert.Equal("carol@mock.example.com", args.Jid.ToBareString());
+        Assert.Equal("sha1_of_carol", args.Hash);
+        Assert.False(args.IsCleared);
+        Assert.Equal("XEP-0153", args.Source);
+
+        var dummyData = "Hello Avatar"u8.ToArray();
+        var sha1 = AvatarManager.ComputeSha1(dummyData);
+        Assert.NotEmpty(sha1);
+        Assert.Equal(40, sha1.Length);
+    }
 }
+
