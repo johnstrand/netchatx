@@ -63,6 +63,81 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _emoticonMappings = mappings.ToList();
     }
 
+    [ObservableProperty]
+    private bool _showSlashCommandWarning;
+
+    [ObservableProperty]
+    private string? _slashCommandWarningText;
+
+    public TimeSpan SlashCommandWarningDuration { get; set; } = TimeSpan.FromSeconds(4);
+
+    private CancellationTokenSource? _slashCommandWarningCts;
+
+    public void DisplaySlashCommandWarning(string warningMessage, TimeSpan? autoDismissDelay = null)
+    {
+        try
+        {
+            _slashCommandWarningCts?.Cancel();
+            _slashCommandWarningCts?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        var cts = new CancellationTokenSource();
+        _slashCommandWarningCts = cts;
+        var token = cts.Token;
+
+        PostToUi(() =>
+        {
+            SlashCommandWarningText = warningMessage;
+            ShowSlashCommandWarning = true;
+            RequestScrollToBottom();
+        });
+
+        var delay = autoDismissDelay ?? SlashCommandWarningDuration;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delay, token).ConfigureAwait(false);
+                if (!token.IsCancellationRequested)
+                {
+                    PostToUi(() =>
+                    {
+                        if (!token.IsCancellationRequested)
+                        {
+                            ShowSlashCommandWarning = false;
+                        }
+                    });
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Auto-dismiss cancelled
+            }
+        }, token);
+    }
+
+    [RelayCommand]
+    public void DismissSlashCommandWarning()
+    {
+        try
+        {
+            _slashCommandWarningCts?.Cancel();
+            _slashCommandWarningCts?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        finally
+        {
+            _slashCommandWarningCts = null;
+        }
+
+        PostToUi(() => ShowSlashCommandWarning = false);
+    }
+
     [RelayCommand]
     public async Task DismissEmoticonBannerAsync()
     {
@@ -1393,11 +1468,26 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
             if (SlashCommandHandler is not null && await SlashCommandHandler(commandResult))
             {
+                DismissSlashCommandWarning();
                 _localPauseCts?.Cancel();
                 _localPauseCts = null;
                 SendLocalChatState(ChatState.Active);
                 return;
             }
+
+            if (commandResult.IsInvalid)
+            {
+                if (!string.IsNullOrEmpty(commandResult.SystemOutput))
+                {
+                    DisplaySlashCommandWarning(commandResult.SystemOutput);
+                }
+                _localPauseCts?.Cancel();
+                _localPauseCts = null;
+                SendLocalChatState(ChatState.Active);
+                return;
+            }
+
+            DismissSlashCommandWarning();
 
             switch (commandResult.Type)
             {
@@ -1431,6 +1521,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     }
                     break;
             }
+        }
+        else
+        {
+            DismissSlashCommandWarning();
         }
 
         var stanza = new MessageStanza(
