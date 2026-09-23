@@ -53,7 +53,7 @@ Stanza complies with the **Modern Client Compliance Suite (XEP-0459)**:
 | | **XEP-0313** | Message Archive Management (MAM v2 archive sync & RSM pagination) |
 | | **XEP-0359** | Unique and Stable Stanza IDs (`origin-id` and `stanza-id`) |
 | | **XEP-0308** | Last Message Correction (message editing) |
-| | **XEP-0184** | Message Delivery Receipts (`✓` delivered, `✓✓` read) |
+| | **XEP-0184** | Message Delivery Receipts (`◇` delivered, `◈` read) |
 | | **XEP-0333** | Chat Markers (`received`, `displayed`, `acknowledged`) |
 | | **XEP-0085** | Chat State Notifications (`composing`, `paused`, `active`, `inactive`, `gone`) |
 | **Group Chat (MUC)** | **XEP-0045** | Multi-User Chat (rooms, nicknames, subjects, occupant roster) |

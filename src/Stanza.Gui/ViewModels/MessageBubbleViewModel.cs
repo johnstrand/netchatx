@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -309,7 +309,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     public string FormattedDateTime => (LatestTimestamp != default ? LatestTimestamp : Timestamp).ToLocalTime().ToString(Use24HourClock ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd h:mm tt");
 
-    public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "✓✓" : "✓") : string.Empty;
+    public string ReceiptIcon => Direction == MessageDirection.Outbound ? (IsRead ? "◈" : "◇") : string.Empty;
 
     [RelayCommand]
     public async Task QuickReactAsync(string emoji)
