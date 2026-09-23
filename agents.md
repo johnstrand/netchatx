@@ -43,14 +43,15 @@ cd .worktree/<branch-name>
 ```
 Perform all code modifications, builds, tests, and Git operations (stage, commit, push) **exclusively within that directory**.
 
-### 1.4 Post-Task Cleanup
+### 1.4 Pull Requests & Post-Task Cleanup
 When your task is complete, committed, and ready:
-1. Navigate back to the repository root.
-2. Remove the worktree when it is no longer needed:
+1. Push your branch and open a Pull Request (PR) on GitHub. **Pull Requests via GitHub are mandatory for merging code into `main`**; direct pushes or merges to `main` are strictly prohibited.
+2. Once the PR is merged, navigate back to the repository root.
+3. Remove the worktree when it is no longer needed:
    ```bash
    git worktree remove .worktree/<branch-name>
    ```
-3. Prune dead worktree references if necessary:
+4. Prune dead worktree references if necessary:
    ```bash
    git worktree prune
    ```
@@ -145,3 +146,4 @@ dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
   - `docs: <description>` for documentation changes
 - Keep commits atomic and focused.
 - Ensure all tests pass prior to committing.
+- **Pull Requests (PRs)**: Pull Requests via GitHub are **mandatory** for merging any code into `main`. Direct pushes or merges into `main` are strictly prohibited.
