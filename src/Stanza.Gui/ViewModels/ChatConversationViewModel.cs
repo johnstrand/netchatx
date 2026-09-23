@@ -1387,6 +1387,11 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             }
         }
 
+        if (!string.IsNullOrEmpty(imageUrl))
+        {
+            AsyncImageLoader.PrecacheImage(imageUrl, imageBytes);
+        }
+
         return imageUrl;
     }
 
