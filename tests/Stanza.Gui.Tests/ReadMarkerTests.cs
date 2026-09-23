@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -65,14 +65,14 @@ public class ReadMarkerTests : IDisposable
         await conv.LoadHistoryAsync();
         Assert.Equal(2, conv.Messages.Count);
 
-        // Before read marker: no divider, tooltip is "Delivered", checkmark is single check
+        // Before read marker: no divider, tooltip is "Delivered", icon is delivered diamond
         Assert.False(conv.Messages[0].ShowReadMarkerDivider);
         Assert.Equal("Delivered", conv.Messages[0].ReceiptTooltip);
         Assert.False(conv.Messages[0].IsRead);
-        Assert.Equal("✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[0].ReceiptIcon);
         Assert.False(conv.Messages[1].ShowReadMarkerDivider);
         Assert.False(conv.Messages[1].IsRead);
-        Assert.Equal("✓", conv.Messages[1].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[1].ReceiptIcon);
 
         // Alice reads msg1
         conv.UpdateReadMarker("alice@example.com", "m1", msg1.Timestamp);
@@ -82,13 +82,13 @@ public class ReadMarkerTests : IDisposable
         Assert.Equal("Read by Alice", conv.Messages[0].ReadMarkerDividerText);
         Assert.Equal("Read by Alice", conv.Messages[0].ReceiptTooltip);
         Assert.True(conv.Messages[0].IsRead);
-        Assert.Equal("✓✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[0].ReceiptIcon);
 
         // msg2 is unread
         Assert.False(conv.Messages[1].ShowReadMarkerDivider);
         Assert.Equal("Delivered", conv.Messages[1].ReceiptTooltip);
         Assert.False(conv.Messages[1].IsRead);
-        Assert.Equal("✓", conv.Messages[1].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[1].ReceiptIcon);
 
         // Alice reads msg2
         conv.UpdateReadMarker("alice@example.com", "m2", msg2.Timestamp);
@@ -97,13 +97,13 @@ public class ReadMarkerTests : IDisposable
         Assert.False(conv.Messages[0].ShowReadMarkerDivider);
         Assert.False(conv.Messages[1].ShowReadMarkerDivider);
 
-        // Both checkmark tooltips show "Read by Alice" and double checks
+        // Both checkmark tooltips show "Read by Alice" and read diamonds
         Assert.Equal("Read by Alice", conv.Messages[0].ReceiptTooltip);
         Assert.Equal("Read by Alice", conv.Messages[1].ReceiptTooltip);
         Assert.True(conv.Messages[0].IsRead);
-        Assert.Equal("✓✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[0].ReceiptIcon);
         Assert.True(conv.Messages[1].IsRead);
-        Assert.Equal("✓✓", conv.Messages[1].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[1].ReceiptIcon);
     }
 
     [Fact]
@@ -160,12 +160,12 @@ public class ReadMarkerTests : IDisposable
         Assert.Contains("alice", conv.Messages[0].ReceiptTooltip);
         Assert.Contains("bob", conv.Messages[0].ReceiptTooltip);
         Assert.True(conv.Messages[0].IsRead);
-        Assert.Equal("✓✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[0].ReceiptIcon);
 
         // Tooltip on g2: "Delivered" (neither has read g2)
         Assert.Equal("Delivered", conv.Messages[1].ReceiptTooltip);
         Assert.False(conv.Messages[1].IsRead);
-        Assert.Equal("✓", conv.Messages[1].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[1].ReceiptIcon);
     }
 
     [Fact]
@@ -216,10 +216,10 @@ public class ReadMarkerTests : IDisposable
         Assert.Equal("Read by Peer", conv.Messages[0].ReadMarkerDividerText);
         Assert.Equal("Read by Peer", conv.Messages[0].ReceiptTooltip);
         Assert.True(conv.Messages[0].IsRead);
-        Assert.Equal("✓✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[0].ReceiptIcon);
         Assert.Equal("Delivered", conv.Messages[1].ReceiptTooltip);
         Assert.False(conv.Messages[1].IsRead);
-        Assert.Equal("✓", conv.Messages[1].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[1].ReceiptIcon);
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public class ReadMarkerTests : IDisposable
 
         Assert.Single(conv.Messages);
         Assert.False(conv.Messages[0].IsRead);
-        Assert.Equal("✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[0].ReceiptIcon);
         Assert.False(conv.Messages[0].ShowReadMarkerDivider);
 
         // 2. Alice sends an inbound reply
@@ -272,7 +272,7 @@ public class ReadMarkerTests : IDisposable
         Assert.Equal(2, conv.Messages.Count);
         // Outbound message 1 is now confirmed read by Alice
         Assert.True(conv.Messages[0].IsRead);
-        Assert.Equal("✓✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[0].ReceiptIcon);
         Assert.Equal("Read by Alice", conv.Messages[0].ReceiptTooltip);
         // All messages read up to the latest message, so divider is hidden
         Assert.False(conv.Messages[0].ShowReadMarkerDivider);
@@ -295,9 +295,9 @@ public class ReadMarkerTests : IDisposable
         Assert.Equal(3, conv.Messages.Count);
         // in1 is now the last read message by Alice, out2 is unread
         Assert.True(conv.Messages[0].IsRead);
-        Assert.Equal("✓✓", conv.Messages[0].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[0].ReceiptIcon);
         Assert.False(conv.Messages[2].IsRead);
-        Assert.Equal("✓", conv.Messages[2].ReceiptIcon);
+        Assert.Equal("◇", conv.Messages[2].ReceiptIcon);
         Assert.Equal("Delivered", conv.Messages[2].ReceiptTooltip);
 
         // Divider is shown below in1 (the last read message)
@@ -311,7 +311,7 @@ public class ReadMarkerTests : IDisposable
 
         // Now out2 is read as well
         Assert.True(conv.Messages[2].IsRead);
-        Assert.Equal("✓✓", conv.Messages[2].ReceiptIcon);
+        Assert.Equal("◈", conv.Messages[2].ReceiptIcon);
         Assert.Equal("Read by Alice", conv.Messages[2].ReceiptTooltip);
 
         // All messages have been read, divider is hidden everywhere

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using Stanza.Core;
@@ -252,7 +252,7 @@ public class ViewModelTests : IDisposable
         Assert.Equal("Hello there!", bubbleIn.Body);
         Assert.True(bubbleIn.IsEncrypted);
         Assert.Equal("OMEMO", bubbleIn.EncryptionType);
-        Assert.Empty(bubbleIn.ReceiptIcon); // Inbound doesn't have receipt checkmarks
+        Assert.Empty(bubbleIn.ReceiptIcon); // Inbound doesn't have receipt icons
 
         var outboundMsg = new ChatMessage
         {
@@ -267,7 +267,7 @@ public class ViewModelTests : IDisposable
 
         var bubbleOut = MessageBubbleViewModel.FromChatMessage(outboundMsg);
         Assert.Equal("Me", bubbleOut.SenderName);
-        Assert.Equal("✓✓", bubbleOut.ReceiptIcon); // Read receipt
+        Assert.Equal("◈", bubbleOut.ReceiptIcon); // Read receipt
     }
 
     [Fact]
@@ -1435,7 +1435,7 @@ public class ViewModelTests : IDisposable
         Assert.Single(conv.Messages);
         var bubble = conv.Messages[0];
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon); // Single checkmark before receipt
+        Assert.Equal("◇", bubble.ReceiptIcon); // Single icon before receipt
 
         var stanzaId = bubble.StanzaId ?? bubble.Id;
 
@@ -1448,7 +1448,7 @@ public class ViewModelTests : IDisposable
         await Task.Delay(100);
 
         Assert.True(bubble.IsRead);
-        Assert.Equal("✓✓", bubble.ReceiptIcon); // Double checkmark after read marker received
+        Assert.Equal("◈", bubble.ReceiptIcon); // Read icon after read marker received
 
         // Verify database was updated
         var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
@@ -1487,7 +1487,7 @@ public class ViewModelTests : IDisposable
         Assert.Single(conv.Messages);
         var bubble = conv.Messages[0];
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon);
+        Assert.Equal("◇", bubble.ReceiptIcon);
 
         var stanzaId = bubble.StanzaId ?? bubble.Id;
 
@@ -1499,9 +1499,9 @@ public class ViewModelTests : IDisposable
         await server.InjectElementAsync(receiptElem);
         await Task.Delay(100);
 
-        // Delivery receipt indicates delivery to client, NOT read: icon must remain single checkmark
+        // Delivery receipt indicates delivery to client, NOT read: icon must remain delivered diamond
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon);
+        Assert.Equal("◇", bubble.ReceiptIcon);
 
         var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
         Assert.Single(dbMessages);
@@ -1539,7 +1539,7 @@ public class ViewModelTests : IDisposable
         Assert.Single(conv.Messages);
         var bubble = conv.Messages[0];
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon);
+        Assert.Equal("◇", bubble.ReceiptIcon);
 
         var stanzaId = bubble.StanzaId ?? bubble.Id;
 
@@ -1551,9 +1551,9 @@ public class ViewModelTests : IDisposable
         await server.InjectElementAsync(markerElem);
         await Task.Delay(100);
 
-        // Received marker is delivery only: icon must remain single checkmark
+        // Received marker is delivery only: icon must remain delivered diamond
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon);
+        Assert.Equal("◇", bubble.ReceiptIcon);
 
         var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
         Assert.Single(dbMessages);
@@ -1591,7 +1591,7 @@ public class ViewModelTests : IDisposable
         Assert.Single(conv.Messages);
         var bubble = conv.Messages[0];
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon);
+        Assert.Equal("◇", bubble.ReceiptIcon);
 
         var stanzaId = bubble.StanzaId ?? bubble.Id;
 
@@ -1603,9 +1603,9 @@ public class ViewModelTests : IDisposable
         await server.InjectElementAsync(markerElem);
         await Task.Delay(100);
 
-        // Acknowledged marker indicates read/acknowledged: icon must become double checkmark
+        // Acknowledged marker indicates read/acknowledged: icon must become read diamond
         Assert.True(bubble.IsRead);
-        Assert.Equal("✓✓", bubble.ReceiptIcon);
+        Assert.Equal("◈", bubble.ReceiptIcon);
 
         var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
         Assert.Single(dbMessages);
@@ -1656,7 +1656,7 @@ public class ViewModelTests : IDisposable
         var bubble = conv.Messages[0];
         Assert.Equal(MessageDirection.Outbound, bubble.Direction);
         Assert.False(bubble.IsRead);
-        Assert.Equal("✓", bubble.ReceiptIcon);
+        Assert.Equal("◇", bubble.ReceiptIcon);
 
         var dbMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString());
         Assert.Single(dbMessages);
