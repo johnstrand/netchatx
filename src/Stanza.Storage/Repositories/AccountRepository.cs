@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using Stanza.Storage.Models;
 
 namespace Stanza.Storage.Repositories;
@@ -18,14 +18,15 @@ public sealed class AccountRepository
         using var cmd = connection.CreateCommand();
 
         cmd.CommandText = """
-            INSERT INTO accounts (jid, password, resource, host, port, use_direct_tls, is_active)
-            VALUES ($jid, $password, $resource, $host, $port, $use_direct_tls, $is_active)
+            INSERT INTO accounts (jid, password, resource, host, port, use_direct_tls, allow_untrusted_certificates, is_active)
+            VALUES ($jid, $password, $resource, $host, $port, $use_direct_tls, $allow_untrusted_certificates, $is_active)
             ON CONFLICT(jid) DO UPDATE SET
                 password = excluded.password,
                 resource = excluded.resource,
                 host = excluded.host,
                 port = excluded.port,
                 use_direct_tls = excluded.use_direct_tls,
+                allow_untrusted_certificates = excluded.allow_untrusted_certificates,
                 is_active = excluded.is_active;
         """;
 
@@ -35,9 +36,10 @@ public sealed class AccountRepository
         cmd.Parameters.AddWithValue("$host", (object?)account.Host ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$port", account.Port);
         cmd.Parameters.AddWithValue("$use_direct_tls", account.UseDirectTls ? 1 : 0);
+        cmd.Parameters.AddWithValue("$allow_untrusted_certificates", account.AllowUntrustedCertificates ? 1 : 0);
         cmd.Parameters.AddWithValue("$is_active", account.IsActive ? 1 : 0);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<AccountProfile>> GetAccountsAsync(CancellationToken cancellationToken = default)
@@ -45,11 +47,11 @@ public sealed class AccountRepository
         using var connection = _context.CreateConnection();
         using var cmd = connection.CreateCommand();
 
-        cmd.CommandText = "SELECT jid, password, resource, host, port, use_direct_tls, is_active FROM accounts;";
+        cmd.CommandText = "SELECT jid, password, resource, host, port, use_direct_tls, allow_untrusted_certificates, is_active FROM accounts;";
 
         var list = new List<AccountProfile>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(new AccountProfile
             {
@@ -59,7 +61,8 @@ public sealed class AccountRepository
                 Host = reader.IsDBNull(3) ? null : reader.GetString(3),
                 Port = reader.GetInt32(4),
                 UseDirectTls = reader.GetInt32(5) == 1,
-                IsActive = reader.GetInt32(6) == 1
+                AllowUntrustedCertificates = reader.GetInt32(6) == 1,
+                IsActive = reader.GetInt32(7) == 1
             });
         }
 
@@ -71,11 +74,11 @@ public sealed class AccountRepository
         using var connection = _context.CreateConnection();
         using var cmd = connection.CreateCommand();
 
-        cmd.CommandText = "SELECT jid, password, resource, host, port, use_direct_tls, is_active FROM accounts WHERE jid = $jid;";
+        cmd.CommandText = "SELECT jid, password, resource, host, port, use_direct_tls, allow_untrusted_certificates, is_active FROM accounts WHERE jid = $jid;";
         cmd.Parameters.AddWithValue("$jid", jid);
 
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        if (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return new AccountProfile
             {
@@ -85,7 +88,8 @@ public sealed class AccountRepository
                 Host = reader.IsDBNull(3) ? null : reader.GetString(3),
                 Port = reader.GetInt32(4),
                 UseDirectTls = reader.GetInt32(5) == 1,
-                IsActive = reader.GetInt32(6) == 1
+                AllowUntrustedCertificates = reader.GetInt32(6) == 1,
+                IsActive = reader.GetInt32(7) == 1
             };
         }
 
@@ -100,6 +104,6 @@ public sealed class AccountRepository
         cmd.CommandText = "DELETE FROM accounts WHERE jid = $jid;";
         cmd.Parameters.AddWithValue("$jid", jid);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

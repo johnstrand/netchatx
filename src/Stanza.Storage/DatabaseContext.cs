@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 
 namespace Stanza.Storage;
 
@@ -62,6 +62,7 @@ public sealed class DatabaseContext
         using var connection = CreateConnection();
         ExecuteSchemaScript(connection);
         EnsureRawXmlColumnExists(connection);
+        EnsureAllowUntrustedCertificatesColumnExists(connection);
     }
 
     private static void ExecuteSchemaScript(SqliteConnection connection)
@@ -97,6 +98,28 @@ public sealed class DatabaseContext
         {
             using var alterCmd = connection.CreateCommand();
             alterCmd.CommandText = "ALTER TABLE messages ADD COLUMN raw_xml TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void EnsureAllowUntrustedCertificatesColumnExists(SqliteConnection connection)
+    {
+        using var checkColCmd = connection.CreateCommand();
+        checkColCmd.CommandText = "PRAGMA table_info(accounts);";
+        using var reader = checkColCmd.ExecuteReader();
+        var hasColumn = false;
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), "allow_untrusted_certificates", StringComparison.OrdinalIgnoreCase))
+            {
+                hasColumn = true;
+                break;
+            }
+        }
+        if (!hasColumn)
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE accounts ADD COLUMN allow_untrusted_certificates INTEGER NOT NULL DEFAULT 0;";
             alterCmd.ExecuteNonQuery();
         }
     }

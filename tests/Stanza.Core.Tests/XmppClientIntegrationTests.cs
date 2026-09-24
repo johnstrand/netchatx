@@ -1,4 +1,4 @@
-﻿using Stanza.Core.Client;
+using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Transport;
 using Stanza.Core.Xml;
@@ -160,5 +160,37 @@ public class XmppClientIntegrationTests
         Assert.NotNull(result);
         Assert.Equal("Buffered offline message", result.Body);
         Assert.Equal("bob@mock.example.com", result.From?.ToString());
+    }
+
+    [Fact]
+    public async Task LiveDockerContainer_WhenRunning_CanConnectAndAuthenticate()
+    {
+        using var tcp = new System.Net.Sockets.TcpClient();
+        try
+        {
+            await tcp.ConnectAsync("127.0.0.1", 5222);
+        }
+        catch
+        {
+            // Container not running in this environment, skip gracefully
+            return;
+        }
+        tcp.Close();
+
+        var options = new XmppClientOptions
+        {
+            Jid = Jid.Parse("usera@localhost"),
+            Password = "password",
+            Host = "127.0.0.1",
+            Port = 5222,
+            AllowUntrustedCertificates = true
+        };
+
+        await using var client = new XmppClient(options);
+        await client.ConnectAsync();
+
+        Assert.True(client.IsConnected);
+        Assert.Equal("usera", client.BoundJid.LocalPart);
+        Assert.Equal("localhost", client.BoundJid.Domain);
     }
 }

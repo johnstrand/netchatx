@@ -223,6 +223,8 @@ public class ViewModelTests : IDisposable
         vm.Password = "secret123";
         vm.Host = "xmpp.example.com";
         vm.Port = "5222";
+        vm.UseDirectTls = true;
+        vm.AllowUntrustedCertificates = true;
         await vm.ConnectAsync();
         Assert.Null(vm.ErrorMessage);
         Assert.NotNull(capturedProfile);
@@ -230,6 +232,8 @@ public class ViewModelTests : IDisposable
         Assert.Equal("secret123", capturedProfile.Password);
         Assert.Equal("xmpp.example.com", capturedProfile.Host);
         Assert.Equal(5222, capturedProfile.Port);
+        Assert.True(capturedProfile.UseDirectTls);
+        Assert.True(capturedProfile.AllowUntrustedCertificates);
     }
 
     [Fact]

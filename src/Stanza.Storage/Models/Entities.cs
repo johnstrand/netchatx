@@ -61,6 +61,7 @@ public sealed class AccountProfile
     public string? Host { get; set; }
     public int Port { get; set; } = 5222;
     public bool UseDirectTls { get; set; } = false;
+    public bool AllowUntrustedCertificates { get; set; } = false;
     public bool IsActive { get; set; } = true;
 }
 
