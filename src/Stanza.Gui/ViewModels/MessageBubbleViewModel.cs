@@ -759,13 +759,13 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         vm.AddMessageRecord(msg);
         vm.LatestTimestamp = msg.Timestamp;
 
-        vm.ExtractImageUrl(msg.Body);
+        vm.ExtractImageUrl(displayBody);
         if (!vm.HasImage)
         {
             vm.ExtractOobImageUrl(msg.RawXml);
         }
         vm.ExtractStyling(msg.RawXml);
-        vm.ExtractLinks(msg.Body);
+        vm.ExtractLinks(displayBody);
         if (vm.HasImage && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = vm.LoadThumbnailAsync();
