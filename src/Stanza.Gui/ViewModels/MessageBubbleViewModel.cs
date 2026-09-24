@@ -135,7 +135,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 if (IsActionMessage && !string.IsNullOrEmpty(RawBody))
                 {
                     var actionText = RawBody.Length > 3 ? RawBody.Substring(3).Trim() : string.Empty;
-                    Body = $"_{value} {actionText}_";
+                    Body = $"_**{value}** {actionText}_";
                 }
             }
         }
@@ -231,9 +231,11 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     public bool IsPreviewVisible => HasImage && ShowInlinePreviews;
     public bool ShowManualDownloadButton => HasImage && ImageThumbnail is null && !IsLoadingImage;
 
-    public IBrush BubbleBackground => Direction == MessageDirection.Outbound
-        ? DirectionToBackgroundConverter.OutboundBrush
-        : DirectionToBackgroundConverter.InboundBrush;
+    public IBrush BubbleBackground => IsActionMessage
+        ? Brushes.Transparent
+        : (Direction == MessageDirection.Outbound
+            ? DirectionToBackgroundConverter.OutboundBrush
+            : DirectionToBackgroundConverter.InboundBrush);
 
     public void RefreshBubbleStyle()
     {
@@ -723,7 +725,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         if (isAction)
         {
             actionText = msg.Body.Length > 3 ? msg.Body.Substring(3).Trim() : string.Empty;
-            displayBody = $"_{effectiveSenderDisplayName} {actionText}_";
+            displayBody = $"_**{effectiveSenderDisplayName}** {actionText}_";
         }
 
         var vm = new MessageBubbleViewModel
@@ -757,13 +759,13 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         vm.AddMessageRecord(msg);
         vm.LatestTimestamp = msg.Timestamp;
 
-        vm.ExtractImageUrl(msg.Body);
+        vm.ExtractImageUrl(displayBody);
         if (!vm.HasImage)
         {
             vm.ExtractOobImageUrl(msg.RawXml);
         }
         vm.ExtractStyling(msg.RawXml);
-        vm.ExtractLinks(msg.Body);
+        vm.ExtractLinks(displayBody);
         if (vm.HasImage && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = vm.LoadThumbnailAsync();
@@ -867,6 +869,14 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     public bool CanMergeWith(ChatMessage msg, bool enableMerging, int thresholdSeconds)
     {
         if (!enableMerging || thresholdSeconds <= 0) return false;
+
+        // Action messages (/me) should never be merged
+        if (IsActionMessage) return false;
+        if (msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase) ||
+            msg.Body.Equals("/me", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
 
         // Must match message direction
         if (Direction != msg.Direction) return false;
