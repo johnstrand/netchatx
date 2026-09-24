@@ -1,0 +1,18 @@
+services:
+  prosody:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stanza-prosody-dev:latest
+    container_name: stanza-xmpp-dev
+    ports:
+      - "5222:5222"   # Client-to-Server (c2s) STARTTLS
+      - "5223:5223"   # Direct TLS
+      - "5280:5280"   # HTTP File Upload (XEP-0363)
+    volumes:
+      - prosody-data:/var/lib/prosody
+    restart: unless-stopped
+
+volumes:
+  prosody-data:
+    name: stanza-xmpp-dev-data

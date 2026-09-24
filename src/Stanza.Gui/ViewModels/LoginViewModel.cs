@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,6 +25,9 @@ public sealed partial class LoginViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _useDirectTls;
+
+    [ObservableProperty]
+    private bool _allowUntrustedCertificates;
 
     [ObservableProperty]
     private bool _showAdvanced;
@@ -91,6 +94,7 @@ public sealed partial class LoginViewModel : ViewModelBase
                 Host = string.IsNullOrWhiteSpace(Host) ? null : Host.Trim(),
                 Port = port,
                 UseDirectTls = UseDirectTls,
+                AllowUntrustedCertificates = AllowUntrustedCertificates,
                 IsActive = true
             };
 

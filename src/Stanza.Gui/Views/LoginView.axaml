@@ -84,6 +84,7 @@
                         </StackPanel>
                     </Grid>
                     <CheckBox IsChecked="{Binding UseDirectTls}" Content="Direct TLS (Port 5223)" />
+                    <CheckBox IsChecked="{Binding AllowUntrustedCertificates}" Content="Allow untrusted certificates (dev mode)" />
                 </StackPanel>
 
                 <!-- Connect Button -->
