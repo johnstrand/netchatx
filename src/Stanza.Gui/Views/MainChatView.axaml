@@ -59,6 +59,10 @@
             <Setter Property="BorderBrush" Value="#23324C" />
             <Setter Property="BoxShadow" Value="0 2 8 0 #25000000" />
         </Style>
+        <Style Selector="Border.bubble-container.action-bubble">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
         <Style Selector="Border.bubble-container StackPanel.bubble-actions">
             <Setter Property="Opacity" Value="0" />
             <Setter Property="IsHitTestVisible" Value="False" />
@@ -555,10 +559,10 @@
                                             <!-- Message Bubble Container -->
                                             <Border Grid.Column="1"
                                                     Classes="bubble-container"
+                                                    Classes.action-bubble="{Binding IsActionMessage}"
                                                     Background="{Binding BubbleBackground}"
                                                     CornerRadius="16"
-                                                    Padding="12,8"
-                                                    BoxShadow="0 2 8 0 #20000000">
+                                                    Padding="12,8">
                                             <Border.ContextFlyout>
                                                 <MenuFlyout>
                                                     <MenuItem Header="📋 Copy Text" Command="{Binding CopyTextCommand}" />
@@ -574,7 +578,8 @@
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBlock Grid.Column="0" Text="{Binding SenderDisplayName}" FontWeight="Bold" FontSize="11"
                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
-                                                               Opacity="0.85" VerticalAlignment="Center" />
+                                                               Opacity="0.85" VerticalAlignment="Center"
+                                                               IsVisible="{Binding !IsActionMessage}" />
                                                     <StackPanel Grid.Column="1" Classes="bubble-actions" Orientation="Horizontal" Spacing="4">
                                                         <!-- Emoji Reaction Button with Flyout -->
                                                         <Button Content="😀+" ToolTip.Tip="Add reaction"

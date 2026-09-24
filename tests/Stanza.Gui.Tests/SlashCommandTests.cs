@@ -141,7 +141,7 @@ public sealed class SlashCommandTests
     }
 
     [Fact]
-    public void MessageBubbleViewModel_FromChatMessage_MeCommand_FormatsItalics()
+    public void MessageBubbleViewModel_FromChatMessage_MeCommand_FormatsItalicsAndBoldSenderName()
     {
         var msg = new ChatMessage
         {
@@ -156,7 +156,8 @@ public sealed class SlashCommandTests
         Assert.True(bubble.IsActionMessage);
         Assert.Equal("/me waves hello", bubble.RawBody);
         Assert.Equal("waves hello", bubble.ActionContent);
-        Assert.Equal("_Friend waves hello_", bubble.Body);
+        Assert.Equal("_**Friend** waves hello_", bubble.Body);
+        Assert.Equal(Avalonia.Media.Brushes.Transparent, bubble.BubbleBackground);
     }
 
     [Fact]

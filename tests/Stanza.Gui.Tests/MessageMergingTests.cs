@@ -184,6 +184,60 @@ public class MessageMergingTests : IDisposable
     }
 
     [Fact]
+    public void CanMergeWith_ActionMessage_RejectsMerging()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var actionBubble = new MessageBubbleViewModel
+        {
+            Id = "msg1",
+            Body = "_**User** dances_",
+            IsActionMessage = true,
+            Direction = MessageDirection.Outbound,
+            SenderName = "Me",
+            Timestamp = now,
+            LatestTimestamp = now
+        };
+
+        var normalMsg = new ChatMessage
+        {
+            Id = "msg2",
+            AccountJid = "me@example.com",
+            RemoteJid = "peer@example.com",
+            SenderJid = "me@example.com",
+            Body = "Normal message",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddSeconds(2)
+        };
+
+        var actionMsg = new ChatMessage
+        {
+            Id = "msg3",
+            AccountJid = "me@example.com",
+            RemoteJid = "peer@example.com",
+            SenderJid = "me@example.com",
+            Body = "/me sings",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddSeconds(2)
+        };
+
+        var normalBubble = new MessageBubbleViewModel
+        {
+            Id = "msg4",
+            Body = "Normal bubble",
+            Direction = MessageDirection.Outbound,
+            SenderName = "Me",
+            Timestamp = now,
+            LatestTimestamp = now
+        };
+
+        // Action bubble cannot merge with normal message
+        Assert.False(actionBubble.CanMergeWith(normalMsg, enableMerging: true, thresholdSeconds: 10));
+
+        // Normal bubble cannot merge with incoming action message
+        Assert.False(normalBubble.CanMergeWith(actionMsg, enableMerging: true, thresholdSeconds: 10));
+    }
+
+    [Fact]
     public void MergeMessage_UpdatesBodyAndTimestamps()
     {
         var now = DateTimeOffset.UtcNow;
