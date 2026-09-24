@@ -891,7 +891,7 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task ChatConversationViewModel_SendMessageAsync_WithPendingImageAndCaption_SendsCombinedMessage()
+    public async Task ChatConversationViewModel_SendMessageAsync_WithPendingImageAndCaption_SendsTwoMessagesAndGroupsWithImageAtBottom()
     {
         var account = "alice@example.com";
         var remote = Jid.Parse("bob@example.com");
@@ -922,11 +922,17 @@ public class ViewModelTests : IDisposable
         Assert.False(conv.HasPendingImage);
         Assert.Empty(conv.InputText);
 
-        // Message should contain both file URI and caption text
+        // Two distinct messages should be created and saved in repository
+        var savedMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString(), 10);
+        Assert.Equal(2, savedMessages.Count);
+        Assert.Equal("Look at this snapshot!", savedMessages[0].Body);
+        Assert.Contains("snapshot.png", savedMessages[1].Body);
+
+        // In the chatbox with merging enabled, they merge into 1 bubble with the image kept at the bottom
         Assert.Single(conv.Messages);
-        var sentMsg = conv.Messages[0];
-        Assert.Contains("snapshot.png", sentMsg.Body);
-        Assert.Contains("Look at this snapshot!", sentMsg.Body);
+        var sentBubble = conv.Messages[0];
+        Assert.StartsWith("Look at this snapshot!", sentBubble.Body);
+        Assert.Contains("snapshot.png", sentBubble.Body);
     }
 
     [Fact]

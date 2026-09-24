@@ -1,6 +1,8 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Transport;
@@ -738,5 +740,266 @@ public class MessageMergingTests : IDisposable
 
         // Reset static setting
         MessageBubbleViewModel.ShowInlinePreviews = true;
+    }
+
+    [Fact]
+    public void MergeMessage_ImageArrivesBeforeTextMessage_KeepsImageOnBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_1",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/cat.png",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now,
+            RawXml = "<message xmlns='jabber:client'><x xmlns='jabber:x:oob'><url>https://example.com/cat.png</url></x><body>https://example.com/cat.png</body></message>"
+        };
+
+        var textMsg = new ChatMessage
+        {
+            Id = "msg_txt_2",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "Look at this cute cat!",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(1)
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        // Image arrives first
+        var bubble = MessageBubbleViewModel.FromChatMessage(imgMsg);
+        Assert.True(bubble.HasImage);
+        Assert.True(bubble.IsOnlyImage);
+
+        // Text arrives second and merges
+        bubble.MergeMessage(textMsg);
+
+        // Image must be kept on the bottom regardless of arrival order
+        Assert.True(bubble.HasImage);
+        Assert.Equal("https://example.com/cat.png", bubble.ImageUrl);
+        Assert.Equal("Look at this cute cat!", bubble.DisplayText);
+        Assert.Equal("Look at this cute cat!\nhttps://example.com/cat.png", bubble.Body);
+        Assert.False(bubble.IsOnlyImage);
+    }
+
+    [Fact]
+    public void MergeMessage_TextArrivesBeforeImageMessage_KeepsImageOnBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var textMsg = new ChatMessage
+        {
+            Id = "msg_txt_1",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "Look at this cute cat!",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now
+        };
+
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_2",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/cat.png",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(1),
+            RawXml = "<message xmlns='jabber:client'><x xmlns='jabber:x:oob'><url>https://example.com/cat.png</url></x><body>https://example.com/cat.png</body></message>"
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        // Text arrives first
+        var bubble = MessageBubbleViewModel.FromChatMessage(textMsg);
+        Assert.False(bubble.HasImage);
+        Assert.Equal("Look at this cute cat!", bubble.DisplayText);
+
+        // Image arrives second and merges
+        bubble.MergeMessage(imgMsg);
+
+        // Image must be kept on the bottom
+        Assert.True(bubble.HasImage);
+        Assert.True(bubble.IsPreviewVisible);
+        Assert.Equal("https://example.com/cat.png", bubble.ImageUrl);
+        Assert.Equal("Look at this cute cat!", bubble.DisplayText);
+        Assert.Equal("Look at this cute cat!\nhttps://example.com/cat.png", bubble.Body);
+        Assert.False(bubble.IsOnlyImage);
+    }
+
+    [Fact]
+    public void MergeMessage_MultipleInterleavedTextAndImage_KeepsImageAtBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var textMsg1 = new ChatMessage
+        {
+            Id = "msg_txt_1",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "First line of text",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now
+        };
+
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_2",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/photo.jpg",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(1)
+        };
+
+        var textMsg2 = new ChatMessage
+        {
+            Id = "msg_txt_3",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "Second line of text",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now.AddSeconds(2)
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(textMsg1);
+        bubble.MergeMessage(imgMsg);
+        bubble.MergeMessage(textMsg2);
+
+        // Both text messages should precede the image URL
+        Assert.Equal("First line of text\nSecond line of text\nhttps://example.com/photo.jpg", bubble.Body);
+        Assert.Equal("First line of text\nSecond line of text", bubble.DisplayText);
+        Assert.Equal("https://example.com/photo.jpg", bubble.ImageUrl);
+    }
+
+    [Fact]
+    public void MessageBubbleViewModel_FromChatMessage_SingleMessageWithImageOnTop_RearrangesImageToBottom()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var msg = new ChatMessage
+        {
+            Id = "msg_single",
+            AccountJid = "john@example.com",
+            RemoteJid = "richard@example.com",
+            SenderJid = "richard@example.com",
+            Body = "https://example.com/photo.jpg\nCaption text below",
+            Direction = MessageDirection.Inbound,
+            Timestamp = now
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+
+        var bubble = MessageBubbleViewModel.FromChatMessage(msg);
+
+        // Body must ensure image is at the bottom
+        Assert.Equal("Caption text below\nhttps://example.com/photo.jpg", bubble.Body);
+        Assert.Equal("Caption text below", bubble.DisplayText);
+        Assert.Equal("https://example.com/photo.jpg", bubble.ImageUrl);
+        Assert.True(bubble.HasImage);
+    }
+
+    [AvaloniaFact]
+    public async Task MergeMessage_ImagePrecachingAndPreviewVisibility_RendersProperlyOnSend()
+    {
+        var sampleBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        var imageUrl = "https://upload.example.com/share/test_paste.png";
+
+        // Precache the image as would happen when pasting/uploading an image
+        Stanza.Gui.Helpers.AsyncImageLoader.PrecacheImage(imageUrl, sampleBytes);
+
+        var now = DateTimeOffset.UtcNow;
+        var textMsg = new ChatMessage
+        {
+            Id = "msg_txt_out",
+            AccountJid = "me@example.com",
+            RemoteJid = "peer@example.com",
+            SenderJid = "me@example.com",
+            Body = "Here is the screenshot",
+            Direction = MessageDirection.Outbound,
+            Timestamp = now
+        };
+
+        var imgMsg = new ChatMessage
+        {
+            Id = "msg_img_out",
+            AccountJid = "me@example.com",
+            RemoteJid = "peer@example.com",
+            SenderJid = "me@example.com",
+            Body = imageUrl,
+            Direction = MessageDirection.Outbound,
+            Timestamp = now.AddMilliseconds(10)
+        };
+
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+        MessageBubbleViewModel.AutoDownloadMedia = true;
+
+        // 1. Text message sent first creates the bubble
+        var bubble = MessageBubbleViewModel.FromChatMessage(textMsg);
+        Assert.False(bubble.HasImage);
+        Assert.False(bubble.IsPreviewVisible);
+        Assert.Null(bubble.ImageThumbnail);
+        Assert.False(bubble.ShowManualDownloadButton);
+
+        // Track property change notifications
+        var changedProperties = new List<string>();
+        bubble.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName != null) changedProperties.Add(e.PropertyName);
+        };
+
+        // 2. Image message sent immediately after merges into bubble
+        bubble.MergeMessage(imgMsg);
+
+        // Preview should immediately become visible and PropertyChanged raised
+        Assert.True(bubble.HasImage);
+        Assert.True(bubble.IsPreviewVisible);
+        Assert.Contains(nameof(MessageBubbleViewModel.IsPreviewVisible), changedProperties);
+        Assert.Equal("Here is the screenshot", bubble.DisplayText);
+        Assert.False(bubble.IsOnlyImage);
+
+        // Wait/assert thumbnail is loaded from cache
+        if (bubble.ImageThumbnail is null)
+        {
+            await bubble.LoadThumbnailAsync();
+        }
+        Assert.NotNull(bubble.ImageThumbnail);
+        Assert.False(bubble.ShowManualDownloadButton);
+    }
+
+    [AvaloniaFact]
+    public void MessageBubbleViewModel_ManualDownloadButtonVisibility_DependsOnThumbnailAndLoadingState()
+    {
+        MessageBubbleViewModel.ShowInlinePreviews = true;
+        MessageBubbleViewModel.AutoDownloadMedia = false;
+
+        var bubble = new MessageBubbleViewModel
+        {
+            HasImage = true,
+            ImageUrl = "https://example.com/test.png"
+        };
+
+        // Thumbnail is null, not loading => manual download button should be shown
+        Assert.True(bubble.ShowManualDownloadButton);
+
+        // While loading => manual download button should NOT be shown
+        bubble.IsLoadingImage = true;
+        Assert.False(bubble.ShowManualDownloadButton);
+
+        // Once thumbnail is loaded => manual download button should NOT be shown
+        bubble.IsLoadingImage = false;
+        var sampleBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        using var ms = new MemoryStream(sampleBytes);
+        bubble.ImageThumbnail = new Avalonia.Media.Imaging.Bitmap(ms);
+        Assert.False(bubble.ShowManualDownloadButton);
     }
 }

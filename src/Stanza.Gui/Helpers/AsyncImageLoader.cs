@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -13,6 +13,36 @@ public static class AsyncImageLoader
 {
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(15) };
     private static readonly ConcurrentDictionary<string, (Bitmap Bitmap, List<(Bitmap Bitmap, int DurationMs)>? GifFrames)> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static void PrecacheImage(string url, byte[] bytes)
+    {
+        if (string.IsNullOrWhiteSpace(url) || bytes is null || bytes.Length == 0) return;
+
+        url = url.Trim();
+        try
+        {
+            using var ms = new MemoryStream(bytes);
+            var bitmap = new Bitmap(ms);
+
+            List<(Bitmap Bitmap, int DurationMs)>? gifFrames = null;
+            if (GifDecoder.IsGif(bytes))
+            {
+                gifFrames = GifDecoder.DecodeFrames(bytes);
+            }
+
+            Cache[url] = (bitmap, gifFrames);
+        }
+        catch
+        {
+            // Soft failure precaching
+        }
+    }
+
+    public static void PrecacheImage(string url, Bitmap bitmap, List<(Bitmap Bitmap, int DurationMs)>? gifFrames = null)
+    {
+        if (string.IsNullOrWhiteSpace(url) || bitmap is null) return;
+        Cache[url.Trim()] = (bitmap, gifFrames);
+    }
 
     public static async Task<Bitmap?> LoadImageAsync(string url, CancellationToken ct = default)
     {

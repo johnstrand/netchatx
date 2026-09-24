@@ -190,9 +190,17 @@ public class GifSupportTests : IDisposable
         var sentMsg = conv.Messages[0];
         Assert.Contains(".gif", sentMsg.Body, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LOL look at this", sentMsg.Body);
-        Assert.StartsWith("file:///", sentMsg.Body);
+        Assert.Contains("file:///", sentMsg.Body);
+        // Image must always be grouped at the bottom below text
+        Assert.StartsWith("LOL look at this", sentMsg.Body);
         // file:// URIs are not auto-loaded as remote image previews for security reasons
         Assert.False(sentMsg.HasImage);
+
+        // Two distinct messages should be produced in repository
+        var savedMessages = await _messageRepo.GetMessagesAsync(account, remote.ToString(), 10);
+        Assert.Equal(2, savedMessages.Count);
+        Assert.Equal("LOL look at this", savedMessages[0].Body);
+        Assert.Contains("funny.gif", savedMessages[1].Body);
 
         // Remote HTTP/HTTPS GIF messages are loaded with preview and GIF flag
         var httpBubble = new MessageBubbleViewModel();
