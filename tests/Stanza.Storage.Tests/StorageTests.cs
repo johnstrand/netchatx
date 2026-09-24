@@ -875,6 +875,39 @@ public class StorageTests : IDisposable
         Assert.Equal("hash2", all["user2@example.com"].Hash);
     }
 
+    [Fact]
+    public async Task AccountRepository_SaveAndGetAccount_PersistsAllowUntrustedCertificates()
+    {
+        var repo = new AccountRepository(_context);
+        var account = new AccountProfile
+        {
+            Jid = "usera@localhost",
+            Password = "password",
+            Resource = "StanzaDev",
+            Host = "127.0.0.1",
+            Port = 5222,
+            UseDirectTls = false,
+            AllowUntrustedCertificates = true,
+            IsActive = true
+        };
+
+        await repo.SaveAccountAsync(account);
+
+        var retrieved = await repo.GetAccountAsync("usera@localhost");
+        Assert.NotNull(retrieved);
+        Assert.Equal("usera@localhost", retrieved.Jid);
+        Assert.Equal("password", retrieved.Password);
+        Assert.Equal("127.0.0.1", retrieved.Host);
+        Assert.Equal(5222, retrieved.Port);
+        Assert.False(retrieved.UseDirectTls);
+        Assert.True(retrieved.AllowUntrustedCertificates);
+        Assert.True(retrieved.IsActive);
+
+        var accounts = await repo.GetAccountsAsync();
+        var fromList = Assert.Single(accounts, a => a.Jid == "usera@localhost");
+        Assert.True(fromList.AllowUntrustedCertificates);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))

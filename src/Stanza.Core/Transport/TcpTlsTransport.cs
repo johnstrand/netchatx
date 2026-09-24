@@ -1,4 +1,4 @@
-﻿using System.IO.Pipelines;
+using System.IO.Pipelines;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -7,6 +7,7 @@ namespace Stanza.Core.Transport;
 
 public sealed class TcpTlsTransport : IXmppTransport
 {
+    private readonly bool _allowUntrustedCertificates;
     private TcpClient? _tcpClient;
     private NetworkStream? _networkStream;
     private SslStream? _sslStream;
@@ -19,16 +20,21 @@ public sealed class TcpTlsTransport : IXmppTransport
     public PipeWriter Output => _writer ?? throw new InvalidOperationException("Transport is not connected.");
     public bool IsSecure => _sslStream is not null;
 
+    public TcpTlsTransport(bool allowUntrustedCertificates = false)
+    {
+        _allowUntrustedCertificates = allowUntrustedCertificates;
+    }
+
     public async ValueTask ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
-        await CloseAsync();
+        await CloseAsync().ConfigureAwait(false);
 
         _tcpClient = new TcpClient
         {
             NoDelay = true
         };
 
-        await _tcpClient.ConnectAsync(host, port, cancellationToken);
+        await _tcpClient.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
         _networkStream = _tcpClient.GetStream();
         _activeStream = _networkStream;
 
@@ -49,7 +55,12 @@ public sealed class TcpTlsTransport : IXmppTransport
             EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
         };
 
-        await _sslStream.AuthenticateAsClientAsync(sslOptions, cancellationToken);
+        if (_allowUntrustedCertificates)
+        {
+            sslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
+        }
+
+        await _sslStream.AuthenticateAsClientAsync(sslOptions, cancellationToken).ConfigureAwait(false);
         _activeStream = _sslStream;
 
         _reader = PipeReader.Create(_activeStream);
@@ -60,13 +71,13 @@ public sealed class TcpTlsTransport : IXmppTransport
     {
         if (_writer is not null)
         {
-            await _writer.CompleteAsync();
+            await _writer.CompleteAsync().ConfigureAwait(false);
             _writer = null;
         }
 
         if (_reader is not null)
         {
-            await _reader.CompleteAsync();
+            await _reader.CompleteAsync().ConfigureAwait(false);
             _reader = null;
         }
 
@@ -84,6 +95,6 @@ public sealed class TcpTlsTransport : IXmppTransport
 
     public async ValueTask DisposeAsync()
     {
-        await CloseAsync();
+        await CloseAsync().ConfigureAwait(false);
     }
 }

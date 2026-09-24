@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text;
 using Stanza.Core.Sasl;
 using Stanza.Core.Stanzas;
@@ -64,7 +64,7 @@ public sealed class XmppClient : IAsyncDisposable
     public XmppClient(XmppClientOptions options, IXmppTransport? transport = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        _transport = transport ?? new TcpTlsTransport();
+        _transport = transport ?? new TcpTlsTransport(options.AllowUntrustedCertificates);
         BoundJid = options.Jid;
     }
 

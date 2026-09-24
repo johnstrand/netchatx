@@ -66,7 +66,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 Jid = jid,
                 Password = profile.Password,
                 Host = profile.Host,
-                Port = profile.Port
+                Port = profile.Port,
+                UseDirectTls = profile.UseDirectTls,
+                AllowUntrustedCertificates = profile.AllowUntrustedCertificates
             };
 
             var client = new XmppClient(options);

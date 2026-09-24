@@ -1,4 +1,4 @@
-﻿namespace Stanza.Core.Client;
+namespace Stanza.Core.Client;
 
 public sealed class XmppClientOptions
 {
@@ -7,6 +7,7 @@ public sealed class XmppClientOptions
     public string? Host { get; init; }
     public int Port { get; init; } = 5222;
     public bool UseDirectTls { get; init; } = false;
+    public bool AllowUntrustedCertificates { get; init; } = false;
     public string Resource { get; init; } = "Stanza";
     public bool AutoReconnect { get; init; } = true;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(15);
