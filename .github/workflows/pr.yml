@@ -28,6 +28,12 @@ jobs:
       - name: Run tests with Code Coverage
         run: dotnet test Stanza.slnx --configuration Release --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
+      - name: Install Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Verify Native AOT Compilation (linux-x64)
+        run: dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r linux-x64
+
       - name: Generate Code Coverage Report
         uses: danielpalme/ReportGenerator-GitHub-Action@5.4.4
         with:

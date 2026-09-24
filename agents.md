@@ -114,6 +114,11 @@ dotnet test Stanza.slnx
 dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
 ```
 
+### 3.5 Native AOT Publish
+```bash
+dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64
+```
+
 ---
 
 ## 4. Coding Standards & Guidelines
@@ -137,6 +142,12 @@ dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
 4. **Security & Cryptography**:
    - Never log or persist plaintext passwords, pre-shared keys, or private cryptographic keys.
    - All OMEMO sessions and PEP bundles must follow XEP-0384 & XEP-0420 specifications.
+
+5. **Native AOT & Trimming Compatibility**:
+   - Stanza compiles with Native AOT (`<PublishAot>true</PublishAot>`).
+   - All libraries must remain trim- and AOT-compatible (`<IsAotCompatible>true</IsAotCompatible>`).
+   - Avoid reflection, dynamic type creation, dynamic generic instantiation, and runtime IL generation (`System.Reflection.Emit`).
+   - Use compiled XAML bindings (`AvaloniaUseCompiledBindingsByDefault`) and compile-time Roslyn source generators.
 
 ---
 
