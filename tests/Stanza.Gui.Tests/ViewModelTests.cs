@@ -2828,6 +2828,106 @@ public class ViewModelTests : IDisposable
         await client.DisconnectAsync();
     }
 
+    [Fact]
+    public async Task MainChatViewModel_Conversation_PresenceShow_UpdatesWhenAvatarCached()
+    {
+        var account = "alice@mock.example.com";
+        var contactJid = "bob@mock.example.com";
+
+        // 1. Seed contact in roster
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Bob", Subscription = "both" }
+        ]);
+
+        // 2. Seed cached avatar for contact in SQLite
+        var avatarRepo = new AvatarRepository(_dbContext);
+        var dummyPng = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+        await avatarRepo.SaveAvatarAsync(contactJid, "hash123", "image/png", dummyPng);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        // 3. Bob comes online
+        var presOnline = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"));
+        await server.InjectStanzaAsync(presOnline);
+
+        var bob = mainVm.Contacts.First(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        for (int i = 0; i < 20 && bob.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", bob.PresenceShow);
+
+        // 4. Verify conversation exists and has PresenceShow == "available" despite cached avatar
+        var conv = mainVm.Conversations.FirstOrDefault(c => c.RemoteJid.ToString().Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(conv);
+        Assert.Equal("available", conv.PresenceShow);
+        Assert.True(conv.IsOnline);
+        Assert.Equal("Online", conv.PresenceStatusText);
+
+        // 5. Select contact and verify ActiveConversation has PresenceShow == "available"
+        await mainVm.SelectContactAsync(bob);
+        Assert.NotNull(mainVm.ActiveConversation);
+        Assert.Equal("available", mainVm.ActiveConversation.PresenceShow);
+        Assert.True(mainVm.ActiveConversation.IsOnline);
+        Assert.Equal("Online", mainVm.ActiveConversation.PresenceStatusText);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_IncomingPresence_WithTypeAvailable_UpdatesPresence()
+    {
+        var account = "alice@mock.example.com";
+        var contactJid = "carol@mock.example.com";
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Carol", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var carol = mainVm.Contacts.First(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("offline", carol.PresenceShow);
+
+        // Presence with explicit type="available" (some servers/gateways send this)
+        var presOnline = new PresenceStanza(type: "available", from: Jid.Parse($"{contactJid}/resource"));
+        await server.InjectStanzaAsync(presOnline);
+
+        for (int i = 0; i < 20 && carol.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", carol.PresenceShow);
+
+        var conv = mainVm.Conversations.FirstOrDefault(c => c.RemoteJid.ToString().Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(conv);
+        Assert.Equal("available", conv.PresenceShow);
+
+        await client.DisconnectAsync();
+    }
+
     public void Dispose()
     {
         if (File.Exists(_dbPath))
