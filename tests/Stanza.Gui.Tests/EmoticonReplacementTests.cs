@@ -144,4 +144,65 @@ public class EmoticonReplacementTests
             }
         }
     }
+
+    [Fact]
+    public async Task SettingsViewModel_CanTweakEmoticonMappingsWhenAutoReplaceDisabled()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"stanza_settings_emoticon_disabled_{Guid.NewGuid():N}.db");
+        try
+        {
+            var dbContext = new DatabaseContext(dbPath);
+            var repo = new SettingsRepository(dbContext);
+            const string accountJid = "test@example.com";
+
+            bool callbackAutoReplace = true;
+            IReadOnlyList<EmoticonMapping>? callbackMappings = null;
+
+            var vm = new SettingsViewModel(repo, accountJid, onEmoticonSettingsChanged: (enabled, mappings) =>
+            {
+                callbackAutoReplace = enabled;
+                callbackMappings = mappings;
+            });
+            await vm.LoadSettingsAsync();
+
+            // Disable auto-replacement
+            vm.AutoReplaceEmoticons = false;
+            Assert.False(callbackAutoReplace);
+
+            // Add custom mapping while disabled
+            vm.NewShortcut = ":cat:";
+            vm.NewEmoji = "🐱";
+            await vm.AddEmoticonMappingAsync();
+
+            Assert.Contains(vm.EmoticonMappings, m => m.Shortcut == ":cat:" && m.Emoji == "🐱");
+            Assert.False(callbackAutoReplace);
+            Assert.NotNull(callbackMappings);
+            Assert.Contains(callbackMappings, m => m.Shortcut == ":cat:" && m.Emoji == "🐱");
+
+            // Verify persisted in repo
+            var saved = await repo.GetEmoticonMappingsAsync(accountJid);
+            Assert.Contains(saved, m => m.Shortcut == ":cat:" && m.Emoji == "🐱");
+
+            // Remove mapping while disabled
+            var target = vm.EmoticonMappings.First(m => m.Shortcut == ":cat:");
+            await vm.RemoveEmoticonMappingAsync(target);
+            Assert.DoesNotContain(vm.EmoticonMappings, m => m.Shortcut == ":cat:");
+
+            var afterRemove = await repo.GetEmoticonMappingsAsync(accountJid);
+            Assert.DoesNotContain(afterRemove, m => m.Shortcut == ":cat:");
+
+            // Reset while disabled
+            await vm.ResetEmoticonMappingsAsync();
+            Assert.Equal(SettingsRepository.DefaultEmoticonMappings.Count, vm.EmoticonMappings.Count);
+            Assert.False(vm.AutoReplaceEmoticons);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                try { File.Delete(dbPath); } catch { }
+            }
+        }
+    }
 }
