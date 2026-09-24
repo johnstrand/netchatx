@@ -102,7 +102,7 @@ jobs:
       - name: Publish Windows App
         shell: pwsh
         run: |
-          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/win-x64
+          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64 -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/win-x64
 
       - name: Package Windows Artifacts
         shell: pwsh
@@ -131,9 +131,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Install Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
       - name: Publish Linux App
         run: |
-          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/linux-x64
+          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r linux-x64 -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/linux-x64
 
       - name: Package Linux Artifacts
         run: |
@@ -167,7 +170,7 @@ jobs:
 
       - name: Publish macOS App
         run: |
-          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/${{ matrix.rid }}
+          dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r ${{ matrix.rid }} -p:Version=${{ needs.calculate-and-tag-version.outputs.version }} -p:AssemblyVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:FileVersion=${{ needs.calculate-and-tag-version.outputs.version }}.0 -p:InformationalVersion=${{ needs.calculate-and-tag-version.outputs.version }} -o publish/${{ matrix.rid }}
 
       - name: Package macOS Artifacts
         run: |

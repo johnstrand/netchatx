@@ -28,9 +28,10 @@
 - **End-to-End Encryption (OMEMO)**:
   - **XEP-0384 & XEP-0420**: Multi-device Signal Double Ratchet encryption with Stanza Content Encryption (SCE) envelopes.
   - Atomic local key management and PEP bundle synchronization.
-- **High-Performance Architecture**:
+- **High-Performance Architecture & Native AOT**:
   - Built on `System.IO.Pipelines` and low-allocation streaming XML.
   - Fully decoupled UI thread using `CommunityToolkit.Mvvm`, keeping networking, cryptography, disk I/O, and image decoding completely off the main render loop.
+  - **Native AOT (Ahead-of-Time)**: Compiles directly into platform-native machine code via .NET 10 ILCompiler (`PublishAot=true`), offering near-instantaneous startup times, reduced memory usage, and trim-safe ~30 MB standalone binaries with zero JIT overhead.
 - **Embedded SQLite Storage**: Built on `Microsoft.Data.Sqlite` in WAL mode for lightning-fast message archives, full-text search, contact roster caching, and account profiles.
 
 ---
@@ -124,14 +125,18 @@ The resulting reports will be generated in `coveragereport/`:
 
 ### Building for Release
 ```bash
+# Standard Release build
 dotnet build Stanza.slnx -c Release
+
+# Native AOT Publish (e.g. Windows win-x64, Linux linux-x64, macOS osx-arm64)
+dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64
 ```
 
 ---
 
 ## Releases & Installation Packages
 
-Stanza features an automated, run-on-demand GitHub Actions release pipeline ([`.github/workflows/release.yml`](.github/workflows/release.yml)) that produces self-contained, native installation packages for 64-bit systems:
+Stanza features an automated, run-on-demand GitHub Actions release pipeline ([`.github/workflows/release.yml`](.github/workflows/release.yml)) that produces self-contained, Native AOT installation packages for 64-bit systems:
 
 ### Platform Packages
 - **Windows (`win-x64`)**:
