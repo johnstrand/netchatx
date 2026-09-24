@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using Stanza.Storage.Models;
 
 namespace Stanza.Storage.Repositories;
@@ -556,11 +556,11 @@ public sealed class MessageRepository
         return null;
     }
 
-    public async Task<Dictionary<string, (int unreadCount, string? lastPreview)>> GetContactSummariesAsync(
+    public async Task<Dictionary<string, (int unreadCount, string? lastPreview, MessageDirection? lastDirection, string? lastSenderJid, DateTimeOffset? lastTimestamp)>> GetContactSummariesAsync(
         string accountJid,
         CancellationToken cancellationToken = default)
     {
-        var result = new Dictionary<string, (int unreadCount, string? lastPreview)>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, (int unreadCount, string? lastPreview, MessageDirection? lastDirection, string? lastSenderJid, DateTimeOffset? lastTimestamp)>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrEmpty(accountJid)) return result;
 
         using var connection = _context.CreateConnection();
@@ -568,7 +568,10 @@ public sealed class MessageRepository
         cmd.CommandText = """
             SELECT remote_jid,
                    SUM(CASE WHEN direction = 0 AND is_read = 0 THEN 1 ELSE 0 END) AS unread_count,
-                   (SELECT body FROM messages m2 WHERE m2.account_jid = m1.account_jid AND m2.remote_jid = m1.remote_jid ORDER BY timestamp DESC LIMIT 1) AS last_body
+                   (SELECT body FROM messages m2 WHERE m2.account_jid = m1.account_jid AND m2.remote_jid = m1.remote_jid ORDER BY timestamp DESC LIMIT 1) AS last_body,
+                   (SELECT direction FROM messages m2 WHERE m2.account_jid = m1.account_jid AND m2.remote_jid = m1.remote_jid ORDER BY timestamp DESC LIMIT 1) AS last_direction,
+                   (SELECT sender_jid FROM messages m2 WHERE m2.account_jid = m1.account_jid AND m2.remote_jid = m1.remote_jid ORDER BY timestamp DESC LIMIT 1) AS last_sender,
+                   (SELECT timestamp FROM messages m2 WHERE m2.account_jid = m1.account_jid AND m2.remote_jid = m1.remote_jid ORDER BY timestamp DESC LIMIT 1) AS last_timestamp
             FROM messages m1
             WHERE account_jid = $account_jid
             GROUP BY remote_jid;
@@ -581,7 +584,10 @@ public sealed class MessageRepository
             var remote = reader.GetString(0);
             var unread = reader.IsDBNull(1) ? 0 : Convert.ToInt32(reader.GetValue(1));
             var lastBody = reader.IsDBNull(2) ? null : reader.GetString(2);
-            result[remote] = (unread, lastBody);
+            var lastDirection = reader.IsDBNull(3) ? (MessageDirection?)null : (MessageDirection)reader.GetInt32(3);
+            var lastSender = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var lastTimestamp = reader.IsDBNull(5) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(5));
+            result[remote] = (unread, lastBody, lastDirection, lastSender, lastTimestamp);
         }
 
         return result;
