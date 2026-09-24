@@ -358,6 +358,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public event Action? EditStarted;
 
     public event Action? ScrollToBottomRequested;
+    public event Action? OlderHistoryLoading;
+    public event Action? OlderHistoryLoaded;
     public event Action<ChatMessage>? MessageProcessed;
 
     public void RequestScrollToBottom()
@@ -1129,6 +1131,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             var oldestTimestamp = oldestBubble.Timestamp;
             var oldestStanzaId = oldestBubble.StanzaId;
 
+            // Notify UI to record current scroll position before modifying messages collection
+            PostToUi(() => OlderHistoryLoading?.Invoke());
+
             // 1. Fetch from SQLite before oldest timestamp
             var olderLocal = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50, before: oldestTimestamp);
 
@@ -1161,21 +1166,29 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 }
             }
 
-            foreach (var msg in olderLocal)
+            if (olderLocal.Count > 0)
             {
-                AddOrUpdateMessage(msg);
-            }
+                PostToUi(() =>
+                {
+                    foreach (var msg in olderLocal)
+                    {
+                        AddOrUpdateMessageInternal(msg);
+                    }
 
-            if (Messages.Count > 0)
-            {
-                OldestMessageTimestamp = Messages[0].Timestamp;
-            }
+                    if (Messages.Count > 0)
+                    {
+                        OldestMessageTimestamp = Messages[0].Timestamp;
+                    }
 
-            await LoadReactionsForCurrentMessagesAsync();
-            UpdateDateHeaders();
+                    UpdateDateHeaders();
+                });
+
+                await LoadReactionsForCurrentMessagesAsync();
+            }
         }
         finally
         {
+            PostToUi(() => OlderHistoryLoaded?.Invoke());
             IsLoadingOlderHistory = false;
         }
     }
@@ -1997,7 +2010,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (existing is not null)
         {
             existing.UpdateMessageRecord(msg);
-            UpdateLastMessageSnippetAndTime(msg);
+            if (Messages.LastOrDefault() == existing)
+            {
+                UpdateLastMessageSnippetAndTime(msg);
+            }
             return;
         }
 
@@ -2017,7 +2033,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     prevBubble.ImageLoaded -= OnBubbleImageLoaded;
                     prevBubble.ImageLoaded += OnBubbleImageLoaded;
                     prevBubble.MergeMessage(msg);
-                    UpdateLastMessageSnippetAndTime(msg);
+                    if (Messages.LastOrDefault() == prevBubble)
+                    {
+                        UpdateLastMessageSnippetAndTime(msg);
+                    }
                     MessageProcessed?.Invoke(msg);
                     return;
                 }
@@ -2054,7 +2073,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         UpdateReadMarkersOnBubbles();
-        UpdateLastMessageSnippetAndTime(msg);
+        if (Messages.LastOrDefault() == bubble)
+        {
+            UpdateLastMessageSnippetAndTime(msg);
+        }
 
         MessageProcessed?.Invoke(msg);
     }
