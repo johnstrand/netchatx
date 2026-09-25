@@ -16,6 +16,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        LocalizationManager.Instance.ApplyToApplication(this);
     }
 
     public override void OnFrameworkInitializationCompleted()

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 
@@ -60,6 +60,7 @@ public sealed class SettingsRepository
     public const string KeyLastPresenceMode = "last_presence_mode";
     public const string KeyLastStatusMessage = "last_status_message";
     public const string KeyCloseAction = "close_action";
+    public const string KeyLanguage = "app_language";
 
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
@@ -82,6 +83,7 @@ public sealed class SettingsRepository
     public const string DefaultPresenceMode = "available";
     public const string DefaultStatusMessage = "Online with Stanza";
     public const string DefaultCloseAction = "Ask";
+    public const string DefaultLanguage = "en";
 
     public SettingsRepository(DatabaseContext context)
     {
@@ -428,5 +430,16 @@ public sealed class SettingsRepository
     public async Task SetCloseActionAsync(string accountJid, string closeAction, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyCloseAction, !string.IsNullOrWhiteSpace(closeAction) ? closeAction : DefaultCloseAction, cancellationToken);
+    }
+
+    public async Task<string> GetLanguageAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyLanguage, cancellationToken);
+        return !string.IsNullOrWhiteSpace(val) ? val : DefaultLanguage;
+    }
+
+    public async Task SetLanguageAsync(string accountJid, string language, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyLanguage, !string.IsNullOrWhiteSpace(language) ? language : DefaultLanguage, cancellationToken);
     }
 }

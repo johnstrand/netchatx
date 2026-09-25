@@ -165,6 +165,29 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsRepository_Language_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        var account1 = "user1@example.org";
+        var account2 = "user2@example.org";
+
+        // Defaults
+        Assert.Equal("en", await repo.GetLanguageAsync(account1));
+        Assert.Equal("en", await repo.GetLanguageAsync(account2));
+
+        // Set account1 to Swedish
+        await repo.SetLanguageAsync(account1, "sv");
+        Assert.Equal("sv", await repo.GetLanguageAsync(account1));
+
+        // account2 remains English
+        Assert.Equal("en", await repo.GetLanguageAsync(account2));
+
+        // Update back to English
+        await repo.SetLanguageAsync(account1, "en");
+        Assert.Equal("en", await repo.GetLanguageAsync(account1));
+    }
+
+    [Fact]
     public async Task AccountRepository_Crud_Succeeds()
     {
         var repo = new AccountRepository(_context);

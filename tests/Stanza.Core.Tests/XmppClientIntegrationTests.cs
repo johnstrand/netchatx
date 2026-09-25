@@ -168,7 +168,7 @@ public class XmppClientIntegrationTests
         using var tcp = new System.Net.Sockets.TcpClient();
         try
         {
-            await tcp.ConnectAsync("127.0.0.1", 5222);
+            await tcp.ConnectAsync("127.0.0.1", 5222).WaitAsync(TimeSpan.FromMilliseconds(500));
         }
         catch
         {

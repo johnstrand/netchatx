@@ -133,7 +133,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     public bool ShowEmptyStateHeader => !IsSidebarOpen && ActiveConversation == null;
 
-    public string SidebarToggleTooltip => IsSidebarOpen ? "Collapse sidebar (Ctrl+B)" : "Restore sidebar (Ctrl+B)";
+    public string SidebarToggleTooltip => IsSidebarOpen
+        ? LocalizationManager.Instance.GetString("Sidebar_Collapse_Tooltip")
+        : LocalizationManager.Instance.GetString("Sidebar_Restore_Tooltip");
 
     public string SidebarToggleIcon => IsSidebarOpen ? "◀" : "▶";
 
@@ -181,7 +183,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private bool _isSearching;
 
     [ObservableProperty]
-    private string _searchResultsHeader = "Search Results";
+    private string _searchResultsHeader = LocalizationManager.Instance.GetString("Search_Results");
 
     [RelayCommand]
     public async Task ExecuteSearchAsync()
@@ -221,9 +223,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         SearchResultsHeader = SearchResults.Count switch
         {
-            0 => $"No results for \"{query}\"",
-            1 => $"1 result for \"{query}\"",
-            _ => $"{SearchResults.Count} results for \"{query}\""
+            0 => LocalizationManager.Instance.GetString("Search_NoResults", query),
+            1 => LocalizationManager.Instance.GetString("Search_OneResult", query),
+            _ => LocalizationManager.Instance.GetString("Search_MultipleResults", SearchResults.Count, query)
         };
     }
 
@@ -233,7 +235,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         IsSearching = false;
         SearchQuery = string.Empty;
         SearchResults.Clear();
-        SearchResultsHeader = "Search Results";
+        SearchResultsHeader = LocalizationManager.Instance.GetString("Search_Results");
     }
 
     [RelayCommand]
@@ -416,8 +418,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private int _chatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
 
     public string MessageInputWatermark => SendOnEnter
-        ? "Type a message... (Enter to send, Shift+Enter for newline, or ``` for code)"
-        : "Type a message... (Ctrl+Enter to send, Enter for newline, or ``` for code)";
+        ? LocalizationManager.Instance.GetString("Chat_Watermark_SendOnEnter")
+        : LocalizationManager.Instance.GetString("Chat_Watermark_CtrlSendOnEnter");
 
     public INotificationService NotificationService => _notificationService;
 
@@ -562,7 +564,16 @@ public sealed partial class MainChatViewModel : ViewModelBase
             },
             onAvatarChanged: async (bytes, mime) => await SetUserAvatarFromBytesAsync(bytes, mime),
             onAvatarRemoved: async () => await RemoveUserAvatarAsync(),
-            onAvatarSyncRequested: async () => await SyncOwnAvatarFromServerAsync());
+            onAvatarSyncRequested: async () => await SyncOwnAvatarFromServerAsync(),
+            onLanguageChanged: lang =>
+            {
+                OnPropertyChanged(nameof(SidebarToggleTooltip));
+                OnPropertyChanged(nameof(MessageInputWatermark));
+                if (!IsSearching)
+                {
+                    SearchResultsHeader = LocalizationManager.Instance.GetString("Search_Results");
+                }
+            });
     }
 
     public async Task InitializeAsync()

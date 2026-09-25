@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Stanza.Core;
+using Stanza.Gui.Services;
 using Stanza.Storage.Models;
 
 namespace Stanza.Gui.ViewModels;
@@ -59,31 +60,31 @@ public sealed partial class LoginViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(Jid))
         {
-            ErrorMessage = "Please enter your XMPP JID (e.g. user@example.com).";
+            ErrorMessage = LocalizationManager.Instance.GetString("Login_Error_EnterJid");
             return;
         }
 
         if (!Stanza.Core.Jid.TryParse(Jid.Trim(), out var parsedJid))
         {
-            ErrorMessage = "Invalid JID format. Example: alice@xmpp.org";
+            ErrorMessage = LocalizationManager.Instance.GetString("Login_Error_InvalidJid");
             return;
         }
 
         if (string.IsNullOrEmpty(Password))
         {
-            ErrorMessage = "Please enter your password.";
+            ErrorMessage = LocalizationManager.Instance.GetString("Login_Error_EnterPassword");
             return;
         }
 
         var port = 5222;
         if (!string.IsNullOrWhiteSpace(Port) && !int.TryParse(Port.Trim(), out port))
         {
-            ErrorMessage = "Port must be a valid number.";
+            ErrorMessage = LocalizationManager.Instance.GetString("Login_Error_InvalidPort");
             return;
         }
 
         IsConnecting = true;
-        StatusMessage = "Connecting to XMPP server...";
+        StatusMessage = LocalizationManager.Instance.GetString("Login_Status_Connecting");
 
         try
         {
@@ -101,7 +102,7 @@ public sealed partial class LoginViewModel : ViewModelBase
             var success = await _onLoginCallback(profile);
             if (!success && ErrorMessage is null)
             {
-                ErrorMessage = "Failed to connect. Please check credentials or network.";
+                ErrorMessage = LocalizationManager.Instance.GetString("Login_Error_Failed");
             }
         }
         catch (Exception ex)

@@ -20,7 +20,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ViewModelBase? _currentView;
 
     [ObservableProperty]
-    private string _statusText = "Starting Stanza...";
+    private string _statusText = Services.LocalizationManager.Instance.GetString("App_Starting");
 
     public string AppVersion => Helpers.AppVersionHelper.Version;
     public string AppVersionDisplay => Helpers.AppVersionHelper.DisplayString;
@@ -40,7 +40,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         if (activeAccount is not null)
         {
-            StatusText = $"Auto-connecting to {activeAccount.Jid}...";
+            StatusText = Services.LocalizationManager.Instance.GetString("App_Connecting", activeAccount.Jid);
             var success = await ConnectWithProfileAsync(activeAccount);
             if (success) return;
         }
@@ -51,7 +51,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public void SwitchToLogin()
     {
         CurrentView = new LoginViewModel(ConnectWithProfileAsync);
-        StatusText = "Disconnected";
+        StatusText = Services.LocalizationManager.Instance.GetString("App_Disconnected");
     }
 
     public async Task<bool> ConnectWithProfileAsync(AccountProfile profile)
@@ -87,14 +87,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             Dispatcher.UIThread.Post(() =>
             {
                 CurrentView = chatVm;
-                StatusText = $"Connected as {client.BoundJid}";
+                StatusText = Services.LocalizationManager.Instance.GetString("App_ConnectedAs", client.BoundJid);
             });
 
             return true;
         }
         catch (Exception ex)
         {
-            StatusText = $"Connection failed: {ex.Message}";
+            StatusText = Services.LocalizationManager.Instance.GetString("App_ConnectionFailed", ex.Message);
             return false;
         }
     }
