@@ -1,0 +1,239 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Stanza.Gui.ViewModels"
+             x:Class="Stanza.Gui.Views.HelpView"
+             x:DataType="vm:HelpViewModel">
+
+    <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+            Width="680" Height="620" Padding="20" CornerRadius="16"
+            Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
+            BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Modal Header -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+                <StackPanel Grid.Column="0" Spacing="2">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0" Text="📖 " FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="Help &amp; Feature Guide" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Text="Quick reference for expressions, commands, formatting, shortcuts, and security." Foreground="#64748B" FontSize="11" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}"
+                        ToolTip.Tip="Close (Esc)"
+                        Classes="icon-btn subtle" />
+            </Grid>
+
+            <!-- Scrollable Guide Topics -->
+            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12">
+                <StackPanel Spacing="12" Margin="0,0,6,0">
+
+                    <!-- ================= SECTION 1: INLINE MATH EXPRESSIONS ================= -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="🧮 INLINE MATH EXPRESSIONS" FontWeight="Bold" FontSize="10.5" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                                <Border Grid.Column="1" Background="#162235" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Syntax: =(...)" FontSize="9.5" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                </Border>
+                            </Grid>
+
+                            <TextBlock Text="Type math formulas inside =(...) and Stanza will automatically calculate them when sending or editing messages. A live preview banner appears above the input box as you type."
+                                       Foreground="#CBD5E1" FontSize="11.5" TextWrapping="Wrap" />
+
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,4,0,0">
+                                <Border Grid.Row="0" Grid.Column="0" Background="#090D16" CornerRadius="6" Padding="8,6" Margin="0,0,4,4">
+                                    <TextBlock Text="=(2 + 3 * 4)  ➜  14" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" />
+                                </Border>
+                                <Border Grid.Row="0" Grid.Column="1" Background="#090D16" CornerRadius="6" Padding="8,6" Margin="4,0,0,4">
+                                    <TextBlock Text="=(sqrt(144) + 5)  ➜  17" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" />
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="0" Background="#090D16" CornerRadius="6" Padding="8,6" Margin="0,4,4,0">
+                                    <TextBlock Text="=(2 ^ 8)  ➜  256" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" />
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="1" Background="#090D16" CornerRadius="6" Padding="8,6" Margin="4,4,0,0">
+                                    <TextBlock Text="=(round(pi, 4))  ➜  3.1416" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" />
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Supported Functions &amp; Constants:" FontWeight="SemiBold" FontSize="10.5" Foreground="#94A3B8" />
+                                <TextBlock Text="sqrt, abs, round, floor, ceil, min, max, pow, sin, cos, tan, log, log10, exp, pi, e"
+                                           FontFamily="Consolas, monospace" FontSize="10.5" Foreground="#E2E8F0" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <Border Background="#1A202C" CornerRadius="6" Padding="8,6">
+                                <TextBlock Text="💡 Escaping: Use \= to send literally without evaluating, e.g. \=(1+2) yields =(1+2). Use \\=(1+2) to yield \3."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= SECTION 2: SLASH COMMANDS ================= -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="⚡ SLASH COMMANDS" FontWeight="Bold" FontSize="10.5" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                            <TextBlock Text="Execute quick chat commands by typing a slash at the start of your message:" Foreground="#CBD5E1" FontSize="11.5" />
+
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" Margin="0,2,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="/me &lt;action&gt;" FontFamily="Consolas, monospace" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Send third-person action message (e.g. /me is away)" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="/clear" FontFamily="Consolas, monospace" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="Clear the chat message view in the active conversation" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="/shrug" FontFamily="Consolas, monospace" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="Append ¯\_(ツ)_/¯ to your message" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="/tableflip" FontFamily="Consolas, monospace" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="Append (╯°□°)╯︵ ┻━┻ to your message" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="/disapprove" FontFamily="Consolas, monospace" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="Append ಠ_ಠ to your message" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+                            </Grid>
+
+                            <Border Background="#1A202C" CornerRadius="6" Padding="8,6">
+                                <TextBlock Text="💡 Escaping: Type //&lt;command&gt; (e.g. //clear) to send the command text literally."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= SECTION 3: FORMATTING & CODE BLOCKS ================= -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="✍️ MESSAGE FORMATTING &amp; CODE" FontWeight="Bold" FontSize="10.5" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                            <TextBlock Text="Stanza supports lightweight markdown formatting for clear communication:" Foreground="#CBD5E1" FontSize="11.5" />
+
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" Margin="0,2,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="*bold text*" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Renders text in bold weight" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="_italic text_" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="Renders text in italics" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="~strikethrough~" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="Draws a strikethrough line across text" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="`inline code`" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="Monospace inline badge with dark background" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="```lang ... ```" FontFamily="Consolas, monospace" FontSize="11" Foreground="#38BDF8" Margin="0,3" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="Multi-line syntax highlighted code block (C#, JS, Python, XML, etc.)" FontSize="11" Foreground="#94A3B8" Margin="0,3" />
+                            </Grid>
+
+                            <Border Background="#1A202C" CornerRadius="6" Padding="8,6">
+                                <TextBlock Text="💡 Code Block Editor: Click the { } button in the composer to open the interactive code editor with line numbering and language selection."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= SECTION 4: CHAT INTERACTIONS ================= -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="💬 CHAT ACTIONS &amp; INTERACTIONS" FontWeight="Bold" FontSize="10.5" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="• Message Corrections:" FontWeight="SemiBold" FontSize="11" Foreground="#F8FAFC" />
+                                <TextBlock Text="Press the Up Arrow key in an empty composer to edit your most recently sent message (XEP-0308). You can also click 'Edit' from the message menu."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+
+                                <TextBlock Text="• Emoji Reactions:" FontWeight="SemiBold" FontSize="11" Foreground="#F8FAFC" Margin="0,4,0,0" />
+                                <TextBlock Text="Hover over any message and click 😀+ to select a quick reaction or pick any emoji from the comprehensive catalog (XEP-0444)."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+
+                                <TextBlock Text="• Quoting &amp; Replying:" FontWeight="SemiBold" FontSize="11" Foreground="#F8FAFC" Margin="0,4,0,0" />
+                                <TextBlock Text="Click the ↩ Reply button to quote the selected message in your reply (XEP-0461)."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= SECTION 5: SECURITY & SYNC ================= -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="🔒 SECURITY &amp; SYNCHRONIZATION" FontWeight="Bold" FontSize="10.5" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="• OMEMO Encryption (XEP-0384):" FontWeight="SemiBold" FontSize="11" Foreground="#F8FAFC" />
+                                <TextBlock Text="Stanza features end-to-end multi-device encryption using the Signal protocol. Look for the 🔒 OMEMO badge in the conversation header."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+
+                                <TextBlock Text="• Server Archive Sync (MAM XEP-0313):" FontWeight="SemiBold" FontSize="11" Foreground="#F8FAFC" Margin="0,4,0,0" />
+                                <TextBlock Text="Click the 🔄 sync button beside the conversation title to fetch missed or historical messages stored on your XMPP server."
+                                           Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= SECTION 6: KEYBOARD SHORTCUTS ================= -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="⌨️ KEYBOARD SHORTCUTS" FontWeight="Bold" FontSize="10.5" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,2,0,0">
+                                <Border Grid.Row="0" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="F1" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Open Help &amp; Feature Guide" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="1" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Ctrl + N" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="Start new chat / add contact" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="2" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Ctrl + ," FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="Open Preferences / Settings" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="3" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Ctrl + K / Ctrl + F" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="Focus search input box" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="4" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Ctrl + B" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="Toggle sidebar collapse / restore" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="5" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Enter" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="Send message (or Shift+Enter if newline mode)" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="6" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Shift + Enter" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="Insert newline without sending" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="7" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Up Arrow" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="Edit last sent message (when composer is empty)" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+
+                                <Border Grid.Row="8" Grid.Column="0" Background="#1E293B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,2">
+                                    <TextBlock Text="Esc" FontFamily="Consolas, monospace" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                                </Border>
+                                <TextBlock Grid.Row="8" Grid.Column="1" Text="Close active modal / cancel message editing / clear search" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,2" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Modal Footer -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                <TextBlock Grid.Column="0" Text="Press Esc or click ✕ to close." Foreground="#64748B" FontSize="10.5" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Got it"
+                        Command="{Binding CloseCommand}"
+                        Classes="icon-btn accent"
+                        Padding="18,6"
+                        Height="32"
+                        FontSize="11.5"
+                        FontWeight="SemiBold" />
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

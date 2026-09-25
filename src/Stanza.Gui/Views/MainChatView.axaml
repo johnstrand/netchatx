@@ -19,6 +19,7 @@
     <UserControl.KeyBindings>
         <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding OpenNewChatDialogCommand}" />
+        <KeyBinding Gesture="F1" Command="{Binding OpenHelpCommand}" />
     </UserControl.KeyBindings>
 
     <UserControl.Styles>
@@ -423,7 +424,7 @@
             <StackPanel Grid.Row="0" Background="#131e2d"
                         IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <Border Padding="16,10">
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto">
                         <!-- Toggle/Restore Sidebar Button -->
                         <Button Grid.Column="0"
                                 Content="{Binding SidebarToggleIcon}"
@@ -472,8 +473,22 @@
                                 Classes="icon-btn"
                                 Margin="0,0,8,0"
                                 VerticalAlignment="Center" />
-                        <!-- Details & Security Menu (⋮) -->
+                        <!-- Help & About Dropdown Menu -->
                         <Button Grid.Column="5"
+                                Content="?"
+                                ToolTip.Tip="Help &amp; About"
+                                Classes="icon-btn"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="❓ Help &amp; Feature Guide" InputGesture="F1" Command="{Binding OpenHelpCommand}" />
+                                    <MenuItem Header="ℹ️ About Stanza" Command="{Binding OpenAboutCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <!-- Details & Security Menu (⋮) -->
+                        <Button Grid.Column="6"
                                 Content="⋮"
                                 ToolTip.Tip="Details &amp; Security"
                                 Command="{Binding ToggleDetailsCommand}"
@@ -491,10 +506,25 @@
             <StackPanel Grid.Row="0" Background="#131e2d"
                         IsVisible="{Binding ShowEmptyStateHeader}">
                 <Border Padding="14,10">
-                    <Button Content="▶"
-                            ToolTip.Tip="Restore Sidebar (Ctrl+B)"
-                            Command="{Binding RestoreSidebarCommand}"
-                            Classes="icon-btn" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Button Grid.Column="0" Content="▶"
+                                ToolTip.Tip="Restore Sidebar (Ctrl+B)"
+                                Command="{Binding RestoreSidebarCommand}"
+                                Classes="icon-btn"
+                                HorizontalAlignment="Left" />
+                        <Button Grid.Column="1"
+                                Content="?"
+                                ToolTip.Tip="Help &amp; About"
+                                Classes="icon-btn"
+                                VerticalAlignment="Center">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="❓ Help &amp; Feature Guide" InputGesture="F1" Command="{Binding OpenHelpCommand}" />
+                                    <MenuItem Header="ℹ️ About Stanza" Command="{Binding OpenAboutCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </Grid>
                 </Border>
                 <!-- HR Divider -->
                 <Rectangle Height="1" Fill="#1E293B" Margin="16,0" HorizontalAlignment="Stretch" />
@@ -927,6 +957,20 @@
                     <TextBlock Text="Welcome to Stanza" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
                     <TextBlock Text="Select a contact or conversation from the sidebar to begin chatting." Classes="muted" HorizontalAlignment="Center" />
                 </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
+                    <Button Content="📖 Feature Guide"
+                            ToolTip.Tip="Open Help &amp; Feature Guide (F1)"
+                            Command="{Binding OpenHelpCommand}"
+                            Classes="icon-btn subtle"
+                            FontSize="11"
+                            Padding="12,5" />
+                    <Button Content="ℹ️ About Stanza"
+                            ToolTip.Tip="About Stanza, version, and license"
+                            Command="{Binding OpenAboutCommand}"
+                            Classes="icon-btn subtle"
+                            FontSize="11"
+                            Padding="12,5" />
+                </StackPanel>
                 <Button Content="▶"
                         ToolTip.Tip="Restore Sidebar (Ctrl+B)"
                         Command="{Binding RestoreSidebarCommand}"
@@ -1317,6 +1361,30 @@
             <views:SettingsView DataContext="{Binding Settings}"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- ================= HELP & FEATURE GUIDE MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding Help.IsOpen}"
+              ZIndex="997">
+            <!-- Dark semi-transparent backdrop (click to dismiss) -->
+            <Border Background="#80000000" PointerPressed="OnHelpBackdropPressed" />
+            <!-- Centered Modal Help Card -->
+            <views:HelpView DataContext="{Binding Help}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- ================= ABOUT MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding About.IsOpen}"
+              ZIndex="997">
+            <!-- Dark semi-transparent backdrop (click to dismiss) -->
+            <Border Background="#80000000" PointerPressed="OnAboutBackdropPressed" />
+            <!-- Centered Modal About Card -->
+            <views:AboutView DataContext="{Binding About}"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
         </Grid>
 
         <!-- ================= CLOSE PROMPT CHOICE MODAL OVERLAY ================= -->

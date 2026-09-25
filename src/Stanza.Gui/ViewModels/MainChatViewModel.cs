@@ -178,6 +178,44 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private CodeBlockEditorViewModel _codeBlockEditor = new();
 
     [ObservableProperty]
+    private HelpViewModel _help = new();
+
+    [ObservableProperty]
+    private AboutViewModel _about = new();
+
+    [RelayCommand]
+    public void OpenHelp()
+    {
+        Settings.Close();
+        CodeBlockEditor.Cancel();
+        IsNewChatDialogOpen = false;
+        About.Close();
+        Help.Open();
+    }
+
+    [RelayCommand]
+    public void CloseHelp()
+    {
+        Help.Close();
+    }
+
+    [RelayCommand]
+    public void OpenAbout()
+    {
+        Settings.Close();
+        CodeBlockEditor.Cancel();
+        IsNewChatDialogOpen = false;
+        Help.Close();
+        About.Open();
+    }
+
+    [RelayCommand]
+    public void CloseAbout()
+    {
+        About.Close();
+    }
+
+    [ObservableProperty]
     private string _searchQuery = string.Empty;
 
     [ObservableProperty]
@@ -273,6 +311,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public void OpenNewChatDialog()
     {
+        Help.Close();
+        About.Close();
         NewChatJid = string.Empty;
         NewChatDisplayName = string.Empty;
         NewChatErrorMessage = string.Empty;
@@ -400,6 +440,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public void OpenChatSettings()
     {
+        Help.Close();
+        About.Close();
         Settings.Open();
     }
 
@@ -2147,6 +2189,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public void OpenCodeBlockEditor(string initialCode = "", string? languageHint = null, int? insertionIndex = null)
     {
         if (ActiveConversation is null) return;
+        Help.Close();
+        About.Close();
 
         CodeBlockEditor.Open(initialCode, languageHint, markdown =>
         {

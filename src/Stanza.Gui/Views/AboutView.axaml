@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Stanza.Gui.ViewModels"
+             x:Class="Stanza.Gui.Views.AboutView"
+             x:DataType="vm:AboutViewModel">
+
+    <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+            Width="540" Height="590" Padding="20" CornerRadius="16"
+            Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
+            BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Modal Header -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+                <!-- App Logo -->
+                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12" ClipToBounds="True"
+                        Margin="0,0,12,0" Background="#131C2D" BorderBrush="#1E293B" BorderThickness="1"
+                        VerticalAlignment="Center">
+                    <Image Source="/Assets/stanza-logo.png" Width="44" Height="44" Stretch="UniformToFill" />
+                </Border>
+
+                <!-- Titles -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding AppName}" FontWeight="Bold" FontSize="18" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                        <Border Background="#162235" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Version}" FontWeight="SemiBold" FontSize="10.5" Foreground="#38BDF8" />
+                        </Border>
+                        <Border Background="#1C283F" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CompilationMode}" FontSize="10" Foreground="#67E8F9" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Tagline}" Foreground="#94A3B8" FontSize="11" />
+                </StackPanel>
+
+                <!-- Close Button -->
+                <Button Grid.Column="2" Content="✕" Command="{Binding CloseCommand}"
+                        ToolTip.Tip="Close (Esc)"
+                        Classes="icon-btn subtle"
+                        VerticalAlignment="Top" />
+            </Grid>
+
+            <!-- Scrollable Content -->
+            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12">
+                <StackPanel Spacing="12" Margin="0,0,6,0">
+
+                    <!-- General Info Card -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Copyright}" Foreground="#CBD5E1" FontSize="11.5" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="License:" Foreground="#64748B" FontSize="11" />
+                                <TextBlock Text="{Binding License}" FontWeight="SemiBold" Foreground="#F8FAFC" FontSize="11" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Source Repository" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
+                                    <TextBlock Text="{Binding RepositoryUrl}" Foreground="#38BDF8" FontSize="10.5" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="🌐 GitHub"
+                                        Command="{Binding OpenRepositoryCommand}"
+                                        Classes="icon-btn subtle"
+                                        FontSize="11"
+                                        Padding="10,4"
+                                        ToolTip.Tip="Open GitHub repository in browser" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Runtime & Environment Card -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="ENVIRONMENT &amp; PLATFORM" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,2,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Runtime Framework:" FontSize="10.5" Foreground="#64748B" Margin="0,3" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RuntimeDescription}" FontSize="10.5" Foreground="#F8FAFC" Margin="0,3" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Operating System:" FontSize="10.5" Foreground="#64748B" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding OsDescription}" FontSize="10.5" Foreground="#F8FAFC" Margin="0,3" TextWrapping="Wrap" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Architecture:" FontSize="10.5" Foreground="#64748B" Margin="0,3" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Architecture}" FontSize="10.5" Foreground="#F8FAFC" Margin="0,3" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Compilation Mode:" FontSize="10.5" Foreground="#64748B" Margin="0,3" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CompilationMode}" FontSize="10.5" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,3" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Core Libraries Card -->
+                    <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="CORE COMPONENTS &amp; LIBRARIES" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                            <ItemsControl ItemsSource="{Binding Libraries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:LibraryInfo}">
+                                        <Border BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="0,6">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Spacing="2">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" Foreground="#F8FAFC" />
+                                                        <Border Background="#162235" CornerRadius="4" Padding="4,1">
+                                                            <TextBlock Text="{Binding Version}" FontSize="9.5" Foreground="#38BDF8" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Purpose}" Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Modal Footer -->
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+                <Button Grid.Column="0" Content="📋 Copy System Info"
+                        Command="{Binding CopySystemInfoCommand}"
+                        Classes="icon-btn subtle"
+                        FontSize="11"
+                        Padding="10,5"
+                        ToolTip.Tip="Copy application, OS, and library information to clipboard" />
+
+                <TextBlock Grid.Column="1" Text="✓ Copied to clipboard!"
+                           Foreground="#34D399" FontSize="10.5" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="10,0,0,0"
+                           IsVisible="{Binding IsCopiedNoticeVisible}" />
+
+                <Button Grid.Column="2" Content="Close"
+                        Command="{Binding CloseCommand}"
+                        Classes="icon-btn accent"
+                        Padding="18,6"
+                        Height="32"
+                        FontSize="11.5"
+                        FontWeight="SemiBold" />
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>
