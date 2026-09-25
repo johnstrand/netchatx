@@ -361,7 +361,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 Subscription = "none"
             };
             ApplyPresenceToContact(newContact);
-            Contacts.Add(newContact);
+            PostToUi(() => Contacts.Add(newContact));
 
             await _rosterRepo.UpsertContactsAsync([new RosterContact
             {
@@ -884,7 +884,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 item.Avatar = av.Bitmap;
                 item.AvatarHash = av.Hash;
             }
-            Contacts.Add(item);
+            PostToUi(() => Contacts.Add(item));
         }
 
         // Query roster from server per RFC 6121
@@ -913,7 +913,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         newContact.Avatar = av.Bitmap;
                         newContact.AvatarHash = av.Hash;
                     }
-                    Contacts.Add(newContact);
+                    PostToUi(() => Contacts.Add(newContact));
                 }
                 else
                 {
@@ -1198,7 +1198,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                                     newItem.Avatar = av.Bitmap;
                                     newItem.AvatarHash = av.Hash;
                                 }
-                                Contacts.Add(newItem);
+                                PostToUi(() => Contacts.Add(newItem));
                             }
                             else
                             {
@@ -1360,7 +1360,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                                     LastMessagePreview = conv?.LastMessageSnippet ?? lastMsg.Body,
                                     UnreadCount = (ActiveConversation?.RemoteJid.ToString() != remoteJidStr) ? inboundCount : 0
                                 };
-                                Contacts.Add(contact);
+                                PostToUi(() => Contacts.Add(contact));
                             }
                         }
                     });
@@ -1516,7 +1516,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
             case SlashCommandResultType.LeaveRoom:
                 conv.AddSystemMessage($"Left room {conv.Title}.");
-                Conversations.Remove(conv);
+                PostToUi(() => Conversations.Remove(conv));
                 if (ActiveConversation == conv)
                 {
                     ActiveConversation = Conversations.FirstOrDefault();
@@ -1630,7 +1630,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             newConv.PresenceShow = best.Show;
         }
 
-        Conversations.Add(newConv);
+        PostToUi(() => Conversations.Add(newConv));
         return newConv;
     }
 
