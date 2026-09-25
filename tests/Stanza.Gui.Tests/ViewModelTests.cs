@@ -789,6 +789,88 @@ public class ViewModelTests : IDisposable
         Assert.Equal(2, scrollRequests); // still 2!
     }
 
+    [Fact]
+    public async Task ChatConversationViewModel_LoadOlderHistory_FiresOlderHistoryEvents_AndPreservesSnippet()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        // Seed messages in database: 2 older messages and 1 newer message
+        var now = DateTimeOffset.UtcNow;
+        var olderMsg1 = new ChatMessage
+        {
+            Id = "old_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Oldest message 1",
+            Timestamp = now.AddMinutes(-30),
+            Direction = MessageDirection.Inbound
+        };
+        var olderMsg2 = new ChatMessage
+        {
+            Id = "old_2",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = account,
+            Body = "Older message 2 (outbound)",
+            Timestamp = now.AddMinutes(-20),
+            Direction = MessageDirection.Outbound
+        };
+        var latestMsg = new ChatMessage
+        {
+            Id = "latest_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Latest message",
+            Timestamp = now.AddMinutes(-5),
+            Direction = MessageDirection.Inbound
+        };
+
+        await _messageRepo.SaveMessageAsync(olderMsg1);
+        await _messageRepo.SaveMessageAsync(olderMsg2);
+        await _messageRepo.SaveMessageAsync(latestMsg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: null);
+
+        // Initially initialize Messages with latest message
+        conv.AddOrUpdateMessage(latestMsg);
+        Assert.Equal("Latest message", conv.LastMessageSnippet);
+        Assert.Single(conv.Messages);
+
+        var eventsList = new System.Collections.Generic.List<string>();
+        conv.OlderHistoryLoading += () => eventsList.Add("Loading");
+        conv.OlderHistoryLoaded += () => eventsList.Add("Loaded");
+
+        var scrollTriggered = false;
+        conv.ScrollToBottomRequested += () => scrollTriggered = true;
+
+        await conv.LoadOlderHistoryAsync();
+
+        // Older history events must fire in sequence: Loading -> Loaded
+        Assert.Equal(new[] { "Loading", "Loaded" }, eventsList);
+
+        // Prepending older history (even with outbound messages) must NOT trigger ScrollToBottomRequested
+        Assert.False(scrollTriggered);
+
+        // All 3 messages should now be present in chronological order
+        Assert.Equal(3, conv.Messages.Count);
+        Assert.Equal("Oldest message 1", conv.Messages[0].Body);
+        Assert.Equal("Older message 2 (outbound)", conv.Messages[1].Body);
+        Assert.Equal("Latest message", conv.Messages[2].Body);
+
+        // LastMessageSnippet must NOT be overwritten by prepended older messages!
+        Assert.Equal("Latest message", conv.LastMessageSnippet);
+    }
+
     [Theory]
     [InlineData("https://example.com/avatar.png", true, true, "https://example.com/avatar.png")]
     [InlineData("http://xmpp.org/files/photo.jpeg?token=123", true, true, "http://xmpp.org/files/photo.jpeg?token=123")]
