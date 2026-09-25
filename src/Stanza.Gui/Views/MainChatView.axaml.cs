@@ -389,6 +389,20 @@ public partial class MainChatView : UserControl
             // Escape key: Cancel code block editor if open, cancel message editing if active, or discard pending image preview
             if (e.Key == Key.Escape)
             {
+                if (mainVm.Help.IsOpen)
+                {
+                    mainVm.CloseHelp();
+                    e.Handled = true;
+                    return;
+                }
+
+                if (mainVm.About.IsOpen)
+                {
+                    mainVm.CloseAbout();
+                    e.Handled = true;
+                    return;
+                }
+
                 if (mainVm.CodeBlockEditor.IsOpen)
                 {
                     mainVm.CodeBlockEditor.CancelCommand.Execute(null);
@@ -677,7 +691,12 @@ public partial class MainChatView : UserControl
 
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
+        if (e.Key == Key.F1 && DataContext is MainChatViewModel vmF1)
+        {
+            vmF1.OpenHelp();
+            e.Handled = true;
+        }
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
         {
             _searchInputBox?.Focus();
             _searchInputBox?.SelectAll();
@@ -688,6 +707,16 @@ public partial class MainChatView : UserControl
             if (vm.Settings.IsOpen)
             {
                 vm.Settings.Close();
+                e.Handled = true;
+            }
+            else if (vm.Help.IsOpen)
+            {
+                vm.CloseHelp();
+                e.Handled = true;
+            }
+            else if (vm.About.IsOpen)
+            {
+                vm.CloseAbout();
                 e.Handled = true;
             }
         }
@@ -746,6 +775,24 @@ public partial class MainChatView : UserControl
         if (DataContext is MainChatViewModel vm)
         {
             vm.Settings.Close();
+            e.Handled = true;
+        }
+    }
+
+    public void OnHelpBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.CloseHelp();
+            e.Handled = true;
+        }
+    }
+
+    public void OnAboutBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.CloseAbout();
             e.Handled = true;
         }
     }
