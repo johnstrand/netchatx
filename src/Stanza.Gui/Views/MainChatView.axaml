@@ -198,7 +198,7 @@
                     </StackPanel>
                     <!-- Collapse Sidebar Button -->
                     <Button Grid.Column="2" Content="◀"
-                            ToolTip.Tip="Collapse Sidebar (Ctrl+B)"
+                            ToolTip.Tip="{DynamicResource Sidebar_Collapse_Tooltip}"
                             Command="{Binding CollapseSidebarCommand}"
                             Classes="icon-btn subtle"
                             VerticalAlignment="Center" />
@@ -213,13 +213,13 @@
                             <TextBlock Grid.Column="0" Text="🔍" FontSize="11" Opacity="0.5" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBox x:Name="SearchInputBox" Grid.Column="1"
                                      Text="{Binding SearchQuery, Mode=TwoWay}"
-                                     Watermark="Search messages..."
+                                     Watermark="{DynamicResource Sidebar_SearchMessages_Watermark}"
                                      Height="34" VerticalContentAlignment="Center"
                                      Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" FontSize="12" />
                         </Grid>
                     </Border>
                     <Button Grid.Column="1" Content="+"
-                            ToolTip.Tip="Start New Chat / Add Contact (Ctrl+N)"
+                            ToolTip.Tip="{DynamicResource Sidebar_StartNewChat_Tooltip}"
                             Command="{Binding OpenNewChatDialogCommand}"
                             Classes="icon-btn accent"
                             Width="34" Height="34" CornerRadius="17"
@@ -234,7 +234,7 @@
                 <Border Grid.Row="0" Padding="12,6" Background="#182436" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding SearchResultsHeader}" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="✕" Command="{Binding CloseSearchCommand}" ToolTip.Tip="Close Search (Esc)" Classes="icon-btn subtle" />
+                        <Button Grid.Column="1" Content="✕" Command="{Binding CloseSearchCommand}" ToolTip.Tip="{DynamicResource Sidebar_CloseSearch_Tooltip}" Classes="icon-btn subtle" />
                     </Grid>
                 </Border>
                 <ListBox Grid.Row="1" ItemsSource="{Binding SearchResults}"
@@ -261,7 +261,7 @@
             <!-- Normal Navigation Tabs (Chats / Contacts) -->
             <TabControl Grid.Row="2" IsVisible="{Binding !IsSearching}" Margin="0">
                 <!-- Chats Tab -->
-                <TabItem Header="Chats">
+                <TabItem Header="{DynamicResource Nav_Chats}">
                     <ListBox ItemsSource="{Binding Conversations}"
                              SelectedItem="{Binding ActiveConversation, Mode=TwoWay}"
                              Background="Transparent">
@@ -304,7 +304,7 @@
                 </TabItem>
 
                 <!-- Contacts Roster Tab -->
-                <TabItem Header="Contacts">
+                <TabItem Header="{DynamicResource Nav_Contacts}">
                     <ListBox ItemsSource="{Binding Contacts}" Background="Transparent">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ContactItemViewModel}">
@@ -356,7 +356,7 @@
                     <!-- User Avatar with Presence Dot -->
                     <Panel Grid.Column="0" Width="36" Height="36" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Button Command="{Binding OpenProfileSettingsCommand}"
-                                ToolTip.Tip="Profile &amp; Avatar Settings"
+                                ToolTip.Tip="{DynamicResource Sidebar_ProfileSettings_Tooltip}"
                                 Classes="image-btn"
                                 Width="36" Height="36" Padding="0" Cursor="Hand">
                             <Panel Width="36" Height="36">
@@ -384,27 +384,27 @@
                     <!-- Status Menu Button -->
                     <Button Grid.Column="2" Content="●"
                             Classes="icon-btn subtle"
-                            ToolTip.Tip="Set Status Presence"
+                            ToolTip.Tip="{DynamicResource Sidebar_SetStatus_Tooltip}"
                             Foreground="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
                             Margin="2,0,2,0">
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                <MenuItem Header="Online" Command="{Binding SetPresenceCommand}" CommandParameter="available" />
-                                <MenuItem Header="Away" Command="{Binding SetPresenceCommand}" CommandParameter="away" />
-                                <MenuItem Header="Do Not Disturb" Command="{Binding SetPresenceCommand}" CommandParameter="dnd" />
+                                <MenuItem Header="{DynamicResource Status_Online}" Command="{Binding SetPresenceCommand}" CommandParameter="available" />
+                                <MenuItem Header="{DynamicResource Status_Away}" Command="{Binding SetPresenceCommand}" CommandParameter="away" />
+                                <MenuItem Header="{DynamicResource Status_Dnd}" Command="{Binding SetPresenceCommand}" CommandParameter="dnd" />
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
                     <!-- Preferences / Settings Button -->
                     <Button Grid.Column="3" Content="⚙"
                             Command="{Binding OpenChatSettingsCommand}"
-                            ToolTip.Tip="Preferences / Settings"
+                            ToolTip.Tip="{DynamicResource Sidebar_Preferences_Tooltip}"
                             Classes="icon-btn"
                             Margin="2,0,2,0" />
                     <!-- Disconnect Button -->
                     <Button Grid.Column="4" Content="⏻"
                             Command="{Binding DisconnectCommand}"
-                            ToolTip.Tip="Disconnect"
+                            ToolTip.Tip="{DynamicResource Sidebar_Disconnect_Tooltip}"
                             Classes="icon-btn danger"
                             Margin="2,0,0,0" />
                 </Grid>
@@ -490,7 +490,7 @@
                         <!-- Details & Security Menu (⋮) -->
                         <Button Grid.Column="6"
                                 Content="⋮"
-                                ToolTip.Tip="Details &amp; Security"
+                                ToolTip.Tip="{DynamicResource Chat_DetailsAndSecurity}"
                                 Command="{Binding ToggleDetailsCommand}"
                                 Classes="icon-btn"
                                 FontSize="15"
@@ -508,7 +508,7 @@
                 <Border Padding="14,10">
                     <Grid ColumnDefinitions="*,Auto">
                         <Button Grid.Column="0" Content="▶"
-                                ToolTip.Tip="Restore Sidebar (Ctrl+B)"
+                                ToolTip.Tip="{DynamicResource Sidebar_Restore_Tooltip}"
                                 Command="{Binding RestoreSidebarCommand}"
                                 Classes="icon-btn"
                                 HorizontalAlignment="Left" />
@@ -954,8 +954,8 @@
                     <Image Source="/Assets/stanza-logo.png" Width="100" Height="100" Stretch="UniformToFill" />
                 </Border>
                 <StackPanel Spacing="4" HorizontalAlignment="Center">
-                    <TextBlock Text="Welcome to Stanza" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
-                    <TextBlock Text="Select a contact or conversation from the sidebar to begin chatting." Classes="muted" HorizontalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource Chat_Welcome_Title}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource Chat_Welcome_Subtitle}" Classes="muted" HorizontalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
                     <Button Content="📖 Feature Guide"
@@ -972,7 +972,7 @@
                             Padding="12,5" />
                 </StackPanel>
                 <Button Content="▶"
-                        ToolTip.Tip="Restore Sidebar (Ctrl+B)"
+                        ToolTip.Tip="{DynamicResource Sidebar_Restore_Tooltip}"
                         Command="{Binding RestoreSidebarCommand}"
                         Classes="icon-btn"
                         HorizontalAlignment="Center"
@@ -1040,13 +1040,13 @@
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <TextBlock Grid.Column="0" Text="✏️" FontSize="14" VerticalAlignment="Center" Margin="4,0,8,0" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="Editing message" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" />
+                                <TextBlock Text="{DynamicResource Chat_EditPreview_EditingMessage}" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" />
                                 <TextBlock Text="{Binding ActiveConversation.EditingMessagePreviewText}"
                                            Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <Button Grid.Column="2"
                                     Content="✕"
-                                    ToolTip.Tip="Cancel Editing (Esc)"
+                                    ToolTip.Tip="{DynamicResource Chat_CancelEdit}"
                                     Command="{Binding ActiveConversation.CancelEditingMessageCommand}"
                                     Classes="icon-btn subtle"
                                     VerticalAlignment="Center" />
@@ -1070,7 +1070,7 @@
                             </StackPanel>
                             <Button Grid.Column="2"
                                     Content="✕"
-                                    ToolTip.Tip="Cancel Reply (Esc)"
+                                    ToolTip.Tip="{DynamicResource Chat_CancelReply}"
                                     Command="{Binding ActiveConversation.CancelReplyingMessageCommand}"
                                     Classes="icon-btn subtle"
                                     VerticalAlignment="Center" />
@@ -1114,7 +1114,7 @@
                             <Button x:Name="AttachFileButton"
                                     Grid.Column="0"
                                     Content="+"
-                                    ToolTip.Tip="Attach File or Image"
+                                    ToolTip.Tip="{DynamicResource Chat_AttachFile}"
                                     Classes="pill-attach-btn" />
 
                             <!-- Text Input Box -->
@@ -1141,7 +1141,7 @@
                             <Button x:Name="InsertCodeBlockButton"
                                     Grid.Column="2"
                                     Content="&lt;/&gt;"
-                                    ToolTip.Tip="Insert Code Block (```)"
+                                    ToolTip.Tip="{DynamicResource Chat_InsertCodeBlock}"
                                     Classes="icon-btn subtle"
                                     Width="32" Height="32"
                                     CornerRadius="16"
@@ -1168,9 +1168,9 @@
                 <StackPanel Spacing="16" Margin="16">
                     <!-- Drawer Header -->
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Details &amp; Security" FontWeight="Bold" FontSize="15" Foreground="#F8FAFC" />
+                        <TextBlock Grid.Column="0" Text="{DynamicResource Chat_DetailsAndSecurity}" FontWeight="Bold" FontSize="15" Foreground="#F8FAFC" />
                         <Button Grid.Column="1" Content="✕" Command="{Binding ToggleDetailsCommand}"
-                                ToolTip.Tip="Close Details"
+                                ToolTip.Tip="{DynamicResource Common_Close}"
                                 Classes="icon-btn subtle" />
                     </Grid>
 
@@ -1199,19 +1199,19 @@
 
                     <!-- Chat Preferences & Bubble Merging -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Chat Preferences" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
-                        <TextBlock Text="Merge consecutive messages sent within seconds into a single chat bubble." Foreground="#64748B" TextWrapping="Wrap" FontSize="11" />
+                        <TextBlock Text="{DynamicResource Settings_Tab_Chat}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                        <TextBlock Text="{DynamicResource Settings_MessageMerging_Subtitle}" Foreground="#64748B" TextWrapping="Wrap" FontSize="11" />
 
                         <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="10">
                             <StackPanel Spacing="10">
                                 <ToggleSwitch IsChecked="{Binding EnableMessageMerging, Mode=TwoWay}"
-                                              OnContent="Merge consecutive messages"
-                                              OffContent="Merge consecutive messages"
+                                              OnContent="{DynamicResource Settings_MessageMerging_Title}"
+                                              OffContent="{DynamicResource Settings_MessageMerging_Title}"
                                               FontSize="12" />
 
                                 <StackPanel Spacing="4" IsVisible="{Binding EnableMessageMerging}">
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="Merge threshold" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="0" Text="{DynamicResource Settings_MessageMerging_Threshold}" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1" Text="{Binding MessageMergeThresholdSeconds, StringFormat='{}{0} seconds'}"
                                                    FontWeight="SemiBold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
                                     </Grid>
@@ -1222,7 +1222,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Button Content="⚙ Preferences &amp; Notifications..."
+                        <Button Content="{DynamicResource Settings_Header}"
                                 Command="{Binding OpenChatSettingsCommand}"
                                 Background="#1E293B" Foreground="#94A3B8"
                                 BorderBrush="#334155" BorderThickness="1"
@@ -1235,8 +1235,8 @@
 
                     <!-- OMEMO E2EE Fingerprints -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="OMEMO Device Fingerprints" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
-                        <TextBlock Text="Verify device identity keys to ensure communication is secure against eavesdropping." Foreground="#64748B" TextWrapping="Wrap" FontSize="11" />
+                        <TextBlock Text="{DynamicResource Dialog_Security_Fingerprints_Title}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                        <TextBlock Text="{DynamicResource Dialog_Security_Fingerprints_Subtitle}" Foreground="#64748B" TextWrapping="Wrap" FontSize="11" />
 
                         <ItemsControl ItemsSource="{Binding OmemoDetails.Devices}">
                             <ItemsControl.ItemTemplate>
@@ -1249,7 +1249,7 @@
                                             </Grid>
                                             <TextBlock Text="{Binding Fingerprint}" FontFamily="Consolas, monospace" FontSize="10" Foreground="#64748B" TextWrapping="Wrap" />
                                             <Button Content="{Binding IsTrusted, Converter={StaticResource BoolToLockIcon}}"
-                                                    ToolTip.Tip="Toggle Fingerprint Trust"
+                                                    ToolTip.Tip="{DynamicResource Dialog_Security_Trust}"
                                                     Command="{Binding ToggleTrustCommand}"
                                                     Classes="icon-btn"
                                                     HorizontalAlignment="Right" />
@@ -1274,7 +1274,7 @@
                                 <TextBlock Text="Stanza" FontWeight="Bold" FontSize="14" Foreground="#F8FAFC" HorizontalAlignment="Center" />
                                 <TextBlock Text="{Binding AppVersion}" Foreground="#64748B" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Text="Decentralized, encrypted, modern XMPP chat client."
+                            <TextBlock Text="{DynamicResource Dialog_Security_About_Subtitle}"
                                        Foreground="#94A3B8" FontSize="10" TextAlignment="Center" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
@@ -1296,16 +1296,16 @@
                 <StackPanel Spacing="16">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Start New Chat" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" />
-                            <TextBlock Text="Enter a contact's Jabber ID to begin messaging." Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="{DynamicResource Dialog_NewChat_Title}" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" />
+                            <TextBlock Text="{DynamicResource Dialog_NewChat_Subtitle}" Foreground="#64748B" FontSize="11" />
                         </StackPanel>
                         <Button Grid.Column="1" Content="✕" Command="{Binding CancelNewChatDialogCommand}"
-                                ToolTip.Tip="Close (Esc)"
+                                ToolTip.Tip="{DynamicResource Common_Close}"
                                 Classes="icon-btn subtle" />
                     </Grid>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Contact JID" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
+                        <TextBlock Text="{DynamicResource Dialog_NewChat_Jid}" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
                         <TextBox x:Name="NewChatJidInput" Text="{Binding NewChatJid, Mode=TwoWay}"
                                  Watermark="e.g. alice@example.com"
                                  Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
@@ -1313,7 +1313,7 @@
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Display Name (Optional)" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
+                        <TextBlock Text="{DynamicResource Dialog_NewChat_DisplayName}" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
                         <TextBox Text="{Binding NewChatDisplayName, Mode=TwoWay}"
                                  Watermark="e.g. Alice Cooper"
                                  Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
@@ -1326,12 +1326,12 @@
 
                     <Grid ColumnDefinitions="*,Auto,Auto">
                         <Button Grid.Column="1" Content="✕"
-                                ToolTip.Tip="Cancel (Esc)"
+                                ToolTip.Tip="{DynamicResource Common_Cancel}"
                                 Command="{Binding CancelNewChatDialogCommand}"
                                 Classes="icon-btn"
                                 Margin="0,0,8,0" />
                         <Button Grid.Column="2" Content="✓"
-                                ToolTip.Tip="Start Chat (Enter)"
+                                ToolTip.Tip="{DynamicResource Dialog_NewChat_Start}"
                                 Classes="icon-btn accent"
                                 Command="{Binding ConfirmNewChatCommand}" />
                     </Grid>
@@ -1401,38 +1401,38 @@
                 <StackPanel Spacing="16">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Close Stanza?" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" />
-                            <TextBlock Text="Choose what should happen when you close the window." Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="{DynamicResource Dialog_Close_Title}" FontWeight="Bold" FontSize="16" Foreground="#F8FAFC" />
+                            <TextBlock Text="{DynamicResource Dialog_Close_Subtitle}" Foreground="#64748B" FontSize="11" />
                         </StackPanel>
                         <Button Grid.Column="1" Content="✕" Command="{Binding CancelClosePromptCommand}"
-                                ToolTip.Tip="Cancel (Esc)"
+                                ToolTip.Tip="{DynamicResource Common_Cancel}"
                                 Classes="icon-btn subtle" />
                     </Grid>
 
-                    <TextBlock Text="Would you like to keep Stanza running in the system tray in the background, or exit the application completely?"
+                    <TextBlock Text="{DynamicResource Dialog_Close_Message}"
                                Foreground="#CBD5E1" FontSize="12" TextWrapping="Wrap" />
 
                     <!-- Remember my choice CheckBox -->
                     <CheckBox IsChecked="{Binding RememberCloseChoice, Mode=TwoWay}"
-                              Content="Remember my choice in the future"
+                              Content="{DynamicResource Dialog_Close_Remember}"
                               FontSize="11.5" Foreground="#94A3B8" />
 
                     <!-- Action Buttons -->
                     <Grid ColumnDefinitions="*,Auto,Auto">
-                        <Button Grid.Column="0" Content="Cancel"
+                        <Button Grid.Column="0" Content="{DynamicResource Common_Cancel}"
                                 Command="{Binding CancelClosePromptCommand}"
                                 Background="#1E293B" Foreground="#94A3B8"
                                 BorderBrush="#334155" BorderThickness="1"
                                 CornerRadius="8" Padding="12,6" FontSize="11.5" Cursor="Hand" />
 
-                        <Button Grid.Column="1" Content="Exit Application"
+                        <Button Grid.Column="1" Content="{DynamicResource Dialog_Close_Exit}"
                                 Command="{Binding ChooseExitAppCommand}"
                                 Background="#1E293B" Foreground="#F43F5E"
                                 BorderBrush="#334155" BorderThickness="1"
                                 CornerRadius="8" Padding="14,6" FontSize="11.5" Cursor="Hand"
                                 Margin="8,0,0,0" />
 
-                        <Button Grid.Column="2" Content="Minimize to Tray"
+                        <Button Grid.Column="2" Content="{DynamicResource Dialog_Close_Minimize}"
                                 Command="{Binding ChooseMinimizeToTrayCommand}"
                                 Classes="accent"
                                 Padding="16,6" FontSize="11.5"

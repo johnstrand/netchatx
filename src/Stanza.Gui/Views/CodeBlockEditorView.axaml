@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Stanza.Gui.ViewModels"
              x:Class="Stanza.Gui.Views.CodeBlockEditorView"
@@ -22,7 +22,7 @@
                                    Foreground="White"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="Insert Code Block" FontWeight="Bold" FontSize="16"
+                    <TextBlock Text="{DynamicResource Dialog_CodeBlock_Title}" FontWeight="Bold" FontSize="16"
                                Foreground="#F8FAFC"
                                VerticalAlignment="Center" />
                 </StackPanel>
@@ -30,12 +30,12 @@
                 <Button Grid.Column="2" Content="✕"
                         Classes="icon-btn subtle"
                         Command="{Binding CancelCommand}"
-                        ToolTip.Tip="Close (Esc)" />
+                        ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}" />
             </Grid>
 
             <!-- Row 1: Language Picker Bar -->
             <Grid Grid.Row="1" ColumnDefinitions="Auto,200,*" Margin="0,0,0,12">
-                <TextBlock Grid.Column="0" Text="Language:" FontWeight="SemiBold"
+                <TextBlock Grid.Column="0" Text="{DynamicResource Dialog_CodeBlock_Language}" FontWeight="SemiBold"
                            VerticalAlignment="Center" Margin="0,0,10,0" />
                 <ComboBox Grid.Column="1"
                           x:Name="LanguageComboBox"
@@ -52,7 +52,7 @@
                 <!-- Custom Language Identifier Input (Visible when 'Custom...' is selected) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="14,0,0,0"
                             IsVisible="{Binding IsCustomLanguage}">
-                    <TextBlock Text="Tag:" VerticalAlignment="Center" Classes="muted" />
+                    <TextBlock Text="{DynamicResource Dialog_CodeBlock_Tag}" VerticalAlignment="Center" Classes="muted" />
                     <TextBox Text="{Binding CustomLanguageIdentifier, Mode=TwoWay}"
                              Watermark="e.g. zig, clojure" Width="140"
                              VerticalContentAlignment="Center" />
@@ -100,7 +100,7 @@
                              BorderThickness="0"
                              Padding="10"
                              TextWrapping="NoWrap"
-                             Watermark="// Paste or write your code here..."
+                             Watermark="{DynamicResource Dialog_CodeBlock_Watermark}"
                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
                              ScrollViewer.VerticalScrollBarVisibility="Auto" />
                 </Grid>
@@ -112,17 +112,17 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock Text="{Binding StatusText}" Classes="muted" FontSize="11" />
                     <TextBlock Text="•" Classes="muted" FontSize="11" />
-                    <TextBlock Text="Ctrl+Enter to insert, Esc to cancel" Classes="muted" FontSize="11" />
+                    <TextBlock Text="{DynamicResource Dialog_CodeBlock_Hint}" Classes="muted" FontSize="11" />
                 </StackPanel>
 
                 <!-- Action Buttons -->
                 <Button Grid.Column="2" Content="✕"
-                        ToolTip.Tip="Cancel (Esc)"
+                        ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}"
                         Command="{Binding CancelCommand}"
                         Classes="icon-btn"
                         Margin="0,0,8,0" />
                 <Button Grid.Column="3" Content="✓"
-                        ToolTip.Tip="Insert Code Block (Ctrl+Enter)"
+                        ToolTip.Tip="{DynamicResource Dialog_CodeBlock_Insert}"
                         Classes="icon-btn accent"
                         Command="{Binding InsertCommand}" />
             </Grid>

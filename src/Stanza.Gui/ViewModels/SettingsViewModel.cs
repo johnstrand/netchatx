@@ -31,6 +31,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<int>? _onChatInputMaxLinesChanged;
     private readonly Action<string>? _onCloseActionChanged;
     private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
+    private readonly Action<string>? _onLanguageChanged;
     private readonly Action<bool>? _onEvaluateExpressionsChanged;
     private readonly Func<byte[], string, Task>? _onAvatarChanged;
     private readonly Func<Task>? _onAvatarRemoved;
@@ -130,6 +131,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private double _fontSize = SettingsRepository.DefaultFontSize;
+
+    // --- Language ---
+    public IReadOnlyList<LanguageItem> AvailableLanguages => LocalizationManager.SupportedLanguages;
+
+    [ObservableProperty]
+    private LanguageItem _selectedLanguageItem = LocalizationManager.SupportedLanguages[0];
 
     // --- System & Window Behavior ---
     [ObservableProperty]
@@ -270,7 +277,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         IStartupService? startupService = null,
         Func<byte[], string, Task>? onAvatarChanged = null,
         Func<Task>? onAvatarRemoved = null,
-        Func<Task>? onAvatarSyncRequested = null)
+        Func<Task>? onAvatarSyncRequested = null,
+        Action<string>? onLanguageChanged = null)
     {
         _settingsRepo = settingsRepo;
         _startupService = startupService ?? new StartupService();
@@ -292,6 +300,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onAvatarChanged = onAvatarChanged;
         _onAvatarRemoved = onAvatarRemoved;
         _onAvatarSyncRequested = onAvatarSyncRequested;
+        _onLanguageChanged = onLanguageChanged;
     }
 
     [RelayCommand]
@@ -395,6 +404,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
             InboundBubbleTextColor = await _settingsRepo.GetInboundBubbleTextColorAsync(_accountJid);
             ChatInputMaxLines = await _settingsRepo.GetChatInputMaxLinesAsync(_accountJid);
             CloseAction = await _settingsRepo.GetCloseActionAsync(_accountJid);
+
+            var savedLanguage = await _settingsRepo.GetLanguageAsync(_accountJid);
+            var matchingLang = AvailableLanguages.FirstOrDefault(l => l.Code.Equals(savedLanguage, StringComparison.OrdinalIgnoreCase)) ?? AvailableLanguages[0];
+            SelectedLanguageItem = matchingLang;
+            LocalizationManager.Instance.SetLanguage(matchingLang.Code, notify: false);
 
             var emojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
             QuickEmojis.Clear();
@@ -630,6 +644,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
             _ = _settingsRepo.SetThemeModeAsync(_accountJid, value);
             ThemeManager.ApplyTheme(value, AccentColor);
             _onThemeChanged?.Invoke(value, AccentColor);
+        }
+    }
+
+    partial void OnSelectedLanguageItemChanged(LanguageItem value)
+    {
+        if (value is null) return;
+        LocalizationManager.Instance.SetLanguage(value.Code);
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetLanguageAsync(_accountJid, value.Code);
+            _onLanguageChanged?.Invoke(value.Code);
         }
     }
 
@@ -975,6 +1000,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         InboundBubbleTextColor = SettingsRepository.DefaultInboundBubbleTextColor;
         ChatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
         CloseAction = SettingsRepository.DefaultCloseAction;
+        SelectedLanguageItem = AvailableLanguages.FirstOrDefault(l => l.Code == SettingsRepository.DefaultLanguage) ?? AvailableLanguages[0];
+        LocalizationManager.Instance.SetLanguage(SettingsRepository.DefaultLanguage);
 
         QuickEmojis.Clear();
         foreach (var emoji in SettingsRepository.DefaultQuickEmojis)
@@ -1007,6 +1034,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetInboundBubbleTextColorAsync(_accountJid, InboundBubbleTextColor);
         await _settingsRepo.SetCloseActionAsync(_accountJid, CloseAction);
         await _settingsRepo.SetQuickEmojisAsync(_accountJid, QuickEmojis);
+        await _settingsRepo.SetLanguageAsync(_accountJid, SettingsRepository.DefaultLanguage);
 
         ThemeManager.ApplyTheme(ThemeMode, AccentColor);
         DirectionToBackgroundConverter.SetColors(OutboundBubbleColor, InboundBubbleColor);
@@ -1026,6 +1054,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onQuickEmojisChanged?.Invoke(QuickEmojis.ToList());
         _onBubbleColorChanged?.Invoke(OutboundBubbleColor, InboundBubbleColor);
         _onCloseActionChanged?.Invoke(CloseAction);
+        _onLanguageChanged?.Invoke(SettingsRepository.DefaultLanguage);
     }
 }
 

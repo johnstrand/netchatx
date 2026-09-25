@@ -213,7 +213,6 @@ public sealed class XmppElement
         }
     }
 
-
     public static XmlParserContext CreateDefaultContext()
     {
         var nt = new NameTable();

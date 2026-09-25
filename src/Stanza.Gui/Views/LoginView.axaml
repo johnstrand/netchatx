@@ -31,8 +31,8 @@
                         <Image Source="/Assets/stanza-logo.png" Width="88" Height="88" Stretch="UniformToFill" />
                     </Border>
                     <StackPanel Spacing="3" HorizontalAlignment="Center">
-                        <TextBlock Text="Stanza" FontSize="26" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
-                        <TextBlock Text="Modern Cross-Platform XMPP Client" Classes="muted" HorizontalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource Login_Title}" FontSize="26" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource Login_Subtitle}" Classes="muted" HorizontalAlignment="Center" />
                     </StackPanel>
                 </StackPanel>
 
@@ -52,20 +52,20 @@
 
                 <!-- JID Input -->
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Jabber ID (JID)" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                    <TextBox x:Name="JidTextBox" Text="{Binding Jid}" Watermark="username@domain.tld" IsEnabled="{Binding !IsConnecting}"
+                    <TextBlock Text="{DynamicResource Login_JidLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                    <TextBox x:Name="JidTextBox" Text="{Binding Jid}" Watermark="{DynamicResource Login_JidWatermark}" IsEnabled="{Binding !IsConnecting}"
                              Height="38" VerticalContentAlignment="Center" />
                 </StackPanel>
 
                 <!-- Password Input -->
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Password" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                    <TextBox x:Name="PasswordTextBox" Text="{Binding Password}" PasswordChar="•" Watermark="Account password" IsEnabled="{Binding !IsConnecting}"
+                    <TextBlock Text="{DynamicResource Login_PasswordLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                    <TextBox x:Name="PasswordTextBox" Text="{Binding Password}" PasswordChar="•" Watermark="{DynamicResource Login_PasswordWatermark}" IsEnabled="{Binding !IsConnecting}"
                              Height="38" VerticalContentAlignment="Center" />
                 </StackPanel>
 
                 <!-- Advanced Connection Options -->
-                <Button Content="Advanced Connection Options ▼" HorizontalAlignment="Left"
+                <Button Content="{DynamicResource Login_Advanced}" HorizontalAlignment="Left"
                         Command="{Binding ToggleAdvancedCommand}" Margin="0,4"
                         Foreground="#00F0FF"
                         Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" />
@@ -73,22 +73,22 @@
                 <StackPanel Spacing="12" IsVisible="{Binding ShowAdvanced}">
                     <Grid ColumnDefinitions="*,100">
                         <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
-                            <TextBlock Text="Custom Host" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                            <TextBox Text="{Binding Host}" Watermark="xmpp.example.com"
+                            <TextBlock Text="{DynamicResource Login_CustomHost}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox Text="{Binding Host}" Watermark="{DynamicResource Login_CustomHostWatermark}"
                                      Height="36" VerticalContentAlignment="Center" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock Text="Port" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                            <TextBox Text="{Binding Port}" Watermark="5222"
+                            <TextBlock Text="{DynamicResource Login_Port}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox Text="{Binding Port}" Watermark="{DynamicResource Login_PortWatermark}"
                                      Height="36" VerticalContentAlignment="Center" />
                         </StackPanel>
                     </Grid>
-                    <CheckBox IsChecked="{Binding UseDirectTls}" Content="Direct TLS (Port 5223)" />
-                    <CheckBox IsChecked="{Binding AllowUntrustedCertificates}" Content="Allow untrusted certificates (dev mode)" />
+                    <CheckBox IsChecked="{Binding UseDirectTls}" Content="{DynamicResource Login_DirectTls}" />
+                    <CheckBox IsChecked="{Binding AllowUntrustedCertificates}" Content="{DynamicResource Login_AllowUntrusted}" />
                 </StackPanel>
 
                 <!-- Connect Button -->
-                <Button x:Name="ConnectButton" Content="Connect" HorizontalAlignment="Stretch"
+                <Button x:Name="ConnectButton" Content="{DynamicResource Login_ConnectButton}" HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center"
                         Padding="0"

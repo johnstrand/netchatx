@@ -23,30 +23,30 @@
             <!-- Modal Header -->
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                 <StackPanel Grid.Column="0" Spacing="2">
-                    <TextBlock Text="⚙ Preferences" FontWeight="Bold" FontSize="15" Foreground="#F8FAFC" />
-                    <TextBlock Text="Personalize theme, typography, input, chat display, media, and notifications." Foreground="#64748B" FontSize="10.5" />
+                    <TextBlock Text="{DynamicResource Settings_Header}" FontWeight="Bold" FontSize="15" Foreground="#F8FAFC" />
+                    <TextBlock Text="{DynamicResource Settings_Subtitle}" Foreground="#64748B" FontSize="10.5" />
                 </StackPanel>
                 <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}"
-                        ToolTip.Tip="Close (Esc)"
+                        ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}"
                         Classes="icon-btn subtle" />
             </Grid>
 
             <!-- Categorized Settings Tabs -->
             <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex}" Margin="0,0,0,12">
                 <!-- ================= TAB 1: APPEARANCE & THEME ================= -->
-                <TabItem Header="🎨 Appearance">
+                <TabItem Header="{DynamicResource Settings_Tab_Appearance}">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- Theme & Accent Section -->
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
                                 <StackPanel Spacing="10">
-                                    <TextBlock Text="THEME &amp; ACCENT" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                                    <TextBlock Text="{DynamicResource Settings_Section_Theme}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
 
                                     <!-- Theme Mode -->
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                                            <TextBlock Text="Interface Theme" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                            <TextBlock Text="Switch between Dark, Light, or System appearance." Foreground="#64748B" FontSize="10" />
+                                            <TextBlock Text="{DynamicResource Settings_Theme_Title}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{DynamicResource Settings_Theme_Subtitle}" Foreground="#64748B" FontSize="10" />
                                         </StackPanel>
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{Binding AvailableThemeModes}"
@@ -60,8 +60,8 @@
                                     <StackPanel Spacing="6">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                                                <TextBlock Text="Accent Color" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                                <TextBlock Text="Accent color used for active buttons, badges, and highlights." Foreground="#64748B" FontSize="10" />
+                                                <TextBlock Text="{DynamicResource Settings_Accent_Title}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="{DynamicResource Settings_Accent_Subtitle}" Foreground="#64748B" FontSize="10" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Text="{Binding SelectedAccentName}"
                                                        FontSize="11" FontWeight="SemiBold"
@@ -166,13 +166,13 @@
                             <!-- Typography & Font Configuration -->
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
                                 <StackPanel Spacing="10">
-                                    <TextBlock Text="CHAT TYPOGRAPHY" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                                    <TextBlock Text="{DynamicResource Settings_Section_Typography}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
 
                                     <!-- Font Family Selector -->
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                                            <TextBlock Text="Font Family" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                            <TextBlock Text="Font family applied to message bubbles and input composer." Foreground="#64748B" FontSize="10" />
+                                            <TextBlock Text="{DynamicResource Settings_FontFamily_Title}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{DynamicResource Settings_FontFamily_Subtitle}" Foreground="#64748B" FontSize="10" />
                                         </StackPanel>
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{Binding AvailableFontFamilies}"
@@ -182,9 +182,9 @@
 
                                     <!-- Custom Font Name Input -->
                                     <StackPanel Spacing="3" IsVisible="{Binding IsCustomFont}">
-                                        <TextBlock Text="Custom Font Family Name" FontSize="10" Foreground="#94A3B8" />
+                                        <TextBlock Text="{DynamicResource Settings_CustomFont_Label}" FontSize="10" Foreground="#94A3B8" />
                                         <TextBox Text="{Binding CustomFontFamily, Mode=TwoWay}"
-                                                 Watermark="Enter system font name (e.g. Fira Code, Arial)"
+                                                 Watermark="{DynamicResource Settings_CustomFont_Watermark}"
                                                  Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
                                                  Foreground="#F8FAFC" FontSize="11.5" />
                                     </StackPanel>
@@ -194,7 +194,7 @@
                                     <!-- Font Size Slider -->
                                     <StackPanel Spacing="4">
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Text="Font Size" FontSize="11.5" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="0" Text="{DynamicResource Settings_FontSize_Title}" FontSize="11.5" Foreground="#94A3B8" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Text="{Binding FontSize, StringFormat='{}{0:0} px'}"
                                                        FontWeight="SemiBold" FontSize="11.5" Foreground="{DynamicResource StanzaCyanBrush}" VerticalAlignment="Center" />
                                         </Grid>
@@ -202,16 +202,16 @@
                                                 Value="{Binding FontSize, Mode=TwoWay}"
                                                 TickFrequency="1" IsSnapToTickEnabled="True" />
                                         <Grid ColumnDefinitions="Auto,*,Auto">
-                                            <TextBlock Grid.Column="0" Text="11px (Compact)" FontSize="9.5" Foreground="#475569" />
-                                            <TextBlock Grid.Column="2" Text="20px (Large)" FontSize="9.5" Foreground="#475569" />
+                                            <TextBlock Grid.Column="0" Text="11px" FontSize="9.5" Foreground="#475569" />
+                                            <TextBlock Grid.Column="2" Text="20px" FontSize="9.5" Foreground="#475569" />
                                         </Grid>
                                     </StackPanel>
 
                                     <!-- Live Typography Preview -->
                                     <Border Background="#090D16" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="10">
                                         <StackPanel Spacing="3">
-                                            <TextBlock Text="LIVE TYPOGRAPHY PREVIEW" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
-                                            <TextBlock Text="Hello! Stanza with customizable typography and cyber glass styling. 🚀"
+                                            <TextBlock Text="{DynamicResource Settings_Typography_PreviewHeader}" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
+                                            <TextBlock Text="{DynamicResource Settings_Typography_PreviewText}"
                                                        FontFamily="{Binding EffectiveFontFamily}"
                                                        FontSize="{Binding FontSize}"
                                                        Foreground="#F1F5F9"
@@ -224,14 +224,14 @@
                             <!-- Chat Bubble Colors -->
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
                                 <StackPanel Spacing="10">
-                                    <TextBlock Text="CHAT BUBBLE COLORS" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                                    <TextBlock Text="{DynamicResource Settings_Section_BubbleColors}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
 
                                     <!-- Outbound (Sent) Messages -->
                                     <StackPanel Spacing="6">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                                                <TextBlock Text="Sent Messages (Outbound)" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                                <TextBlock Text="Choose a preset, match your theme accent, or enter a custom hex." Foreground="#64748B" FontSize="10" />
+                                                <TextBlock Text="{DynamicResource Settings_BubbleColors_OutboundTitle}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="{DynamicResource Settings_BubbleColors_OutboundSubtitle}" Foreground="#64748B" FontSize="10" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Text="{Binding OutboundBubbleColor}"
                                                        FontSize="11" FontWeight="SemiBold"
@@ -297,7 +297,7 @@
 
                                             <!-- Match Accent -->
                                             <Button Grid.Column="7" Command="{Binding MatchAccentBubbleColorCommand}"
-                                                    Content="Match Accent" FontSize="10.5" Padding="7,3"
+                                                    Content="{DynamicResource Settings_BubbleColors_MatchAccent}" FontSize="10.5" Padding="7,3"
                                                     Background="#1E293B" Foreground="{DynamicResource StanzaCyanBrush}"
                                                     BorderBrush="#334155" BorderThickness="1"
                                                     CornerRadius="6" Cursor="Hand" VerticalAlignment="Center"
@@ -361,8 +361,8 @@
                                     <StackPanel Spacing="6">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                                                <TextBlock Text="Received Messages (Inbound)" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                                <TextBlock Text="Choose a dark glass shade or enter a custom hex for received messages." Foreground="#64748B" FontSize="10" />
+                                                <TextBlock Text="{DynamicResource Settings_BubbleColors_InboundTitle}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                                <TextBlock Text="{DynamicResource Settings_BubbleColors_InboundSubtitle}" Foreground="#64748B" FontSize="10" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Text="{Binding InboundBubbleColor}"
                                                        FontSize="11" FontWeight="SemiBold"
@@ -481,15 +481,32 @@
                                     <!-- Live Bubble Preview -->
                                     <Border Background="#090D16" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="10">
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="LIVE BUBBLE PREVIEW" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
+                                            <TextBlock Text="{DynamicResource Settings_BubbleColors_PreviewHeader}" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
                                             <Border HorizontalAlignment="Left" Background="{Binding PreviewInboundBrush}" CornerRadius="12" Padding="10,6" MaxWidth="320">
-                                                <TextBlock Text="Hey! Custom chat bubble styling in action." FontSize="11.5" Foreground="{Binding PreviewInboundTextBrush}" />
+                                                <TextBlock Text="{DynamicResource Settings_BubbleColors_InboundPreview}" FontSize="11.5" Foreground="{Binding PreviewInboundTextBrush}" />
                                             </Border>
                                             <Border HorizontalAlignment="Right" Background="{Binding PreviewOutboundBrush}" CornerRadius="12" Padding="10,6" MaxWidth="320">
-                                                <TextBlock Text="Looks amazing and matches our vibe! 🚀" FontSize="11.5" Foreground="{Binding PreviewOutboundTextBrush}" />
+                                                <TextBlock Text="{DynamicResource Settings_BubbleColors_OutboundPreview}" FontSize="11.5" Foreground="{Binding PreviewOutboundTextBrush}" />
                                             </Border>
                                         </StackPanel>
                                     </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Language Configuration -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="{DynamicResource Settings_Section_Language}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Settings_Language_Title}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{DynamicResource Settings_Language_Subtitle}" Foreground="#64748B" FontSize="10" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding AvailableLanguages}"
+                                                  SelectedItem="{Binding SelectedLanguageItem, Mode=TwoWay}"
+                                                  Width="140" FontSize="11.5" VerticalAlignment="Center" />
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -497,7 +514,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 2: CHAT & INPUT ================= -->
-                <TabItem Header="💬 Chat">
+                <TabItem Header="{DynamicResource Settings_Tab_Chat}">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- Input Shortcuts & Clock -->
@@ -754,7 +771,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 3: MEDIA & PREVIEWS ================= -->
-                <TabItem Header="🖼️ Media">
+                <TabItem Header="{DynamicResource Settings_Tab_Media}">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
@@ -813,7 +830,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 4: SYSTEM & STARTUP ================= -->
-                <TabItem Header="⚙️ System &amp; Startup">
+                <TabItem Header="{DynamicResource Settings_Tab_System}">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- System & Startup Switch -->
@@ -877,7 +894,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 5: PROFILE & AVATAR ================= -->
-                <TabItem Header="👤 Profile">
+                <TabItem Header="{DynamicResource Settings_Tab_Profile}">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="14" Margin="0,0,6,0">
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="16">
@@ -929,13 +946,13 @@
 
             <!-- Modal Action Buttons (Footer) -->
             <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto">
-                <Button Grid.Column="0" Content="Reset All Defaults"
+                <Button Grid.Column="0" Content="{DynamicResource Common_ResetDefaults}"
                         Command="{Binding ResetDefaultsCommand}"
                         Background="#1E293B" Foreground="#94A3B8"
                         BorderBrush="#334155" BorderThickness="1"
                         CornerRadius="8" Padding="12,5" FontSize="11.5"
                         Cursor="Hand" />
-                <Button Grid.Column="2" Content="Done"
+                <Button Grid.Column="2" Content="{DynamicResource Common_Done}"
                         Command="{Binding CloseCommand}"
                         Classes="accent"
                         Padding="22,5" FontSize="11.5" />
