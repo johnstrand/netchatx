@@ -1,4 +1,4 @@
-﻿using System.IO.Pipelines;
+using System.IO.Pipelines;
 using System.Text;
 
 namespace Stanza.Core.Xml;
@@ -14,6 +14,8 @@ public sealed class XmppStreamParser
         AwaitingStreamHeader,
         InsideStream
     }
+
+    private const int MaxElementSize = 256 * 1024;
 
     private ParserState _state = ParserState.AwaitingStreamHeader;
     private readonly StringBuilder _buffer = new(4096);
@@ -122,6 +124,12 @@ public sealed class XmppStreamParser
     private XmppElement? ProcessChar(char c)
     {
         _buffer.Append(c);
+
+        if (_state == ParserState.InsideStream && _buffer.Length > MaxElementSize)
+        {
+            Reset();
+            throw new InvalidOperationException($"XMPP element exceeded maximum allowed size of {MaxElementSize} bytes.");
+        }
 
         if (_state == ParserState.AwaitingStreamHeader)
         {
