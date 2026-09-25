@@ -19,6 +19,7 @@ namespace Stanza.Gui.Tests;
 
 public class ViewModelTests : IDisposable
 {
+    private static readonly byte[] SamplePngBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
     private readonly string _dbPath;
     private readonly DatabaseContext _dbContext;
     private readonly MessageRepository _messageRepo;
@@ -786,6 +787,88 @@ public class ViewModelTests : IDisposable
         // 3. Paging backwards (older history) must NOT trigger scroll to bottom
         await conv.LoadOlderHistoryAsync();
         Assert.Equal(2, scrollRequests); // still 2!
+    }
+
+    [Fact]
+    public async Task ChatConversationViewModel_LoadOlderHistory_FiresOlderHistoryEvents_AndPreservesSnippet()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+
+        // Seed messages in database: 2 older messages and 1 newer message
+        var now = DateTimeOffset.UtcNow;
+        var olderMsg1 = new ChatMessage
+        {
+            Id = "old_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Oldest message 1",
+            Timestamp = now.AddMinutes(-30),
+            Direction = MessageDirection.Inbound
+        };
+        var olderMsg2 = new ChatMessage
+        {
+            Id = "old_2",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = account,
+            Body = "Older message 2 (outbound)",
+            Timestamp = now.AddMinutes(-20),
+            Direction = MessageDirection.Outbound
+        };
+        var latestMsg = new ChatMessage
+        {
+            Id = "latest_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "Latest message",
+            Timestamp = now.AddMinutes(-5),
+            Direction = MessageDirection.Inbound
+        };
+
+        await _messageRepo.SaveMessageAsync(olderMsg1);
+        await _messageRepo.SaveMessageAsync(olderMsg2);
+        await _messageRepo.SaveMessageAsync(latestMsg);
+
+        var conv = new ChatConversationViewModel(
+            account,
+            remote.ToString(),
+            "Peer",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            client: null);
+
+        // Initially initialize Messages with latest message
+        conv.AddOrUpdateMessage(latestMsg);
+        Assert.Equal("Latest message", conv.LastMessageSnippet);
+        Assert.Single(conv.Messages);
+
+        var eventsList = new System.Collections.Generic.List<string>();
+        conv.OlderHistoryLoading += () => eventsList.Add("Loading");
+        conv.OlderHistoryLoaded += () => eventsList.Add("Loaded");
+
+        var scrollTriggered = false;
+        conv.ScrollToBottomRequested += () => scrollTriggered = true;
+
+        await conv.LoadOlderHistoryAsync();
+
+        // Older history events must fire in sequence: Loading -> Loaded
+        Assert.Equal(new[] { "Loading", "Loaded" }, eventsList);
+
+        // Prepending older history (even with outbound messages) must NOT trigger ScrollToBottomRequested
+        Assert.False(scrollTriggered);
+
+        // All 3 messages should now be present in chronological order
+        Assert.Equal(3, conv.Messages.Count);
+        Assert.Equal("Oldest message 1", conv.Messages[0].Body);
+        Assert.Equal("Older message 2 (outbound)", conv.Messages[1].Body);
+        Assert.Equal("Latest message", conv.Messages[2].Body);
+
+        // LastMessageSnippet must NOT be overwritten by prepended older messages!
+        Assert.Equal("Latest message", conv.LastMessageSnippet);
     }
 
     [Theory]
@@ -2824,6 +2907,105 @@ public class ViewModelTests : IDisposable
 
         Assert.Equal("away", mainVm.UserPresence);
         Assert.Equal("Updated from desktop", mainVm.StatusMessage);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_Conversation_PresenceShow_UpdatesWhenAvatarCached()
+    {
+        var account = "alice@mock.example.com";
+        var contactJid = "bob@mock.example.com";
+
+        // 1. Seed contact in roster
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Bob", Subscription = "both" }
+        ]);
+
+        // 2. Seed cached avatar for contact in SQLite
+        var avatarRepo = new AvatarRepository(_dbContext);
+        await avatarRepo.SaveAvatarAsync(contactJid, "hash123", "image/png", SamplePngBytes);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        // 3. Bob comes online
+        var presOnline = new PresenceStanza(from: Jid.Parse($"{contactJid}/desktop"));
+        await server.InjectStanzaAsync(presOnline);
+
+        var bob = mainVm.Contacts.First(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        for (int i = 0; i < 20 && bob.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", bob.PresenceShow);
+
+        // 4. Verify conversation exists and has PresenceShow == "available" despite cached avatar
+        var conv = mainVm.Conversations.FirstOrDefault(c => c.RemoteJid.ToString().Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(conv);
+        Assert.Equal("available", conv.PresenceShow);
+        Assert.True(conv.IsOnline);
+        Assert.Equal("Online", conv.PresenceStatusText);
+
+        // 5. Select contact and verify ActiveConversation has PresenceShow == "available"
+        await mainVm.SelectContactAsync(bob);
+        Assert.NotNull(mainVm.ActiveConversation);
+        Assert.Equal("available", mainVm.ActiveConversation.PresenceShow);
+        Assert.True(mainVm.ActiveConversation.IsOnline);
+        Assert.Equal("Online", mainVm.ActiveConversation.PresenceStatusText);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_IncomingPresence_WithTypeAvailable_UpdatesPresence()
+    {
+        var account = "alice@mock.example.com";
+        var contactJid = "carol@mock.example.com";
+
+        var rosterRepo = new RosterRepository(_dbContext);
+        await rosterRepo.UpsertContactsAsync([
+            new RosterContact { AccountJid = account, ContactJid = contactJid, Name = "Carol", Subscription = "both" }
+        ]);
+
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        var carol = mainVm.Contacts.First(c => c.ContactJid.Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("offline", carol.PresenceShow);
+
+        // Presence with explicit type="available" (some servers/gateways send this)
+        var presOnline = new PresenceStanza(type: "available", from: Jid.Parse($"{contactJid}/resource"));
+        await server.InjectStanzaAsync(presOnline);
+
+        for (int i = 0; i < 20 && carol.PresenceShow != "available"; i++) await Task.Delay(25);
+        Assert.Equal("available", carol.PresenceShow);
+
+        var conv = mainVm.Conversations.FirstOrDefault(c => c.RemoteJid.ToString().Equals(contactJid, StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(conv);
+        Assert.Equal("available", conv.PresenceShow);
 
         await client.DisconnectAsync();
     }
