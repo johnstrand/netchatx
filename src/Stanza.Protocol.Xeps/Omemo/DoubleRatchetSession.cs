@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Stanza.Protocol.Xeps.Omemo;
@@ -8,36 +8,55 @@ public sealed class DoubleRatchetSession
     private static readonly byte[] RootKdfInfo = "StanzaOmemoRoot"u8.ToArray();
     private static readonly byte[] ChainKdfInfo = "StanzaOmemoChain"u8.ToArray();
 
-    public byte[] RootKey { get; private set; }
+    private byte[] _rootKey;
+    private byte[]? _sendingChainKey;
+    private byte[]? _receivingChainKey;
+
+    public byte[] RootKey => _rootKey;
     public KeyPairData DHPair { get; private set; }
     public byte[]? RemoteDHPublicKey { get; private set; }
 
-    public byte[]? SendingChainKey { get; private set; }
-    public byte[]? ReceivingChainKey { get; private set; }
+    public byte[]? SendingChainKey => _sendingChainKey;
+    public byte[]? ReceivingChainKey => _receivingChainKey;
 
     public uint Ns { get; private set; } // Send message number
     public uint Nr { get; private set; } // Receive message number
 
     public DoubleRatchetSession(byte[] rootKey, KeyPairData? localDHPair = null, byte[]? remoteDHPublicKey = null, bool isInitiator = true)
     {
-        RootKey = rootKey;
+        _rootKey = (byte[])rootKey.Clone();
         DHPair = localDHPair ?? OmemoCrypto.GenerateX25519KeyPair();
         RemoteDHPublicKey = remoteDHPublicKey;
 
         if (isInitiator && remoteDHPublicKey is not null)
         {
             var dhSecret = OmemoCrypto.CalculateSharedSecret(DHPair.PrivateKey, remoteDHPublicKey);
-            var (newRoot, sendChain) = KdfRk(RootKey, dhSecret);
-            RootKey = newRoot;
-            SendingChainKey = sendChain;
+            var (newRoot, sendChain) = KdfRk(_rootKey, dhSecret);
+            ZeroAndReplace(ref _rootKey, newRoot);
+            ZeroAndReplaceNullable(ref _sendingChainKey, sendChain);
         }
         else if (!isInitiator && remoteDHPublicKey is not null)
         {
             var dhSecret = OmemoCrypto.CalculateSharedSecret(DHPair.PrivateKey, remoteDHPublicKey);
-            var (newRoot, recvChain) = KdfRk(RootKey, dhSecret);
-            RootKey = newRoot;
-            ReceivingChainKey = recvChain;
+            var (newRoot, recvChain) = KdfRk(_rootKey, dhSecret);
+            ZeroAndReplace(ref _rootKey, newRoot);
+            ZeroAndReplaceNullable(ref _receivingChainKey, recvChain);
         }
+    }
+
+    private static void ZeroAndReplace(ref byte[] target, byte[] newValue)
+    {
+        CryptographicOperations.ZeroMemory(target);
+        target = newValue;
+    }
+
+    private static void ZeroAndReplaceNullable(ref byte[]? target, byte[]? newValue)
+    {
+        if (target is not null)
+        {
+            CryptographicOperations.ZeroMemory(target);
+        }
+        target = newValue;
     }
 
     public (byte[] Key, byte[] Iv, byte[] EphemeralPublicKey, uint MessageNumber) RatchetEncrypt()
@@ -49,17 +68,19 @@ public sealed class DoubleRatchetSession
 
             DHPair = OmemoCrypto.GenerateX25519KeyPair();
             var dhSecret = OmemoCrypto.CalculateSharedSecret(DHPair.PrivateKey, RemoteDHPublicKey);
-            var (newRoot, sendChain) = KdfRk(RootKey, dhSecret);
-            RootKey = newRoot;
-            SendingChainKey = sendChain;
+            var (newRoot, sendChain) = KdfRk(_rootKey, dhSecret);
+            ZeroAndReplace(ref _rootKey, newRoot);
+            ZeroAndReplaceNullable(ref _sendingChainKey, sendChain);
             Ns = 0;
         }
 
-        var (nextChainKey, messageKey) = KdfCk(SendingChainKey);
-        SendingChainKey = nextChainKey;
+        var (nextChainKey, messageKey) = KdfCk(SendingChainKey!);
+        ZeroAndReplaceNullable(ref _sendingChainKey, nextChainKey);
 
         var iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
         var key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
+        
+        CryptographicOperations.ZeroMemory(messageKey);
 
         var num = Ns++;
         return (key, iv, DHPair.PublicKey, num);
@@ -71,17 +92,17 @@ public sealed class DoubleRatchetSession
         {
             RemoteDHPublicKey = remoteEphemeralPublicKey;
             var dhSecret = OmemoCrypto.CalculateSharedSecret(DHPair.PrivateKey, RemoteDHPublicKey);
-            var (newRoot, recvChain) = KdfRk(RootKey, dhSecret);
-            RootKey = newRoot;
-            ReceivingChainKey = recvChain;
+            var (newRoot, recvChain) = KdfRk(_rootKey, dhSecret);
+            ZeroAndReplace(ref _rootKey, newRoot);
+            ZeroAndReplaceNullable(ref _receivingChainKey, recvChain);
             Nr = 0;
 
             // Prepare next DH pair for return transmissions
             DHPair = OmemoCrypto.GenerateX25519KeyPair();
             var sendDhSecret = OmemoCrypto.CalculateSharedSecret(DHPair.PrivateKey, RemoteDHPublicKey);
-            var (sendRoot, sendChain) = KdfRk(RootKey, sendDhSecret);
-            RootKey = sendRoot;
-            SendingChainKey = sendChain;
+            var (sendRoot, sendChain) = KdfRk(_rootKey, sendDhSecret);
+            ZeroAndReplace(ref _rootKey, sendRoot);
+            ZeroAndReplaceNullable(ref _sendingChainKey, sendChain);
             Ns = 0;
         }
 
@@ -89,11 +110,13 @@ public sealed class DoubleRatchetSession
             throw new InvalidOperationException("Receiving chain key not initialized.");
 
         var (nextChainKey, messageKey) = KdfCk(ReceivingChainKey);
-        ReceivingChainKey = nextChainKey;
+        ZeroAndReplaceNullable(ref _receivingChainKey, nextChainKey);
         Nr++;
 
         var iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
         var key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
+
+        CryptographicOperations.ZeroMemory(messageKey);
 
         return (key, iv);
     }
@@ -105,6 +128,8 @@ public sealed class DoubleRatchetSession
         var newChain = new byte[32];
         Buffer.BlockCopy(derived, 0, newRoot, 0, 32);
         Buffer.BlockCopy(derived, 32, newChain, 0, 32);
+        CryptographicOperations.ZeroMemory(derived);
+        CryptographicOperations.ZeroMemory(dhOut);
         return (newRoot, newChain);
     }
 
@@ -115,6 +140,7 @@ public sealed class DoubleRatchetSession
         var messageKey = new byte[32];
         Buffer.BlockCopy(derived, 0, nextChain, 0, 32);
         Buffer.BlockCopy(derived, 32, messageKey, 0, 32);
+        CryptographicOperations.ZeroMemory(derived);
         return (nextChain, messageKey);
     }
 }
