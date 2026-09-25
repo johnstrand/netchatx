@@ -19,6 +19,7 @@ namespace Stanza.Gui.Tests;
 
 public class ViewModelTests : IDisposable
 {
+    private static readonly byte[] SamplePngBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
     private readonly string _dbPath;
     private readonly DatabaseContext _dbContext;
     private readonly MessageRepository _messageRepo;
@@ -2842,8 +2843,7 @@ public class ViewModelTests : IDisposable
 
         // 2. Seed cached avatar for contact in SQLite
         var avatarRepo = new AvatarRepository(_dbContext);
-        var dummyPng = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
-        await avatarRepo.SaveAvatarAsync(contactJid, "hash123", "image/png", dummyPng);
+        await avatarRepo.SaveAvatarAsync(contactJid, "hash123", "image/png", SamplePngBytes);
 
         var transport = new LoopbackTransport();
         await using var server = new MockXmppServer(transport);

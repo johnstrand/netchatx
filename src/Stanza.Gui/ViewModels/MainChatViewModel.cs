@@ -1332,6 +1332,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         if (!Jid.TryParse(contact.ContactJid, out var jid)) return;
 
         contact.UnreadCount = 0;
+        ApplyPresenceToContact(contact);
         var conv = GetOrCreateConversation(jid.BareJid.ToString(), contact.DisplayName, jid.BareJid, isGroupChat: false);
         conv.PresenceShow = contact.PresenceShow;
         ActiveConversation = conv;
