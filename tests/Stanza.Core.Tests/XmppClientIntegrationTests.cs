@@ -168,7 +168,7 @@ public class XmppClientIntegrationTests
         using var tcp = new System.Net.Sockets.TcpClient();
         try
         {
-            await tcp.ConnectAsync("127.0.0.1", 5222);
+            await tcp.ConnectAsync("127.0.0.1", 5222).WaitAsync(TimeSpan.FromMilliseconds(500));
         }
         catch
         {
@@ -186,8 +186,9 @@ public class XmppClientIntegrationTests
             AllowUntrustedCertificates = true
         };
 
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await using var client = new XmppClient(options);
-        await client.ConnectAsync();
+        await client.ConnectAsync(cts.Token);
 
         Assert.True(client.IsConnected);
         Assert.Equal("usera", client.BoundJid.LocalPart);

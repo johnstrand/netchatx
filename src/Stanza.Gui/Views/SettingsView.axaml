@@ -438,7 +438,7 @@
                                     </Grid>
 
                                     <!-- Emoticon Snippet Mappings -->
-                                    <StackPanel Spacing="8" IsVisible="{Binding AutoReplaceEmoticons}">
+                                    <StackPanel Spacing="8">
                                         <Separator Background="#1E293B" Height="1" />
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Grid.Column="0" Text="Emoticon Mappings &amp; Custom Snippets" FontSize="11.5" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
