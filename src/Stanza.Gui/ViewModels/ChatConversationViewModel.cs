@@ -1952,6 +1952,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         {
             Messages.Remove(message);
             UpdateDateHeaders();
+            UpdateLastMessageSnippetAndTime();
         }
 
         PostToUi(RemoveFromList);
@@ -1966,6 +1967,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             if (targetBubble is not null)
             {
                 targetBubble.UpdateMessageContent(originalId, newBody, newRawXml);
+                UpdateLastMessageSnippetAndTime();
             }
         }
 
@@ -1993,6 +1995,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     Messages.Remove(targetBubble);
                 }
                 UpdateDateHeaders();
+                UpdateLastMessageSnippetAndTime();
             }
         }
 
@@ -2085,29 +2088,67 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (msg is not null)
         {
-            var snippet = msg.Body;
-            if (msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase))
-            {
-                var action = msg.Body.Length > 4 ? msg.Body[4..].Trim() : string.Empty;
-                snippet = $"* {GetSenderDisplayName(msg)} {action}";
-            }
-            LastMessageSnippet = snippet;
-            var local = msg.Timestamp.ToLocalTime();
-            LastMessageTime = local.Date == DateTime.Today
-                ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
-                : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
+            UpdateSnippet(msg.Body, msg.Direction, msg.SenderJid, msg.Timestamp);
         }
         else
         {
             var last = Messages.LastOrDefault();
             if (last is not null)
             {
-                LastMessageSnippet = !string.IsNullOrWhiteSpace(last.DisplayText) ? last.DisplayText : (last.HasImage ? "📷 Image" : last.Body);
-                var local = (last.LatestTimestamp != default ? last.LatestTimestamp : last.Timestamp).ToLocalTime();
-                LastMessageTime = local.Date == DateTime.Today
-                    ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
-                    : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
+                var body = !string.IsNullOrWhiteSpace(last.DisplayText) ? last.DisplayText : (last.HasImage ? "📷 Image" : last.Body);
+                var ts = last.LatestTimestamp != default ? last.LatestTimestamp : last.Timestamp;
+                var dir = last.IsOutbound ? MessageDirection.Outbound : MessageDirection.Inbound;
+                var senderJid = last.MergedMessages.LastOrDefault()?.SenderJid ?? (last.IsOutbound ? _accountJid : RemoteJid.ToString());
+                UpdateSnippet(body, dir, senderJid, ts);
             }
+            else
+            {
+                LastMessageSnippet = string.Empty;
+                LastMessageTime = string.Empty;
+            }
+        }
+    }
+
+    public void UpdateSnippet(string? rawBody, MessageDirection? direction, string? senderJid, DateTimeOffset? timestamp)
+    {
+        if (string.IsNullOrWhiteSpace(rawBody))
+        {
+            LastMessageSnippet = string.Empty;
+            LastMessageTime = string.Empty;
+            return;
+        }
+
+        var isImage = MessageBubbleViewModel.ImageUrlRegex.IsMatch(rawBody);
+        var bodyText = isImage && string.IsNullOrWhiteSpace(MessageBubbleViewModel.ImageUrlRegex.Replace(rawBody, string.Empty).Trim())
+            ? "📷 Image"
+            : rawBody;
+
+        if (bodyText.StartsWith("/me ", StringComparison.OrdinalIgnoreCase))
+        {
+            var action = bodyText.Length > 4 ? bodyText[4..].Trim() : string.Empty;
+            var senderName = direction == MessageDirection.Outbound ? "You" : GetSenderDisplayName(senderJid ?? string.Empty, direction ?? MessageDirection.Inbound);
+            LastMessageSnippet = $"* {senderName} {action}";
+        }
+        else if (direction == MessageDirection.Outbound)
+        {
+            LastMessageSnippet = $"You: {bodyText}";
+        }
+        else if (IsGroupChat)
+        {
+            var senderName = GetSenderDisplayName(senderJid ?? string.Empty, MessageDirection.Inbound);
+            LastMessageSnippet = $"{senderName}: {bodyText}";
+        }
+        else
+        {
+            LastMessageSnippet = bodyText;
+        }
+
+        if (timestamp.HasValue && timestamp.Value != default)
+        {
+            var local = timestamp.Value.ToLocalTime();
+            LastMessageTime = local.Date == DateTime.Today
+                ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
+                : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
         }
     }
 

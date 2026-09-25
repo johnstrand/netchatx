@@ -2912,6 +2912,166 @@ public class ViewModelTests : IDisposable
     }
 
     [Fact]
+    public void ChatConversationViewModel_UpdateSnippet_FormatsOutboundWithYouPrefix()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+        var conv = new ChatConversationViewModel(account, remote.ToString(), "Peer", remote, false, _messageRepo);
+
+        conv.UpdateSnippet("Hello world", MessageDirection.Outbound, account, DateTimeOffset.UtcNow);
+
+        Assert.Equal("You: Hello world", conv.LastMessageSnippet);
+        Assert.False(string.IsNullOrEmpty(conv.LastMessageTime));
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_UpdateSnippet_FormatsInboundGroupChatWithSenderPrefix()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("room@conference.test.org");
+        var conv = new ChatConversationViewModel(account, remote.ToString(), "Room", remote, isGroupChat: true, _messageRepo);
+
+        conv.UpdateSnippet("Hello team", MessageDirection.Inbound, "room@conference.test.org/Alice", DateTimeOffset.UtcNow);
+
+        Assert.Equal("Alice: Hello team", conv.LastMessageSnippet);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_UpdateSnippet_FormatsInbound1to1WithoutSenderPrefix()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+        var conv = new ChatConversationViewModel(account, remote.ToString(), "Peer", remote, false, _messageRepo);
+
+        conv.UpdateSnippet("Hey how are you?", MessageDirection.Inbound, "peer@test.org", DateTimeOffset.UtcNow);
+
+        Assert.Equal("Hey how are you?", conv.LastMessageSnippet);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_UpdateSnippet_FormatsImageAttachments()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+        var conv = new ChatConversationViewModel(account, remote.ToString(), "Peer", remote, false, _messageRepo);
+
+        conv.UpdateSnippet("https://example.com/photo.png", MessageDirection.Outbound, account, DateTimeOffset.UtcNow);
+        Assert.Equal("You: 📷 Image", conv.LastMessageSnippet);
+
+        conv.UpdateSnippet("https://example.com/photo.jpg", MessageDirection.Inbound, "peer@test.org", DateTimeOffset.UtcNow);
+        Assert.Equal("📷 Image", conv.LastMessageSnippet);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_UpdateSnippet_FormatsActionMessages()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+        var conv = new ChatConversationViewModel(account, remote.ToString(), "Peer", remote, false, _messageRepo);
+
+        conv.UpdateSnippet("/me waves", MessageDirection.Outbound, account, DateTimeOffset.UtcNow);
+        Assert.Equal("* You waves", conv.LastMessageSnippet);
+
+        conv.UpdateSnippet("/me dances", MessageDirection.Inbound, "peer@test.org", DateTimeOffset.UtcNow);
+        Assert.Equal("* Peer dances", conv.LastMessageSnippet);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_CorrectionAndRetraction_UpdatesSnippet()
+    {
+        var account = "user@test.org";
+        var remote = Jid.Parse("peer@test.org");
+        var conv = new ChatConversationViewModel(account, remote.ToString(), "Peer", remote, false, _messageRepo);
+
+        var msg1 = new ChatMessage
+        {
+            Id = "msg_1",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = remote.ToString(),
+            Body = "First message",
+            Direction = MessageDirection.Inbound,
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-5),
+            StanzaId = "s1"
+        };
+        var msg2 = new ChatMessage
+        {
+            Id = "msg_2",
+            AccountJid = account,
+            RemoteJid = remote.ToString(),
+            SenderJid = account,
+            Body = "Second message",
+            Direction = MessageDirection.Outbound,
+            Timestamp = DateTimeOffset.UtcNow,
+            StanzaId = "s2"
+        };
+
+        conv.ReceiveMessage(msg1);
+        Assert.Equal("First message", conv.LastMessageSnippet);
+
+        conv.ReceiveMessage(msg2);
+        Assert.Equal("You: Second message", conv.LastMessageSnippet);
+
+        // Edit second message
+        conv.HandleIncomingCorrection("s2", "Second message corrected", "<xml/>");
+        Assert.Equal("You: Second message corrected", conv.LastMessageSnippet);
+
+        // Retract second message -> snippet reverts to first message
+        conv.HandleIncomingRetraction("s2");
+        Assert.Equal("First message", conv.LastMessageSnippet);
+
+        // Retract first message -> snippet becomes empty
+        conv.HandleIncomingRetraction("s1");
+        Assert.Equal(string.Empty, conv.LastMessageSnippet);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_StartupSummaries_PopulatesSnippetAndTimeOnConversationsAndContacts()
+    {
+        var account = "user@test.org";
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(account),
+            Resource = "desktop",
+            Password = "password123"
+        }, transport);
+
+        await client.ConnectAsync();
+
+        // Seed messages in repository
+        var remoteJid = "peer@test.org";
+        var outboundMsg = new ChatMessage
+        {
+            Id = "m_seed_1",
+            AccountJid = account,
+            RemoteJid = remoteJid,
+            SenderJid = account,
+            Body = "Hello from yesterday",
+            Direction = MessageDirection.Outbound,
+            Timestamp = DateTimeOffset.UtcNow.AddDays(-1)
+        };
+        await _messageRepo.SaveMessageAsync(outboundMsg);
+
+        var mainVm = new MainChatViewModel(client, _dbContext, () => Task.CompletedTask);
+        await mainVm.InitializeAsync();
+
+        // Check contact preview
+        var contact = Assert.Single(mainVm.Contacts, c => c.ContactJid == remoteJid);
+        Assert.Equal("You: Hello from yesterday", contact.LastMessagePreview);
+
+        // Check conversation snippet and time
+        var conv = Assert.Single(mainVm.Conversations, c => c.RemoteJid.ToString() == remoteJid);
+        Assert.Equal("You: Hello from yesterday", conv.LastMessageSnippet);
+        Assert.Equal("Yesterday", conv.LastMessageTime);
+
+        await client.DisconnectAsync();
+    }
+
+    [Fact]
     public async Task MainChatViewModel_Conversation_PresenceShow_UpdatesWhenAvatarCached()
     {
         var account = "alice@mock.example.com";
