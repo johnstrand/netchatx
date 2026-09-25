@@ -540,6 +540,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
             onBubbleColorChanged: (outColor, inColor) =>
             {
                 DirectionToBackgroundConverter.SetColors(outColor, inColor);
+                if (Settings is not null)
+                {
+                    DirectionToForegroundConverter.SetColors(Settings.OutboundBubbleTextColor, Settings.InboundBubbleTextColor);
+                }
                 foreach (var conv in Conversations)
                 {
                     foreach (var msg in conv.Messages)
@@ -790,6 +794,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             MessageBubbleViewModel.ShowInlinePreviews = Settings.ShowInlinePreviews;
             MessageBubbleViewModel.AutoDownloadMedia = Settings.AutoDownloadMedia;
             DirectionToBackgroundConverter.SetColors(Settings.OutboundBubbleColor, Settings.InboundBubbleColor);
+            DirectionToForegroundConverter.SetColors(Settings.OutboundBubbleTextColor, Settings.InboundBubbleTextColor);
             foreach (var conv in Conversations)
             {
                 foreach (var msg in conv.Messages)
