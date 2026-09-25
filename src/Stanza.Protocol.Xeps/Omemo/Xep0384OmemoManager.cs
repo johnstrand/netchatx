@@ -1,6 +1,7 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
@@ -29,6 +30,7 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
     public KeyPairData IdentityKey { get; }
 
     private readonly ConcurrentDictionary<string, DoubleRatchetSession> _sessions = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _sessionLocks = new();
 
     public event Action<DecryptedOmemoMessage>? MessageDecrypted;
 
@@ -43,6 +45,11 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
         var key = publicKey ?? IdentityKey.PublicKey;
         var hash = SHA256.HashData(key);
         return BitConverter.ToString(hash).Replace("-", " ");
+    }
+
+    private SemaphoreSlim GetSessionLock(string sessionKey)
+    {
+        return _sessionLocks.GetOrAdd(sessionKey, _ => new SemaphoreSlim(1, 1));
     }
 
     public DoubleRatchetSession GetOrCreateSession(Jid remoteJid, int remoteDeviceId, byte[]? remotePublicKey = null, bool isInitiator = true)
@@ -60,49 +67,59 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
     {
         if (Client is null) throw new InvalidOperationException("Client not attached.");
 
-        var session = GetOrCreateSession(to, remoteDeviceId, remotePublicKey, isInitiator: true);
+        var sessionKey = $"{to.BareJid}:{remoteDeviceId}";
+        var sessionLock = GetSessionLock(sessionKey);
+        await sessionLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var session = GetOrCreateSession(to, remoteDeviceId, remotePublicKey, isInitiator: true);
 
-        // 1. Envelope plaintext using SCE (XEP-0420)
-        var envelope = new XmppElement("envelope", NsSce0)
-            .Child(new XmppElement("content")
-                .Child(new XmppElement("body", "jabber:client") { Value = plaintext }));
+            // 1. Envelope plaintext using SCE (XEP-0420)
+            var envelope = new XmppElement("envelope", NsSce0)
+                .Child(new XmppElement("content")
+                    .Child(new XmppElement("body", "jabber:client") { Value = plaintext }));
 
-        var envelopeBytes = Encoding.UTF8.GetBytes(envelope.ToXmlString());
+            var envelopeBytes = Encoding.UTF8.GetBytes(envelope.ToXmlString());
 
-        // 2. Generate random message encryption key + IV
-        var payloadKey = RandomNumberGenerator.GetBytes(16);
-        var payloadIv = RandomNumberGenerator.GetBytes(12);
+            // 2. Generate random message encryption key + IV
+            var payloadKey = RandomNumberGenerator.GetBytes(16);
+            var payloadIv = RandomNumberGenerator.GetBytes(12);
 
-        // 3. Encrypt envelope with AES-GCM
-        var encryptedPayload = OmemoCrypto.EncryptAesGcm(payloadKey, payloadIv, envelopeBytes);
+            // 3. Encrypt envelope with AES-GCM
+            var encryptedPayload = OmemoCrypto.EncryptAesGcm(payloadKey, payloadIv, envelopeBytes);
 
-        // 4. Encrypt payloadKey with Double Ratchet session
-        var (ratchetKey, ratchetIv, dhPub, msgNum) = session.RatchetEncrypt();
-        var encryptedPayloadKey = OmemoCrypto.EncryptAesGcm(ratchetKey, ratchetIv, payloadKey);
+            // 4. Encrypt payloadKey with Double Ratchet session
+            var (ratchetKey, ratchetIv, dhPub, msgNum) = session.RatchetEncrypt();
+            var encryptedPayloadKey = OmemoCrypto.EncryptAesGcm(ratchetKey, ratchetIv, payloadKey);
 
-        // 5. Construct OMEMO XML stanza
-        var encryptedElem = new XmppElement("encrypted", NsOmemo2);
-        var headerElem = new XmppElement("header").Attr("sid", LocalDeviceId.ToString());
+            // 5. Construct OMEMO XML stanza
+            var encryptedElem = new XmppElement("encrypted", NsOmemo2);
+            var headerElem = new XmppElement("header").Attr("sid", LocalDeviceId.ToString());
 
-        var keysElem = new XmppElement("keys").Attr("jid", to.BareJid.ToString());
-        var keyElem = new XmppElement("key")
-            .Attr("rid", remoteDeviceId.ToString())
-            .Attr("kex", "false");
-        keyElem.Value = Convert.ToBase64String(encryptedPayloadKey);
-        keysElem.Child(keyElem);
+            var keysElem = new XmppElement("keys").Attr("jid", to.BareJid.ToString());
+            var keyElem = new XmppElement("key")
+                .Attr("rid", remoteDeviceId.ToString())
+                .Attr("kex", "false");
+            keyElem.Value = Convert.ToBase64String(encryptedPayloadKey);
+            keysElem.Child(keyElem);
 
-        headerElem.Child(keysElem);
-        headerElem.Child(new XmppElement("iv") { Value = Convert.ToBase64String(payloadIv) });
-        headerElem.Child(new XmppElement("dh") { Value = Convert.ToBase64String(dhPub) });
+            headerElem.Child(keysElem);
+            headerElem.Child(new XmppElement("iv") { Value = Convert.ToBase64String(payloadIv) });
+            headerElem.Child(new XmppElement("dh") { Value = Convert.ToBase64String(dhPub) });
 
-        encryptedElem.Child(headerElem);
-        encryptedElem.Child(new XmppElement("payload") { Value = Convert.ToBase64String(encryptedPayload) });
+            encryptedElem.Child(headerElem);
+            encryptedElem.Child(new XmppElement("payload") { Value = Convert.ToBase64String(encryptedPayload) });
 
-        var msg = new MessageStanza(to: to, type: MessageStanza.TypeChat);
-        msg.Body = "I sent you an OMEMO encrypted message."; // Fallback body
-        msg.RawElement.Child(encryptedElem);
+            var msg = new MessageStanza(to: to, type: MessageStanza.TypeChat);
+            msg.Body = "I sent you an OMEMO encrypted message."; // Fallback body
+            msg.RawElement.Child(encryptedElem);
 
-        return msg;
+            return msg;
+        }
+        finally
+        {
+            sessionLock.Release();
+        }
     }
 
     public override ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)
@@ -150,26 +167,36 @@ public sealed class Xep0384OmemoManager : XepFeatureBase
                                         var payloadIv = Convert.FromBase64String(header.Element("iv")?.Value ?? "");
                                         var dhPub = Convert.FromBase64String(header.Element("dh")?.Value ?? "");
 
-                                        var session = GetOrCreateSession(fromJid.BareJid, senderDeviceId, dhPub, isInitiator: false);
-                                        var (rKey, rIv) = session.RatchetDecrypt(dhPub, 0);
-
-                                        var payloadKey = OmemoCrypto.DecryptAesGcm(rKey, rIv, encPayloadKey);
-                                        var encPayload = Convert.FromBase64String(payloadB64);
-                                        var envelopeBytes = OmemoCrypto.DecryptAesGcm(payloadKey, payloadIv, encPayload);
-
-                                        var envelopeXml = Encoding.UTF8.GetString(envelopeBytes);
-                                        var envelope = XmppElement.Parse(envelopeXml);
-                                        var body = envelope.Element("content")?.Element("body")?.Value;
-
-                                        if (!string.IsNullOrEmpty(body))
+                                        var lockKey = $"{fromJid.BareJid}:{senderDeviceId}";
+                                        var sLock = GetSessionLock(lockKey);
+                                        sLock.Wait(cancellationToken);
+                                        try
                                         {
-                                            MessageDecrypted?.Invoke(new DecryptedOmemoMessage
+                                            var session = GetOrCreateSession(fromJid.BareJid, senderDeviceId, dhPub, isInitiator: false);
+                                            var (rKey, rIv) = session.RatchetDecrypt(dhPub, 0);
+
+                                            var payloadKey = OmemoCrypto.DecryptAesGcm(rKey, rIv, encPayloadKey);
+                                            var encPayload = Convert.FromBase64String(payloadB64);
+                                            var envelopeBytes = OmemoCrypto.DecryptAesGcm(payloadKey, payloadIv, encPayload);
+
+                                            var envelopeXml = Encoding.UTF8.GetString(envelopeBytes);
+                                            var envelope = XmppElement.Parse(envelopeXml);
+                                            var body = envelope.Element("content")?.Element("body")?.Value;
+
+                                            if (!string.IsNullOrEmpty(body))
                                             {
-                                                OriginalStanza = new MessageStanza(element),
-                                                PlaintextBody = body,
-                                                SenderDeviceId = senderDeviceId,
-                                                SenderJid = fromJid
-                                            });
+                                                MessageDecrypted?.Invoke(new DecryptedOmemoMessage
+                                                {
+                                                    OriginalStanza = new MessageStanza(element),
+                                                    PlaintextBody = body,
+                                                    SenderDeviceId = senderDeviceId,
+                                                    SenderJid = fromJid
+                                                });
+                                            }
+                                        }
+                                        finally
+                                        {
+                                            sLock.Release();
                                         }
                                     }
                                 }
