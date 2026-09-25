@@ -31,6 +31,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<int>? _onChatInputMaxLinesChanged;
     private readonly Action<string>? _onCloseActionChanged;
     private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
+    private readonly Action<bool>? _onEvaluateExpressionsChanged;
     private readonly Func<byte[], string, Task>? _onAvatarChanged;
     private readonly Func<Task>? _onAvatarRemoved;
     private readonly Func<Task>? _onAvatarSyncRequested;
@@ -145,6 +146,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _autoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
 
+    // --- Expression Evaluation ---
+    [ObservableProperty]
+    private bool _evaluateExpressions = SettingsRepository.DefaultEvaluateExpressions;
+
     [ObservableProperty]
     private ObservableCollection<EmoticonMapping> _emoticonMappings = new(SettingsRepository.DefaultEmoticonMappings);
 
@@ -243,6 +248,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<int>? onChatInputMaxLinesChanged = null,
         Action<string>? onCloseActionChanged = null,
         Action<bool, IReadOnlyList<EmoticonMapping>>? onEmoticonSettingsChanged = null,
+        Action<bool>? onEvaluateExpressionsChanged = null,
         IStartupService? startupService = null,
         Func<byte[], string, Task>? onAvatarChanged = null,
         Func<Task>? onAvatarRemoved = null,
@@ -264,6 +270,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onChatInputMaxLinesChanged = onChatInputMaxLinesChanged;
         _onCloseActionChanged = onCloseActionChanged;
         _onEmoticonSettingsChanged = onEmoticonSettingsChanged;
+        _onEvaluateExpressionsChanged = onEvaluateExpressionsChanged;
         _onAvatarChanged = onAvatarChanged;
         _onAvatarRemoved = onAvatarRemoved;
         _onAvatarSyncRequested = onAvatarSyncRequested;
@@ -334,6 +341,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
             MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
             AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
+            EvaluateExpressions = await _settingsRepo.GetEvaluateExpressionsAsync(_accountJid);
 
             var mappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
             EmoticonMappings.Clear();
@@ -422,6 +430,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetAutoReplaceEmoticonsAsync(_accountJid, value);
             _onEmoticonSettingsChanged?.Invoke(value, EmoticonMappings.ToList());
+        }
+    }
+
+    partial void OnEvaluateExpressionsChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetEvaluateExpressionsAsync(_accountJid, value);
+            _onEvaluateExpressionsChanged?.Invoke(value);
         }
     }
 
@@ -815,6 +832,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         EnableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
         MessageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
         AutoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
+        EvaluateExpressions = SettingsRepository.DefaultEvaluateExpressions;
 
         EmoticonMappings.Clear();
         foreach (var m in SettingsRepository.DefaultEmoticonMappings)
@@ -850,6 +868,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetMergeMessagesEnabledAsync(_accountJid, EnableMessageMerging);
         await _settingsRepo.SetMergeMessagesThresholdSecondsAsync(_accountJid, MessageMergeThresholdSeconds);
         await _settingsRepo.SetAutoReplaceEmoticonsAsync(_accountJid, AutoReplaceEmoticons);
+        await _settingsRepo.SetEvaluateExpressionsAsync(_accountJid, EvaluateExpressions);
         await _settingsRepo.SetEmoticonMappingsAsync(_accountJid, EmoticonMappings);
         await _settingsRepo.SetFontFamilyAsync(_accountJid, FontFamily);
         await _settingsRepo.SetFontSizeAsync(_accountJid, FontSize);
@@ -870,6 +889,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         _onBubbleMergeChanged?.Invoke(EnableMessageMerging, MessageMergeThresholdSeconds);
         _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
+        _onEvaluateExpressionsChanged?.Invoke(EvaluateExpressions);
         _onPopupsChanged?.Invoke(NotificationPopupsEnabled);
         _onFlashingChanged?.Invoke(IconFlashingEnabled);
         _onTypographyChanged?.Invoke(EffectiveFontFamily, FontSize);

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text;
 using System.Xml;
 
@@ -213,16 +213,15 @@ public sealed class XmppElement
         }
     }
 
-    private static readonly XmlParserContext DefaultContext;
 
-    static XmppElement()
+    public static XmlParserContext CreateDefaultContext()
     {
         var nt = new NameTable();
         var nsmgr = new XmlNamespaceManager(nt);
         nsmgr.AddNamespace("stream", "http://etherx.jabber.org/streams");
         nsmgr.AddNamespace(string.Empty, "jabber:client");
         nsmgr.AddNamespace("xml", "http://www.w3.org/XML/1998/namespace");
-        DefaultContext = new XmlParserContext(nt, nsmgr, null, XmlSpace.None);
+        return new XmlParserContext(nt, nsmgr, null, XmlSpace.None);
     }
 
     public static XmppElement Parse(string xml, XmlParserContext? context = null)
@@ -236,7 +235,7 @@ public sealed class XmppElement
         };
 
         using var stringReader = new StringReader(xml);
-        using var reader = XmlReader.Create(stringReader, settings, context ?? DefaultContext);
+        using var reader = XmlReader.Create(stringReader, settings, context ?? CreateDefaultContext());
 
         while (reader.Read())
         {

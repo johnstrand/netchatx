@@ -1033,6 +1033,31 @@
                         </Grid>
                     </Border>
 
+                    <!-- Expression Live Preview Banner -->
+                    <Border Background="#131C2D"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12,6"
+                            Margin="8,0,8,6"
+                            IsVisible="{Binding ActiveConversation.IsExpressionPreviewVisible}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="💡 Preview: " FontWeight="SemiBold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding ActiveConversation.ExpressionPreviewText}"
+                                       Foreground="#E2E8F0" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1"
+                                       VerticalAlignment="Center" Margin="4,0" />
+                            <Button Grid.Column="2"
+                                    Content="Apply"
+                                    ToolTip.Tip="Replace input with evaluated expression"
+                                    Command="{Binding ActiveConversation.ApplyExpressionPreviewCommand}"
+                                    Classes="image-btn"
+                                    FontSize="10.5"
+                                    Foreground="#00F0FF"
+                                    Cursor="Hand"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
                     <!-- Floating Pill Container -->
                     <Border Background="#131C2D"
                             BorderBrush="#1E293B"

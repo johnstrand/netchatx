@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 
@@ -51,6 +51,7 @@ public sealed class SettingsRepository
     public const string KeyUse24HourClock = "use_24h_clock";
     public const string KeyShowInlinePreviews = "show_inline_previews";
     public const string KeyAutoDownloadMedia = "auto_download_media";
+    public const string KeyEvaluateExpressions = "chat_evaluate_expressions";
     public const string KeyThemeMode = "theme_mode";
     public const string KeyAccentColor = "accent_color";
     public const string KeyOutboundBubbleColor = "outbound_bubble_color";
@@ -64,6 +65,7 @@ public sealed class SettingsRepository
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
     public const bool DefaultAutoReplaceEmoticons = true;
+    public const bool DefaultEvaluateExpressions = true;
     public const bool DefaultEmoticonBannerDismissed = false;
     public const bool DefaultNotificationPopupsEnabled = true;
     public const bool DefaultIconFlashingEnabled = true;
@@ -325,6 +327,17 @@ public sealed class SettingsRepository
     public async Task SetAutoDownloadMediaAsync(string accountJid, bool autoDownload, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyAutoDownloadMedia, autoDownload.ToString(), cancellationToken);
+    }
+
+    public async Task<bool> GetEvaluateExpressionsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyEvaluateExpressions, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultEvaluateExpressions;
+    }
+
+    public async Task SetEvaluateExpressionsAsync(string accountJid, bool evaluateExpressions, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyEvaluateExpressions, evaluateExpressions.ToString(), cancellationToken);
     }
 
     public async Task<string> GetThemeModeAsync(string accountJid, CancellationToken cancellationToken = default)
