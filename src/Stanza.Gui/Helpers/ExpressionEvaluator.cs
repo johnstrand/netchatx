@@ -6,15 +6,15 @@ using System.Text;
 namespace Stanza.Gui.Helpers;
 
 /// <summary>
-/// Evaluates inline math expressions enclosed in $(...) within chat messages.
-/// Escaping with \$ prevents expression evaluation and renders as literal $.
+/// Evaluates inline math expressions enclosed in =(...) within chat messages.
+/// Escaping with \= prevents expression evaluation and renders as literal =.
 /// </summary>
 public static class ExpressionEvaluator
 {
     /// <summary>
-    /// Evaluates all unescaped $(...) expressions in the input text.
+    /// Evaluates all unescaped =(...) expressions in the input text.
     /// If an expression is malformed or invalid (e.g. division by zero), it is left untouched.
-    /// Escaped \$ sequences are unescaped to $.
+    /// Escaped \= sequences are unescaped to =.
     /// </summary>
     public static (string EvaluatedText, bool WasEvaluated) Evaluate(string? input)
     {
@@ -32,20 +32,20 @@ public static class ExpressionEvaluator
             // Handle backslash escapes
             if (input[i] == '\\')
             {
-                if (i + 1 < input.Length && input[i + 1] == '$')
+                if (i + 1 < input.Length && input[i + 1] == '=')
                 {
-                    // "\$" escapes "$" -> produce literal "$" and do not evaluate
-                    sb.Append('$');
+                    // "\=" escapes "=" -> produce literal "=" and do not evaluate
+                    sb.Append('=');
                     i += 2;
                     continue;
                 }
                 else if (i + 1 < input.Length && input[i + 1] == '\\')
                 {
-                    // "\\$" -> escaped backslash (literal "\") and normal "$" follows
-                    if (i + 2 < input.Length && input[i + 2] == '$')
+                    // "\\=" -> escaped backslash (literal "\") and normal "=" follows
+                    if (i + 2 < input.Length && input[i + 2] == '=')
                     {
                         sb.Append('\\');
-                        i += 2; // Position at the '$'
+                        i += 2; // Position at the '='
                         continue;
                     }
                 }
@@ -55,8 +55,8 @@ public static class ExpressionEvaluator
                 continue;
             }
 
-            // Check for start of expression "$("
-            if (input[i] == '$' && i + 1 < input.Length && input[i + 1] == '(')
+            // Check for start of expression "=("
+            if (input[i] == '=' && i + 1 < input.Length && input[i + 1] == '(')
             {
                 int startParen = i + 1;
                 int closeParen = FindMatchingCloseParen(input, startParen);
@@ -91,7 +91,7 @@ public static class ExpressionEvaluator
     public static bool TryEvaluatePreview(string? input, out string previewText)
     {
         previewText = string.Empty;
-        if (string.IsNullOrWhiteSpace(input) || !input.Contains("$("))
+        if (string.IsNullOrWhiteSpace(input) || !input.Contains("=("))
         {
             return false;
         }

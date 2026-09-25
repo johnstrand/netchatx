@@ -567,7 +567,7 @@
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
                                             <TextBlock Text="Evaluate Math Expressions" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
-                                            <TextBlock Text="Automatically evaluate math expressions like $(1+3) into 4 before sending (use \$ to escape)."
+                                            <TextBlock Text="Automatically evaluate math expressions like =(1+3) into 4 before sending (use \= to escape)."
                                                        Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
                                         </StackPanel>
                                         <ToggleSwitch Grid.Column="1"
