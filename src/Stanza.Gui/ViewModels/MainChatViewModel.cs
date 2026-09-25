@@ -567,6 +567,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     conv.UpdateEmoticonSettings(autoReplace, mappings);
                 }
             },
+            onEvaluateExpressionsChanged: evaluateExpressions =>
+            {
+                foreach (var conv in Conversations)
+                {
+                    conv.UpdateExpressionSettings(evaluateExpressions);
+                }
+            },
             onAvatarChanged: async (bytes, mime) => await SetUserAvatarFromBytesAsync(bytes, mime),
             onAvatarRemoved: async () => await RemoveUserAvatarAsync(),
             onAvatarSyncRequested: async () => await SyncOwnAvatarFromServerAsync());
@@ -1511,7 +1518,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             ensureConnected: EnsureConnectedAsync)
         {
             EnableMessageMerging = EnableMessageMerging,
-            MessageMergeThresholdSeconds = MessageMergeThresholdSeconds
+            MessageMergeThresholdSeconds = MessageMergeThresholdSeconds,
+            EvaluateExpressions = Settings.EvaluateExpressions
         };
 
         newConv.SlashCommandHandler = async result => await HandleSlashCommandAsync(newConv, result);

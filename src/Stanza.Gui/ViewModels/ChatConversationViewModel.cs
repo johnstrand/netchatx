@@ -64,6 +64,41 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     }
 
     [ObservableProperty]
+    private bool _evaluateExpressions = SettingsRepository.DefaultEvaluateExpressions;
+
+    [ObservableProperty]
+    private bool _isExpressionPreviewVisible;
+
+    [ObservableProperty]
+    private string _expressionPreviewText = string.Empty;
+
+    public void UpdateExpressionSettings(bool evaluateExpressions)
+    {
+        EvaluateExpressions = evaluateExpressions;
+        if (!evaluateExpressions)
+        {
+            IsExpressionPreviewVisible = false;
+            ExpressionPreviewText = string.Empty;
+        }
+        else if (ExpressionEvaluator.TryEvaluatePreview(InputText, out var preview))
+        {
+            ExpressionPreviewText = preview;
+            IsExpressionPreviewVisible = true;
+        }
+    }
+
+    [RelayCommand]
+    public void ApplyExpressionPreview()
+    {
+        if (!string.IsNullOrEmpty(ExpressionPreviewText))
+        {
+            InputText = ExpressionPreviewText;
+            IsExpressionPreviewVisible = false;
+            ExpressionPreviewText = string.Empty;
+        }
+    }
+
+    [ObservableProperty]
     private bool _showSlashCommandWarning;
 
     [ObservableProperty]
@@ -479,6 +514,17 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _localPauseCts?.Cancel();
         _localPauseCts = null;
 
+        if (EvaluateExpressions && ExpressionEvaluator.TryEvaluatePreview(value, out var preview))
+        {
+            ExpressionPreviewText = preview;
+            IsExpressionPreviewVisible = true;
+        }
+        else
+        {
+            IsExpressionPreviewVisible = false;
+            ExpressionPreviewText = string.Empty;
+        }
+
         if (string.IsNullOrWhiteSpace(value))
         {
             if (_lastSentLocalState == ChatState.Composing || _lastSentLocalState == ChatState.Paused)
@@ -852,6 +898,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
                     MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
                     AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
+                    EvaluateExpressions = await _settingsRepo.GetEvaluateExpressionsAsync(_accountJid);
                     _emoticonMappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
                 }
                 catch
@@ -1417,8 +1464,15 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (IsEditingMessage && !string.IsNullOrEmpty(EditingMessageId))
         {
             var newText = InputText.Trim();
+            if (EvaluateExpressions && !string.IsNullOrEmpty(newText))
+            {
+                newText = ExpressionEvaluator.EvaluateText(newText);
+            }
+
             var targetId = EditingMessageId;
             CancelEditingMessage();
+            IsExpressionPreviewVisible = false;
+            ExpressionPreviewText = string.Empty;
 
             if (string.IsNullOrWhiteSpace(newText)) return;
 
@@ -1497,7 +1551,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             }
         }
 
+        if (EvaluateExpressions && !string.IsNullOrEmpty(textToSend))
+        {
+            textToSend = ExpressionEvaluator.EvaluateText(textToSend);
+        }
+
         InputText = string.Empty;
+        IsExpressionPreviewVisible = false;
+        ExpressionPreviewText = string.Empty;
         ClearPendingImage();
         CancelReplyingMessage();
 
