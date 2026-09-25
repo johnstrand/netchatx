@@ -16,7 +16,7 @@
     </UserControl.Styles>
 
     <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-            Width="530" MaxWidth="560" MaxHeight="620" Padding="18" CornerRadius="16"
+            Width="560" Height="580" Padding="18" CornerRadius="16"
             Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
             BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
         <Grid RowDefinitions="Auto,*,Auto">
@@ -745,11 +745,16 @@
                                             <TextBlock Text="Upload a custom picture to represent you across XMPP chats (supports XEP-0084 &amp; XEP-0153)."
                                                        Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
 
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked" />
-                                                <Button Content="🔄 Sync from Server" Command="{Binding SyncAvatarCommand}" Classes="image-btn" />
-                                                <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}" Classes="icon-btn subtle" />
-                                            </StackPanel>
+                                            <WrapPanel Orientation="Horizontal">
+                                                <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked"
+                                                        Padding="12,5" FontSize="11.5" Margin="0,0,8,8" />
+                                                <Button Content="🔄 Sync from Server" Command="{Binding SyncAvatarCommand}"
+                                                        Background="#1E293B" Foreground="#94A3B8" BorderBrush="#334155" BorderThickness="1"
+                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8" />
+                                                <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}"
+                                                        Background="#1E293B" Foreground="#F43F5E" BorderBrush="#334155" BorderThickness="1"
+                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8" />
+                                            </WrapPanel>
                                         </StackPanel>
                                     </Grid>
 
