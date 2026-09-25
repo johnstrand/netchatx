@@ -237,9 +237,14 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             ? DirectionToBackgroundConverter.OutboundBrush
             : DirectionToBackgroundConverter.InboundBrush);
 
+    public IBrush BubbleForeground => Direction == MessageDirection.Outbound
+        ? DirectionToForegroundConverter.OutboundBrush
+        : DirectionToForegroundConverter.InboundBrush;
+
     public void RefreshBubbleStyle()
     {
         OnPropertyChanged(nameof(BubbleBackground));
+        OnPropertyChanged(nameof(BubbleForeground));
     }
 
     public void RefreshTimeDisplay()

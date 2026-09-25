@@ -577,7 +577,7 @@
                                                 <!-- Sender Name for group chats + Action Buttons -->
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBlock Grid.Column="0" Text="{Binding SenderDisplayName}" FontWeight="Bold" FontSize="11"
-                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                               Foreground="{Binding BubbleForeground}"
                                                                Opacity="0.85" VerticalAlignment="Center"
                                                                IsVisible="{Binding !IsActionMessage}" />
                                                     <StackPanel Grid.Column="1" Classes="bubble-actions" Orientation="Horizontal" Spacing="4">
@@ -585,7 +585,7 @@
                                                         <Button Content="😀+" ToolTip.Tip="Add reaction"
                                                                 Classes="image-btn reaction-picker-btn"
                                                                 FontSize="12" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}">
+                                                                Foreground="{Binding BubbleForeground}">
                                                             <Button.Flyout>
                                                                 <Flyout Placement="Top">
                                                                     <StackPanel Spacing="6" Width="300" DataContext="{Binding EmojiPicker}">
@@ -700,20 +700,20 @@
                                                         <Button Content="↩" Command="{Binding ReplyCommand}"
                                                                 ToolTip.Tip="Reply"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                         <Button Content="✏️" Command="{Binding EditCommand}"
                                                                 ToolTip.Tip="Edit Message"
                                                                 IsVisible="{Binding IsOutbound}"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                         <Button Content="🗑" Command="{Binding DeleteCommand}"
                                                                 ToolTip.Tip="Delete Message"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                         <Button Content="📋" Command="{Binding CopyTextCommand}"
                                                                 ToolTip.Tip="Copy Text"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                     </StackPanel>
                                                 </Grid>
 
@@ -721,7 +721,7 @@
                                                 <controls:HyperlinkTextBlock Text="{Binding DisplayText}"
                                                                              IsMarkdownEnabled="{Binding !IsUnstyled}"
                                                                              MessageDirection="{Binding Direction}"
-                                                                             Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                             Foreground="{Binding BubbleForeground}"
                                                                              FontSize="{Binding ((vm:MainChatViewModel)DataContext).ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              FontFamily="{Binding ((vm:MainChatViewModel)DataContext).ChatFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              TextWrapping="Wrap"
@@ -792,18 +792,18 @@
                                                                 ToolTip.Tip="Toggle Raw XML"
                                                                 Margin="0,0,4,0" VerticalAlignment="Center">
                                                             <TextBlock Text="&lt;/&gt;" FontSize="10" Opacity="0.8"
-                                                                       Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                       Foreground="{Binding BubbleForeground}" />
                                                         </Button>
                                                         <TextBlock Text="(edited)" FontSize="10" FontStyle="Italic"
                                                                    IsVisible="{Binding IsEdited}"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Foreground="{Binding BubbleForeground}"
                                                                    Opacity="0.75" VerticalAlignment="Center" Margin="0,0,2,0" />
                                                         <TextBlock Text="{Binding FormattedTime}" FontSize="10"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Foreground="{Binding BubbleForeground}"
                                                                    Opacity="0.75" VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
                                                                    ToolTip.Tip="{Binding ReceiptTooltip}"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Foreground="{Binding BubbleForeground}"
                                                                    Opacity="0.9" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Grid>
@@ -816,7 +816,7 @@
                                                         Margin="0,4,0,0">
                                                     <StackPanel Spacing="4">
                                                         <TextBlock Text="Raw XML" FontSize="10" FontWeight="Bold" Opacity="0.8"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                   Foreground="{Binding BubbleForeground}" />
                                                         <TextBox Text="{Binding RawXml, Mode=OneWay}"
                                                                  IsReadOnly="True"
                                                                  TextWrapping="Wrap"
@@ -826,7 +826,7 @@
                                                                  MaxHeight="180"
                                                                  Background="Transparent"
                                                                  BorderThickness="0"
-                                                                 Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                 Foreground="{Binding BubbleForeground}" />
                                                     </StackPanel>
                                                 </Border>
                                             </StackPanel>

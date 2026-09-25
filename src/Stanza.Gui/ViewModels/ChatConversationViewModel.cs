@@ -393,6 +393,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     public event Action? EditStarted;
 
     public event Action? ScrollToBottomRequested;
+    public event Action? OlderHistoryLoading;
+    public event Action? OlderHistoryLoaded;
     public event Action<ChatMessage>? MessageProcessed;
 
     public void RequestScrollToBottom()
@@ -1176,6 +1178,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             var oldestTimestamp = oldestBubble.Timestamp;
             var oldestStanzaId = oldestBubble.StanzaId;
 
+            // Notify UI to record current scroll position before modifying messages collection
+            PostToUi(() => OlderHistoryLoading?.Invoke());
+
             // 1. Fetch from SQLite before oldest timestamp
             var olderLocal = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50, before: oldestTimestamp);
 
@@ -1208,21 +1213,29 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 }
             }
 
-            foreach (var msg in olderLocal)
+            if (olderLocal.Count > 0)
             {
-                AddOrUpdateMessage(msg);
-            }
+                PostToUi(() =>
+                {
+                    foreach (var msg in olderLocal)
+                    {
+                        AddOrUpdateMessageInternal(msg);
+                    }
 
-            if (Messages.Count > 0)
-            {
-                OldestMessageTimestamp = Messages[0].Timestamp;
-            }
+                    if (Messages.Count > 0)
+                    {
+                        OldestMessageTimestamp = Messages[0].Timestamp;
+                    }
 
-            await LoadReactionsForCurrentMessagesAsync();
-            UpdateDateHeaders();
+                    UpdateDateHeaders();
+                });
+
+                await LoadReactionsForCurrentMessagesAsync();
+            }
         }
         finally
         {
+            PostToUi(() => OlderHistoryLoaded?.Invoke());
             IsLoadingOlderHistory = false;
         }
     }
@@ -2000,6 +2013,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         {
             Messages.Remove(message);
             UpdateDateHeaders();
+            UpdateLastMessageSnippetAndTime();
         }
 
         PostToUi(RemoveFromList);
@@ -2014,6 +2028,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             if (targetBubble is not null)
             {
                 targetBubble.UpdateMessageContent(originalId, newBody, newRawXml);
+                UpdateLastMessageSnippetAndTime();
             }
         }
 
@@ -2041,6 +2056,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     Messages.Remove(targetBubble);
                 }
                 UpdateDateHeaders();
+                UpdateLastMessageSnippetAndTime();
             }
         }
 
@@ -2058,7 +2074,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (existing is not null)
         {
             existing.UpdateMessageRecord(msg);
-            UpdateLastMessageSnippetAndTime(msg);
+            if (Messages.LastOrDefault() == existing)
+            {
+                UpdateLastMessageSnippetAndTime(msg);
+            }
             return;
         }
 
@@ -2078,7 +2097,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     prevBubble.ImageLoaded -= OnBubbleImageLoaded;
                     prevBubble.ImageLoaded += OnBubbleImageLoaded;
                     prevBubble.MergeMessage(msg);
-                    UpdateLastMessageSnippetAndTime(msg);
+                    if (Messages.LastOrDefault() == prevBubble)
+                    {
+                        UpdateLastMessageSnippetAndTime(msg);
+                    }
                     MessageProcessed?.Invoke(msg);
                     return;
                 }
@@ -2115,7 +2137,10 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         }
 
         UpdateReadMarkersOnBubbles();
-        UpdateLastMessageSnippetAndTime(msg);
+        if (Messages.LastOrDefault() == bubble)
+        {
+            UpdateLastMessageSnippetAndTime(msg);
+        }
 
         MessageProcessed?.Invoke(msg);
     }
@@ -2124,29 +2149,67 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         if (msg is not null)
         {
-            var snippet = msg.Body;
-            if (msg.Body.StartsWith("/me ", StringComparison.OrdinalIgnoreCase))
-            {
-                var action = msg.Body.Length > 4 ? msg.Body[4..].Trim() : string.Empty;
-                snippet = $"* {GetSenderDisplayName(msg)} {action}";
-            }
-            LastMessageSnippet = snippet;
-            var local = msg.Timestamp.ToLocalTime();
-            LastMessageTime = local.Date == DateTime.Today
-                ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
-                : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
+            UpdateSnippet(msg.Body, msg.Direction, msg.SenderJid, msg.Timestamp);
         }
         else
         {
             var last = Messages.LastOrDefault();
             if (last is not null)
             {
-                LastMessageSnippet = !string.IsNullOrWhiteSpace(last.DisplayText) ? last.DisplayText : (last.HasImage ? "📷 Image" : last.Body);
-                var local = (last.LatestTimestamp != default ? last.LatestTimestamp : last.Timestamp).ToLocalTime();
-                LastMessageTime = local.Date == DateTime.Today
-                    ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
-                    : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
+                var body = !string.IsNullOrWhiteSpace(last.DisplayText) ? last.DisplayText : (last.HasImage ? "📷 Image" : last.Body);
+                var ts = last.LatestTimestamp != default ? last.LatestTimestamp : last.Timestamp;
+                var dir = last.IsOutbound ? MessageDirection.Outbound : MessageDirection.Inbound;
+                var senderJid = last.MergedMessages.LastOrDefault()?.SenderJid ?? (last.IsOutbound ? _accountJid : RemoteJid.ToString());
+                UpdateSnippet(body, dir, senderJid, ts);
             }
+            else
+            {
+                LastMessageSnippet = string.Empty;
+                LastMessageTime = string.Empty;
+            }
+        }
+    }
+
+    public void UpdateSnippet(string? rawBody, MessageDirection? direction, string? senderJid, DateTimeOffset? timestamp)
+    {
+        if (string.IsNullOrWhiteSpace(rawBody))
+        {
+            LastMessageSnippet = string.Empty;
+            LastMessageTime = string.Empty;
+            return;
+        }
+
+        var isImage = MessageBubbleViewModel.ImageUrlRegex.IsMatch(rawBody);
+        var bodyText = isImage && string.IsNullOrWhiteSpace(MessageBubbleViewModel.ImageUrlRegex.Replace(rawBody, string.Empty).Trim())
+            ? "📷 Image"
+            : rawBody;
+
+        if (bodyText.StartsWith("/me ", StringComparison.OrdinalIgnoreCase))
+        {
+            var action = bodyText.Length > 4 ? bodyText[4..].Trim() : string.Empty;
+            var senderName = direction == MessageDirection.Outbound ? "You" : GetSenderDisplayName(senderJid ?? string.Empty, direction ?? MessageDirection.Inbound);
+            LastMessageSnippet = $"* {senderName} {action}";
+        }
+        else if (direction == MessageDirection.Outbound)
+        {
+            LastMessageSnippet = $"You: {bodyText}";
+        }
+        else if (IsGroupChat)
+        {
+            var senderName = GetSenderDisplayName(senderJid ?? string.Empty, MessageDirection.Inbound);
+            LastMessageSnippet = $"{senderName}: {bodyText}";
+        }
+        else
+        {
+            LastMessageSnippet = bodyText;
+        }
+
+        if (timestamp.HasValue && timestamp.Value != default)
+        {
+            var local = timestamp.Value.ToLocalTime();
+            LastMessageTime = local.Date == DateTime.Today
+                ? local.ToString(MessageBubbleViewModel.Use24HourClock ? "HH:mm" : "h:mm tt")
+                : (local.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : local.ToString("MMM d"));
         }
     }
 
