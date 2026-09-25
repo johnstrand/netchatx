@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Data.Converters;
@@ -59,16 +59,28 @@ public sealed class DirectionToForegroundConverter : IValueConverter
 {
     public static readonly DirectionToForegroundConverter Instance = new();
 
-    private static readonly IBrush WhiteBrush = Brushes.White;
-    private static readonly IBrush DefaultBrush = new SolidColorBrush(Color.Parse("#F1F5F9"));
+    public static IBrush OutboundBrush { get; set; } = Brushes.White;
+    public static IBrush InboundBrush { get; set; } = new SolidColorBrush(Color.Parse("#F1F5F9"));
+
+    public static void SetColors(string outboundHex, string inboundHex)
+    {
+        if (Color.TryParse(outboundHex, out var outColor))
+        {
+            OutboundBrush = new SolidColorBrush(outColor);
+        }
+        if (Color.TryParse(inboundHex, out var inColor))
+        {
+            InboundBrush = new SolidColorBrush(inColor);
+        }
+    }
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is MessageDirection direction)
         {
-            return direction == MessageDirection.Outbound ? WhiteBrush : DefaultBrush;
+            return direction == MessageDirection.Outbound ? OutboundBrush : InboundBrush;
         }
-        return DefaultBrush;
+        return InboundBrush;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();

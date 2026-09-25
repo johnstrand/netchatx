@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Stanza.Core;
@@ -325,5 +326,19 @@ public class AvatarTests : IDisposable
         Assert.NotNull(vm.UserAvatar);
         Assert.True(vm.Settings.HasUserAvatar);
         Assert.Equal(hash, vm.Settings.UserAvatarHash);
+    }
+
+    [AvaloniaFact]
+    public void SettingsView_Initializes_WithStandardDimensionsAndProfileButtonLayout()
+    {
+        var view = new Stanza.Gui.Views.SettingsView();
+        Assert.NotNull(view);
+        var border = Assert.IsType<Avalonia.Controls.Border>(view.Content);
+        Assert.Equal(560.0, border.Width);
+        Assert.Equal(580.0, border.Height);
+
+        var chooseBtn = view.FindControl<Avalonia.Controls.Button>("ChooseAvatarButton");
+        Assert.NotNull(chooseBtn);
+        Assert.IsType<Avalonia.Controls.WrapPanel>(chooseBtn.Parent);
     }
 }

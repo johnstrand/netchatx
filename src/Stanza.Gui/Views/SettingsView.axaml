@@ -16,7 +16,7 @@
     </UserControl.Styles>
 
     <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-            Width="530" MaxWidth="560" MaxHeight="620" Padding="18" CornerRadius="16"
+            Width="560" Height="580" Padding="18" CornerRadius="16"
             Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
             BoxShadow="0 20 50 0 #60000000, 0 0 25 0 #2000F0FF">
         <Grid RowDefinitions="Auto,*,Auto">
@@ -69,43 +69,95 @@
                                                        VerticalAlignment="Center" />
                                         </Grid>
 
-                                        <!-- 4 Color Swatch Buttons with Active Indicators -->
-                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" Margin="0,4,0,0">
+                                        <!-- 8 Color Swatch Buttons + Custom Swatch + Custom Hex Input -->
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,8,Auto,*,Auto" Margin="0,4,0,0">
                                             <!-- Cyan -->
                                             <Button Grid.Column="0" Command="{Binding SelectAccentCommand}" CommandParameter="#00F0FF"
-                                                    Width="34" Height="34" CornerRadius="17" Background="#00F0FF" Margin="0,0,10,0"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#00F0FF" Margin="0,0,6,0"
                                                     ToolTip.Tip="Electric Cyan (#00F0FF)" Cursor="Hand" Padding="0">
-                                                <TextBlock Text="✓" Foreground="Black" FontWeight="Bold" FontSize="14"
+                                                <TextBlock Text="✓" Foreground="Black" FontWeight="Bold" FontSize="12"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            IsVisible="{Binding IsCyanSelected}" />
                                             </Button>
 
                                             <!-- Purple -->
                                             <Button Grid.Column="1" Command="{Binding SelectAccentCommand}" CommandParameter="#A855F7"
-                                                    Width="34" Height="34" CornerRadius="17" Background="#A855F7" Margin="0,0,10,0"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#A855F7" Margin="0,0,6,0"
                                                     ToolTip.Tip="Neon Purple (#A855F7)" Cursor="Hand" Padding="0">
-                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="14"
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            IsVisible="{Binding IsPurpleSelected}" />
                                             </Button>
 
                                             <!-- Emerald -->
                                             <Button Grid.Column="2" Command="{Binding SelectAccentCommand}" CommandParameter="#10B981"
-                                                    Width="34" Height="34" CornerRadius="17" Background="#10B981" Margin="0,0,10,0"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#10B981" Margin="0,0,6,0"
                                                     ToolTip.Tip="Emerald Green (#10B981)" Cursor="Hand" Padding="0">
-                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="14"
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            IsVisible="{Binding IsEmeraldSelected}" />
                                             </Button>
 
                                             <!-- Amber -->
                                             <Button Grid.Column="3" Command="{Binding SelectAccentCommand}" CommandParameter="#F59E0B"
-                                                    Width="34" Height="34" CornerRadius="17" Background="#F59E0B" Margin="0,0,10,0"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#F59E0B" Margin="0,0,6,0"
                                                     ToolTip.Tip="Vibrant Amber (#F59E0B)" Cursor="Hand" Padding="0">
-                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="14"
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            IsVisible="{Binding IsAmberSelected}" />
                                             </Button>
+
+                                            <!-- Crimson -->
+                                            <Button Grid.Column="4" Command="{Binding SelectAccentCommand}" CommandParameter="#EF4444"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#EF4444" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Crimson Red (#EF4444)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsCrimsonSelected}" />
+                                            </Button>
+
+                                            <!-- Rose -->
+                                            <Button Grid.Column="5" Command="{Binding SelectAccentCommand}" CommandParameter="#EC4899"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#EC4899" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Rose Pink (#EC4899)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsRoseSelected}" />
+                                            </Button>
+
+                                            <!-- Indigo -->
+                                            <Button Grid.Column="6" Command="{Binding SelectAccentCommand}" CommandParameter="#6366F1"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#6366F1" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Indigo (#6366F1)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsIndigoSelected}" />
+                                            </Button>
+
+                                            <!-- Orange -->
+                                            <Button Grid.Column="7" Command="{Binding SelectAccentCommand}" CommandParameter="#F97316"
+                                                    Width="28" Height="28" CornerRadius="14" Background="#F97316" Margin="0,0,6,0"
+                                                    ToolTip.Tip="Sunset Orange (#F97316)" Cursor="Hand" Padding="0">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsOrangeSelected}" />
+                                            </Button>
+
+                                            <!-- Custom Accent Swatch -->
+                                            <Border Grid.Column="9" Width="28" Height="28" CornerRadius="14"
+                                                    Background="{Binding CustomAccentBrush}"
+                                                    BorderBrush="#334155" BorderThickness="1"
+                                                    ToolTip.Tip="Active Custom Accent" VerticalAlignment="Center">
+                                                <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsCustomAccentSelected}" />
+                                            </Border>
+
+                                            <!-- Custom Hex TextBox -->
+                                            <TextBox Grid.Column="11" Text="{Binding AccentColor, Mode=TwoWay}"
+                                                     Width="80" MaxLength="9" FontSize="11"
+                                                     Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                     VerticalAlignment="Center" ToolTip.Tip="Custom accent hex code (e.g. #3B82F6)" />
                                         </Grid>
                                     </StackPanel>
                                 </StackPanel>
@@ -257,6 +309,50 @@
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
                                                      VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #2563EB)" />
                                         </Grid>
+
+                                        <!-- Outbound Text Color -->
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                            <TextBlock Text="Sent Text Color" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto,Auto,8,Auto">
+                                                <!-- Pure White -->
+                                                <Button Grid.Column="0" Command="{Binding SelectOutboundBubbleTextColorCommand}" CommandParameter="#FFFFFF"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#FFFFFF" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Pure White (#FFFFFF)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="#0F172A" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsOutboundTextWhiteSelected}" />
+                                                </Button>
+                                                <!-- Off White -->
+                                                <Button Grid.Column="1" Command="{Binding SelectOutboundBubbleTextColorCommand}" CommandParameter="#F8FAFC"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#F8FAFC" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Off White (#F8FAFC)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="#0F172A" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsOutboundTextOffWhiteSelected}" />
+                                                </Button>
+                                                <!-- Dark Slate -->
+                                                <Button Grid.Column="2" Command="{Binding SelectOutboundBubbleTextColorCommand}" CommandParameter="#0F172A"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#0F172A" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Dark Slate (#0F172A)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsOutboundTextDarkSlateSelected}" />
+                                                </Button>
+                                                <!-- Pure Black -->
+                                                <Button Grid.Column="3" Command="{Binding SelectOutboundBubbleTextColorCommand}" CommandParameter="#000000"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#000000" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Pure Black (#000000)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsOutboundTextBlackSelected}" />
+                                                </Button>
+                                                <!-- Text hex input -->
+                                                <TextBox Grid.Column="5" Text="{Binding OutboundBubbleTextColor, Mode=TwoWay}"
+                                                         Width="70" MaxLength="9" FontSize="10.5"
+                                                         Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                         VerticalAlignment="Center" ToolTip.Tip="Custom text hex code (e.g. #FFFFFF)" />
+                                            </Grid>
+                                        </Grid>
                                     </StackPanel>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -336,6 +432,50 @@
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
                                                      VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #1E293B)" />
                                         </Grid>
+
+                                        <!-- Inbound Text Color -->
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                            <TextBlock Text="Received Text Color" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto,Auto,8,Auto">
+                                                <!-- Crisp Light -->
+                                                <Button Grid.Column="0" Command="{Binding SelectInboundBubbleTextColorCommand}" CommandParameter="#F1F5F9"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#F1F5F9" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Crisp Light (#F1F5F9)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="#0F172A" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsInboundTextCrispLightSelected}" />
+                                                </Button>
+                                                <!-- Pure White -->
+                                                <Button Grid.Column="1" Command="{Binding SelectInboundBubbleTextColorCommand}" CommandParameter="#FFFFFF"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#FFFFFF" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Pure White (#FFFFFF)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="#0F172A" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsInboundTextWhiteSelected}" />
+                                                </Button>
+                                                <!-- Muted Slate -->
+                                                <Button Grid.Column="2" Command="{Binding SelectInboundBubbleTextColorCommand}" CommandParameter="#94A3B8"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#94A3B8" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Muted Slate (#94A3B8)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsInboundTextMutedSlateSelected}" />
+                                                </Button>
+                                                <!-- Dark Slate -->
+                                                <Button Grid.Column="3" Command="{Binding SelectInboundBubbleTextColorCommand}" CommandParameter="#0F172A"
+                                                        Width="22" Height="22" CornerRadius="11" Background="#0F172A" Margin="0,0,4,0"
+                                                        ToolTip.Tip="Dark Slate (#0F172A)" Cursor="Hand" Padding="0">
+                                                    <TextBlock Text="✓" Foreground="White" FontWeight="Bold" FontSize="10"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsInboundTextDarkSlateSelected}" />
+                                                </Button>
+                                                <!-- Text hex input -->
+                                                <TextBox Grid.Column="5" Text="{Binding InboundBubbleTextColor, Mode=TwoWay}"
+                                                         Width="70" MaxLength="9" FontSize="10.5"
+                                                         Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
+                                                         VerticalAlignment="Center" ToolTip.Tip="Custom text hex code (e.g. #F1F5F9)" />
+                                            </Grid>
+                                        </Grid>
                                     </StackPanel>
 
                                     <!-- Live Bubble Preview -->
@@ -343,10 +483,10 @@
                                         <StackPanel Spacing="6">
                                             <TextBlock Text="LIVE BUBBLE PREVIEW" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
                                             <Border HorizontalAlignment="Left" Background="{Binding PreviewInboundBrush}" CornerRadius="12" Padding="10,6" MaxWidth="320">
-                                                <TextBlock Text="Hey! Custom chat bubble styling in action." FontSize="11.5" Foreground="#F1F5F9" />
+                                                <TextBlock Text="Hey! Custom chat bubble styling in action." FontSize="11.5" Foreground="{Binding PreviewInboundTextBrush}" />
                                             </Border>
                                             <Border HorizontalAlignment="Right" Background="{Binding PreviewOutboundBrush}" CornerRadius="12" Padding="10,6" MaxWidth="320">
-                                                <TextBlock Text="Looks amazing and matches our vibe! 🚀" FontSize="11.5" Foreground="White" />
+                                                <TextBlock Text="Looks amazing and matches our vibe! 🚀" FontSize="11.5" Foreground="{Binding PreviewOutboundTextBrush}" />
                                             </Border>
                                         </StackPanel>
                                     </Border>
@@ -438,7 +578,7 @@
                                     </Grid>
 
                                     <!-- Emoticon Snippet Mappings -->
-                                    <StackPanel Spacing="8" IsVisible="{Binding AutoReplaceEmoticons}">
+                                    <StackPanel Spacing="8">
                                         <Separator Background="#1E293B" Height="1" />
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Grid.Column="0" Text="Emoticon Mappings &amp; Custom Snippets" FontSize="11.5" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
@@ -745,11 +885,16 @@
                                             <TextBlock Text="Upload a custom picture to represent you across XMPP chats (supports XEP-0084 &amp; XEP-0153)."
                                                        Foreground="#64748B" FontSize="11" TextWrapping="Wrap" />
 
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked" />
-                                                <Button Content="🔄 Sync from Server" Command="{Binding SyncAvatarCommand}" Classes="image-btn" />
-                                                <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}" Classes="icon-btn subtle" />
-                                            </StackPanel>
+                                            <WrapPanel Orientation="Horizontal">
+                                                <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked"
+                                                        Padding="12,5" FontSize="11.5" Margin="0,0,8,8" />
+                                                <Button Content="🔄 Sync from Server" Command="{Binding SyncAvatarCommand}"
+                                                        Background="#1E293B" Foreground="#94A3B8" BorderBrush="#334155" BorderThickness="1"
+                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8" />
+                                                <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}"
+                                                        Background="#1E293B" Foreground="#F43F5E" BorderBrush="#334155" BorderThickness="1"
+                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8" />
+                                            </WrapPanel>
                                         </StackPanel>
                                     </Grid>
 
