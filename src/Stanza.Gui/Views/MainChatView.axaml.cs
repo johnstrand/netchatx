@@ -215,6 +215,10 @@ public partial class MainChatView : UserControl
         }
     }
 
+    private double _preLoadExtentHeight;
+    private double _preLoadOffsetY;
+    private bool _isPreservingScroll;
+
     private void UpdateActiveConversation(ChatConversationViewModel? newConversation)
     {
         if (_currentConversation == newConversation) return;
@@ -224,6 +228,8 @@ public partial class MainChatView : UserControl
             _currentConversation.Messages.CollectionChanged -= OnMessagesCollectionChanged;
             _currentConversation.ScrollToBottomRequested -= ScrollToLatestMessage;
             _currentConversation.EditStarted -= OnConversationEditStarted;
+            _currentConversation.OlderHistoryLoading -= OnOlderHistoryLoading;
+            _currentConversation.OlderHistoryLoaded -= OnOlderHistoryLoaded;
         }
 
         _currentConversation = newConversation;
@@ -233,9 +239,60 @@ public partial class MainChatView : UserControl
             _currentConversation.Messages.CollectionChanged += OnMessagesCollectionChanged;
             _currentConversation.ScrollToBottomRequested += ScrollToLatestMessage;
             _currentConversation.EditStarted += OnConversationEditStarted;
+            _currentConversation.OlderHistoryLoading += OnOlderHistoryLoading;
+            _currentConversation.OlderHistoryLoaded += OnOlderHistoryLoaded;
             ScrollToLatestMessage();
             _messageInputBox?.Focus();
         }
+    }
+
+    private void OnOlderHistoryLoading()
+    {
+        _messagesScrollViewer ??= this.FindControl<ScrollViewer>("MessagesScrollViewer");
+        if (_messagesScrollViewer is null) return;
+
+        _isPreservingScroll = true;
+        _wasNearBottom = false;
+        _preLoadExtentHeight = _messagesScrollViewer.Extent.Height;
+        _preLoadOffsetY = _messagesScrollViewer.Offset.Y;
+    }
+
+    private void OnOlderHistoryLoaded()
+    {
+        _messagesScrollViewer ??= this.FindControl<ScrollViewer>("MessagesScrollViewer");
+        if (_messagesScrollViewer is null)
+        {
+            _isPreservingScroll = false;
+            return;
+        }
+
+        // Wait for layout pass at Loaded priority to measure newly inserted items
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_messagesScrollViewer is null)
+            {
+                _isPreservingScroll = false;
+                return;
+            }
+
+            var newExtentHeight = _messagesScrollViewer.Extent.Height;
+            var heightDelta = newExtentHeight - _preLoadExtentHeight;
+
+            if (heightDelta > 0)
+            {
+                var targetOffset = _preLoadOffsetY + heightDelta;
+                _messagesScrollViewer.Offset = new Vector(_messagesScrollViewer.Offset.X, targetOffset);
+            }
+
+            _wasNearBottom = false;
+
+            // Wait one more layout cycle before re-enabling normal auto-scroll
+            Dispatcher.UIThread.Post(() =>
+            {
+                _isPreservingScroll = false;
+                _wasNearBottom = IsNearBottom(200.0);
+            }, DispatcherPriority.Background);
+        }, DispatcherPriority.Loaded);
     }
 
     private void OnConversationEditStarted()
@@ -259,7 +316,7 @@ public partial class MainChatView : UserControl
         else if (e.Property == ScrollViewer.ExtentProperty)
         {
             if (_currentConversation is null) return;
-            if (_currentConversation.IsLoadingOlderHistory || _currentConversation.IsLoadingHistory || _currentConversation.IsSyncing)
+            if (_currentConversation.IsLoadingOlderHistory || _currentConversation.IsLoadingHistory || _currentConversation.IsSyncing || _isPreservingScroll)
             {
                 return;
             }
@@ -281,17 +338,20 @@ public partial class MainChatView : UserControl
 
     private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        // Don't auto-scroll to bottom if loading older history, loading initial history, or syncing
+        // Don't auto-scroll to bottom if loading older history, loading initial history, syncing, or preserving scroll
         if (_currentConversation is null) return;
-        if (_currentConversation.IsLoadingOlderHistory || _currentConversation.IsLoadingHistory || _currentConversation.IsSyncing)
+        if (_currentConversation.IsLoadingOlderHistory || _currentConversation.IsLoadingHistory || _currentConversation.IsSyncing || _isPreservingScroll)
         {
             return;
         }
 
         if (e.Action is NotifyCollectionChangedAction.Add)
         {
-            var isOutbound = e.NewItems?.OfType<MessageBubbleViewModel>().Any(m => m.IsOutbound) == true;
-            if (isOutbound || IsNearBottom())
+            var newItems = e.NewItems?.OfType<MessageBubbleViewModel>().ToList();
+            var isOutbound = newItems?.Any(m => m.IsOutbound) == true;
+            var isAddedAtEnd = e.NewStartingIndex >= _currentConversation.Messages.Count - (newItems?.Count ?? 1);
+
+            if ((isOutbound && isAddedAtEnd) || IsNearBottom())
             {
                 ScrollToLatestMessage();
             }
@@ -307,6 +367,7 @@ public partial class MainChatView : UserControl
         if (_currentConversation is not null &&
             !_currentConversation.IsLoadingOlderHistory &&
             !_currentConversation.IsLoadingHistory &&
+            !_isPreservingScroll &&
             IsNearBottom())
         {
             ScrollToLatestMessage();
@@ -328,6 +389,20 @@ public partial class MainChatView : UserControl
             // Escape key: Cancel code block editor if open, cancel message editing if active, or discard pending image preview
             if (e.Key == Key.Escape)
             {
+                if (mainVm.Help.IsOpen)
+                {
+                    mainVm.CloseHelp();
+                    e.Handled = true;
+                    return;
+                }
+
+                if (mainVm.About.IsOpen)
+                {
+                    mainVm.CloseAbout();
+                    e.Handled = true;
+                    return;
+                }
+
                 if (mainVm.CodeBlockEditor.IsOpen)
                 {
                     mainVm.CodeBlockEditor.CancelCommand.Execute(null);
@@ -616,7 +691,12 @@ public partial class MainChatView : UserControl
 
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
+        if (e.Key == Key.F1 && DataContext is MainChatViewModel vmF1)
+        {
+            vmF1.OpenHelp();
+            e.Handled = true;
+        }
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
         {
             _searchInputBox?.Focus();
             _searchInputBox?.SelectAll();
@@ -627,6 +707,16 @@ public partial class MainChatView : UserControl
             if (vm.Settings.IsOpen)
             {
                 vm.Settings.Close();
+                e.Handled = true;
+            }
+            else if (vm.Help.IsOpen)
+            {
+                vm.CloseHelp();
+                e.Handled = true;
+            }
+            else if (vm.About.IsOpen)
+            {
+                vm.CloseAbout();
                 e.Handled = true;
             }
         }
@@ -685,6 +775,24 @@ public partial class MainChatView : UserControl
         if (DataContext is MainChatViewModel vm)
         {
             vm.Settings.Close();
+            e.Handled = true;
+        }
+    }
+
+    public void OnHelpBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.CloseHelp();
+            e.Handled = true;
+        }
+    }
+
+    public void OnAboutBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainChatViewModel vm)
+        {
+            vm.CloseAbout();
             e.Handled = true;
         }
     }

@@ -74,13 +74,16 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     private void ApplyPresenceToContact(ContactItemViewModel contact)
     {
-        if (_contactResourcePresence.TryGetValue(contact.ContactJid, out var resources) && !resources.IsEmpty)
+        var bare = Jid.TryParse(contact.ContactJid, out var cj) ? cj.ToBareString() : contact.ContactJid;
+        if (_contactResourcePresence.TryGetValue(bare, out var resources) && !resources.IsEmpty)
         {
             var best = resources.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
             contact.PresenceShow = best.Show;
             contact.StatusMessage = best.Status;
 
-            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(contact.ContactJid, out var cj) && c.RemoteJid.EqualsBare(cj));
+            var conv = Conversations.FirstOrDefault(c =>
+                c.RemoteJid.ToString().Equals(bare, StringComparison.OrdinalIgnoreCase) ||
+                (Jid.TryParse(contact.ContactJid, out var cJid) && c.RemoteJid.EqualsBare(cJid)));
             if (conv is not null)
             {
                 conv.PresenceShow = best.Show;
@@ -175,6 +178,44 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     [ObservableProperty]
     private CodeBlockEditorViewModel _codeBlockEditor = new();
+
+    [ObservableProperty]
+    private HelpViewModel _help = new();
+
+    [ObservableProperty]
+    private AboutViewModel _about = new();
+
+    [RelayCommand]
+    public void OpenHelp()
+    {
+        Settings.Close();
+        CodeBlockEditor.Cancel();
+        IsNewChatDialogOpen = false;
+        About.Close();
+        Help.Open();
+    }
+
+    [RelayCommand]
+    public void CloseHelp()
+    {
+        Help.Close();
+    }
+
+    [RelayCommand]
+    public void OpenAbout()
+    {
+        Settings.Close();
+        CodeBlockEditor.Cancel();
+        IsNewChatDialogOpen = false;
+        Help.Close();
+        About.Open();
+    }
+
+    [RelayCommand]
+    public void CloseAbout()
+    {
+        About.Close();
+    }
 
     [ObservableProperty]
     private string _searchQuery = string.Empty;
@@ -272,6 +313,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public void OpenNewChatDialog()
     {
+        Help.Close();
+        About.Close();
         NewChatJid = string.Empty;
         NewChatDisplayName = string.Empty;
         NewChatErrorMessage = string.Empty;
@@ -399,6 +442,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public void OpenChatSettings()
     {
+        Help.Close();
+        About.Close();
         Settings.Open();
     }
 
@@ -539,6 +584,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
             onBubbleColorChanged: (outColor, inColor) =>
             {
                 DirectionToBackgroundConverter.SetColors(outColor, inColor);
+                if (Settings is not null)
+                {
+                    DirectionToForegroundConverter.SetColors(Settings.OutboundBubbleTextColor, Settings.InboundBubbleTextColor);
+                }
                 foreach (var conv in Conversations)
                 {
                     foreach (var msg in conv.Messages)
@@ -560,6 +609,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 foreach (var conv in Conversations)
                 {
                     conv.UpdateEmoticonSettings(autoReplace, mappings);
+                }
+            },
+            onEvaluateExpressionsChanged: evaluateExpressions =>
+            {
+                foreach (var conv in Conversations)
+                {
+                    conv.UpdateExpressionSettings(evaluateExpressions);
                 }
             },
             onAvatarChanged: async (bytes, mime) => await SetUserAvatarFromBytesAsync(bytes, mime),
@@ -779,16 +835,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         UserPresence = initialPresence;
 
-        // Send initial presence per RFC 6121 to signal availability and release queued offline messages
-        try
-        {
-            await SetPresenceAsync(initialPresence);
-        }
-        catch
-        {
-            // Soft failure on initial presence
-        }
-
         // Asynchronously check and sync own avatar from server if missing locally or updated remotely
         _ = SyncOwnAvatarFromServerAsync();
 
@@ -808,6 +854,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             MessageBubbleViewModel.ShowInlinePreviews = Settings.ShowInlinePreviews;
             MessageBubbleViewModel.AutoDownloadMedia = Settings.AutoDownloadMedia;
             DirectionToBackgroundConverter.SetColors(Settings.OutboundBubbleColor, Settings.InboundBubbleColor);
+            DirectionToForegroundConverter.SetColors(Settings.OutboundBubbleTextColor, Settings.InboundBubbleTextColor);
             foreach (var conv in Conversations)
             {
                 foreach (var msg in conv.Messages)
@@ -859,8 +906,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         ContactJid = kvp.Key,
                         Name = kvp.Key,
                         Subscription = "none",
-                        UnreadCount = kvp.Value.unreadCount,
-                        LastMessagePreview = kvp.Value.lastPreview
+                        UnreadCount = kvp.Value.unreadCount
                     };
                     if (_avatarCache.TryGetValue(newContact.ContactJid, out var av))
                     {
@@ -872,7 +918,6 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 else
                 {
                     existing.UnreadCount = kvp.Value.unreadCount;
-                    existing.LastMessagePreview = kvp.Value.lastPreview;
                     if (existing.Avatar is null && _avatarCache.TryGetValue(existing.ContactJid, out var av))
                     {
                         existing.Avatar = av.Bitmap;
@@ -886,13 +931,28 @@ public sealed partial class MainChatViewModel : ViewModelBase
             {
                 if (Jid.TryParse(contact.ContactJid, out var jid))
                 {
-                    GetOrCreateConversation(jid.BareJid.ToString(), contact.DisplayName, jid.BareJid, isGroupChat: false);
+                    var conv = GetOrCreateConversation(jid.BareJid.ToString(), contact.DisplayName, jid.BareJid, isGroupChat: false);
+                    if (summaries.TryGetValue(jid.BareJid.ToString(), out var summary) || summaries.TryGetValue(contact.ContactJid, out summary))
+                    {
+                        conv.UpdateSnippet(summary.lastPreview, summary.lastDirection, summary.lastSenderJid, summary.lastTimestamp);
+                        contact.LastMessagePreview = conv.LastMessageSnippet;
+                    }
                 }
             }
         }
         catch
         {
             // Soft failure loading contact summaries
+        }
+
+        // Send initial presence per RFC 6121 to signal availability and release queued offline messages
+        try
+        {
+            await SetPresenceAsync(initialPresence);
+        }
+        catch
+        {
+            // Soft failure on initial presence
         }
 
         // Trigger background account-wide archive catch-up (XEP-0313 MAM) for any missed messages
@@ -1144,6 +1204,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                             {
                                 existing.Name = name;
                                 existing.Subscription = sub;
+                                ApplyPresenceToContact(existing);
                                 if (existing.Avatar is null && _avatarCache.TryGetValue(existing.ContactJid, out var av))
                                 {
                                     existing.Avatar = av.Bitmap;
@@ -1268,14 +1329,21 @@ public sealed partial class MainChatViewModel : ViewModelBase
                             else if (ActiveConversation?.RemoteJid.ToString().Equals(remoteJidStr, StringComparison.OrdinalIgnoreCase) == true)
                             {
                                 ActiveConversation.ReceiveMessages(group);
+                                conv = ActiveConversation;
                             }
 
                             var lastMsg = group.Last();
                             var inboundCount = group.Count(m => m.Direction == MessageDirection.Inbound);
                             var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && Jid.TryParse(remoteJidStr, out var rJid) && cJid.EqualsBare(rJid));
+                            if (conv is null && Jid.TryParse(remoteJidStr, out var parsedJid))
+                            {
+                                conv = GetOrCreateConversation(parsedJid.BareJid.ToString(), contact?.DisplayName ?? remoteJidStr, parsedJid.BareJid, isGroupChat: false);
+                            }
+                            conv?.UpdateLastMessageSnippetAndTime(lastMsg);
+
                             if (contact is not null)
                             {
-                                contact.LastMessagePreview = lastMsg.Body;
+                                contact.LastMessagePreview = conv?.LastMessageSnippet ?? lastMsg.Body;
                                 if (ActiveConversation?.RemoteJid.ToString() != remoteJidStr)
                                 {
                                     contact.UnreadCount += inboundCount;
@@ -1289,14 +1357,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
                                     ContactJid = remoteJidStr,
                                     Name = remoteJidStr,
                                     Subscription = "none",
-                                    LastMessagePreview = lastMsg.Body,
+                                    LastMessagePreview = conv?.LastMessageSnippet ?? lastMsg.Body,
                                     UnreadCount = (ActiveConversation?.RemoteJid.ToString() != remoteJidStr) ? inboundCount : 0
                                 };
                                 Contacts.Add(contact);
-                                if (Jid.TryParse(remoteJidStr, out var parsedJid))
-                                {
-                                    GetOrCreateConversation(parsedJid.BareJid.ToString(), contact.DisplayName, parsedJid.BareJid, isGroupChat: false);
-                                }
                             }
                         }
                     });
@@ -1339,7 +1403,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
         if (!Jid.TryParse(contact.ContactJid, out var jid)) return;
 
         contact.UnreadCount = 0;
+        ApplyPresenceToContact(contact);
         var conv = GetOrCreateConversation(jid.BareJid.ToString(), contact.DisplayName, jid.BareJid, isGroupChat: false);
+        conv.PresenceShow = contact.PresenceShow;
         ActiveConversation = conv;
         await conv.EnsureHistoryLoadedAsync();
 
@@ -1474,9 +1540,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var existing = Conversations.FirstOrDefault(c => c.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
         if (existing is not null) return existing;
 
+        var bare = remoteJid.ToBareString();
+        var contact = Contacts.FirstOrDefault(c =>
+            c.ContactJid.Equals(bare, StringComparison.OrdinalIgnoreCase) ||
+            (Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(remoteJid)));
+
         if (!isGroupChat && (title == id || title == remoteJid.ToString()))
         {
-            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(remoteJid));
             if (contact is not null && !string.IsNullOrWhiteSpace(contact.DisplayName))
             {
                 title = contact.DisplayName;
@@ -1501,7 +1571,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             ensureConnected: EnsureConnectedAsync)
         {
             EnableMessageMerging = EnableMessageMerging,
-            MessageMergeThresholdSeconds = MessageMergeThresholdSeconds
+            MessageMergeThresholdSeconds = MessageMergeThresholdSeconds,
+            EvaluateExpressions = Settings.EvaluateExpressions
         };
 
         newConv.SlashCommandHandler = async result => await HandleSlashCommandAsync(newConv, result);
@@ -1515,32 +1586,48 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             PostToUi(() =>
             {
-                var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
-                if (contact is not null)
+                var msgContact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
+                if (msgContact is not null)
                 {
-                    contact.LastMessagePreview = msg.Body;
+                    msgContact.LastMessagePreview = newConv.LastMessageSnippet;
                 }
             });
         };
 
-        var bare = remoteJid.ToBareString();
+        newConv.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(ChatConversationViewModel.LastMessageSnippet))
+            {
+                PostToUi(() =>
+                {
+                    var snipContact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
+                    if (snipContact is not null)
+                    {
+                        snipContact.LastMessagePreview = newConv.LastMessageSnippet;
+                    }
+                });
+            }
+        };
         if (_avatarCache.TryGetValue(bare, out var av))
         {
             newConv.Avatar = av.Bitmap;
             newConv.AvatarHash = av.Hash;
         }
-        else
+
+        if (contact is not null)
         {
-            var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(newConv.RemoteJid));
-            if (contact is not null)
+            newConv.PresenceShow = contact.PresenceShow;
+            if (newConv.Avatar is null && contact.Avatar is not null)
             {
-                newConv.PresenceShow = contact.PresenceShow;
-                if (contact.Avatar is not null && newConv.Avatar is null)
-                {
-                    newConv.Avatar = contact.Avatar;
-                    newConv.AvatarHash = contact.AvatarHash;
-                }
+                newConv.Avatar = contact.Avatar;
+                newConv.AvatarHash = contact.AvatarHash;
             }
+        }
+
+        if (_contactResourcePresence.TryGetValue(bare, out var resMap) && !resMap.IsEmpty)
+        {
+            var best = resMap.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
+            newConv.PresenceShow = best.Show;
         }
 
         Conversations.Add(newConv);
@@ -1672,7 +1759,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         // Ignore non-presence stanzas (e.g. subscribe, subscribed, unsubscribe, error) for status updates
         if (!string.IsNullOrEmpty(presence.Type) &&
-            !string.Equals(presence.Type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(presence.Type, PresenceStanza.TypeUnavailable, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(presence.Type, "available", StringComparison.OrdinalIgnoreCase))
         {
             return Task.CompletedTask;
         }
@@ -1757,14 +1845,18 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         PostToUi(() =>
         {
-            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(senderBare, StringComparison.OrdinalIgnoreCase));
+            var contact = Contacts.FirstOrDefault(c =>
+                c.ContactJid.Equals(senderBare, StringComparison.OrdinalIgnoreCase) ||
+                (Jid.TryParse(c.ContactJid, out var cj) && Jid.TryParse(senderBare, out var sbJ) && cj.EqualsBare(sbJ)));
             if (contact is not null)
             {
                 contact.PresenceShow = aggregateShow;
                 contact.StatusMessage = aggregateStatus;
             }
 
-            var conv = Conversations.FirstOrDefault(c => Jid.TryParse(senderBare, out var sbJid) && c.RemoteJid.EqualsBare(sbJid));
+            var conv = Conversations.FirstOrDefault(c =>
+                c.RemoteJid.ToString().Equals(senderBare, StringComparison.OrdinalIgnoreCase) ||
+                (Jid.TryParse(senderBare, out var sbJid) && c.RemoteJid.EqualsBare(sbJid)));
             if (conv is not null)
             {
                 conv.PresenceShow = aggregateShow;
@@ -1878,7 +1970,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
             if (contact is not null)
             {
-                contact.LastMessagePreview = msg.Body;
+                contact.LastMessagePreview = conv.LastMessageSnippet;
                 if (ActiveConversation?.Id != remote.ToString() && direction == MessageDirection.Inbound)
                 {
                     contact.UnreadCount++;
@@ -1974,7 +2066,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
             if (contact is not null)
             {
-                contact.LastMessagePreview = msg.Body;
+                contact.LastMessagePreview = conv.LastMessageSnippet;
                 if (ActiveConversation?.Id != remote.ToString() && direction == MessageDirection.Inbound)
                 {
                     contact.UnreadCount++;
@@ -2019,7 +2111,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(remoteJid.ToString(), StringComparison.OrdinalIgnoreCase));
             if (contact is not null)
             {
-                contact.LastMessagePreview = dec.PlaintextBody;
+                contact.LastMessagePreview = conv.LastMessageSnippet;
                 if (ActiveConversation?.Id != remoteJid.ToString())
                 {
                     contact.UnreadCount++;
@@ -2047,9 +2139,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
             conv?.HandleIncomingCorrection(originalId, newBody, msg.ToXmlString(indent: true));
 
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (contact is not null)
+            if (contact is not null && conv is not null)
             {
-                contact.LastMessagePreview = newBody;
+                contact.LastMessagePreview = conv.LastMessageSnippet;
             }
         });
     }
@@ -2064,12 +2156,23 @@ public sealed partial class MainChatViewModel : ViewModelBase
             {
                 var conv = Conversations.FirstOrDefault(c => c.RemoteJid.EqualsBare(fromJid));
                 conv?.HandleIncomingRetraction(targetId);
+
+                var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(fromJid));
+                if (contact is not null && conv is not null)
+                {
+                    contact.LastMessagePreview = conv.LastMessageSnippet;
+                }
             }
             else
             {
                 foreach (var conv in Conversations)
                 {
                     conv.HandleIncomingRetraction(targetId);
+                    var contact = Contacts.FirstOrDefault(c => Jid.TryParse(c.ContactJid, out var cJid) && cJid.EqualsBare(conv.RemoteJid));
+                    if (contact is not null)
+                    {
+                        contact.LastMessagePreview = conv.LastMessageSnippet;
+                    }
                 }
             }
         });
@@ -2097,6 +2200,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public void OpenCodeBlockEditor(string initialCode = "", string? languageHint = null, int? insertionIndex = null)
     {
         if (ActiveConversation is null) return;
+        Help.Close();
+        About.Close();
 
         CodeBlockEditor.Open(initialCode, languageHint, markdown =>
         {

@@ -51,10 +51,13 @@ public sealed class SettingsRepository
     public const string KeyUse24HourClock = "use_24h_clock";
     public const string KeyShowInlinePreviews = "show_inline_previews";
     public const string KeyAutoDownloadMedia = "auto_download_media";
+    public const string KeyEvaluateExpressions = "chat_evaluate_expressions";
     public const string KeyThemeMode = "theme_mode";
     public const string KeyAccentColor = "accent_color";
     public const string KeyOutboundBubbleColor = "outbound_bubble_color";
     public const string KeyInboundBubbleColor = "inbound_bubble_color";
+    public const string KeyOutboundBubbleTextColor = "outbound_bubble_text_color";
+    public const string KeyInboundBubbleTextColor = "inbound_bubble_text_color";
     public const string KeyChatInputMaxLines = "chat_input_max_lines";
     public const string KeyLastActiveChat = "last_active_chat";
     public const string KeyLastPresenceMode = "last_presence_mode";
@@ -65,6 +68,7 @@ public sealed class SettingsRepository
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
     public const bool DefaultAutoReplaceEmoticons = true;
+    public const bool DefaultEvaluateExpressions = true;
     public const bool DefaultEmoticonBannerDismissed = false;
     public const bool DefaultNotificationPopupsEnabled = true;
     public const bool DefaultIconFlashingEnabled = true;
@@ -79,6 +83,8 @@ public sealed class SettingsRepository
     public const string DefaultAccentColor = "#00F0FF";
     public const string DefaultOutboundBubbleColor = "#2563EB";
     public const string DefaultInboundBubbleColor = "#1E293B";
+    public const string DefaultOutboundBubbleTextColor = "#FFFFFF";
+    public const string DefaultInboundBubbleTextColor = "#F1F5F9";
     public const int DefaultChatInputMaxLines = 5;
     public const string DefaultPresenceMode = "available";
     public const string DefaultStatusMessage = "Online with Stanza";
@@ -329,6 +335,17 @@ public sealed class SettingsRepository
         await SetSettingAsync(accountJid, KeyAutoDownloadMedia, autoDownload.ToString(), cancellationToken);
     }
 
+    public async Task<bool> GetEvaluateExpressionsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyEvaluateExpressions, cancellationToken);
+        return bool.TryParse(val, out var result) ? result : DefaultEvaluateExpressions;
+    }
+
+    public async Task SetEvaluateExpressionsAsync(string accountJid, bool evaluateExpressions, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyEvaluateExpressions, evaluateExpressions.ToString(), cancellationToken);
+    }
+
     public async Task<string> GetThemeModeAsync(string accountJid, CancellationToken cancellationToken = default)
     {
         var val = await GetSettingAsync(accountJid, KeyThemeMode, cancellationToken);
@@ -371,6 +388,28 @@ public sealed class SettingsRepository
     public async Task SetInboundBubbleColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyInboundBubbleColor, colorHex ?? DefaultInboundBubbleColor, cancellationToken);
+    }
+
+    public async Task<string> GetOutboundBubbleTextColorAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyOutboundBubbleTextColor, cancellationToken);
+        return !string.IsNullOrWhiteSpace(val) ? val : DefaultOutboundBubbleTextColor;
+    }
+
+    public async Task SetOutboundBubbleTextColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyOutboundBubbleTextColor, colorHex ?? DefaultOutboundBubbleTextColor, cancellationToken);
+    }
+
+    public async Task<string> GetInboundBubbleTextColorAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyInboundBubbleTextColor, cancellationToken);
+        return !string.IsNullOrWhiteSpace(val) ? val : DefaultInboundBubbleTextColor;
+    }
+
+    public async Task SetInboundBubbleTextColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyInboundBubbleTextColor, colorHex ?? DefaultInboundBubbleTextColor, cancellationToken);
     }
 
     public async Task<int> GetChatInputMaxLinesAsync(string accountJid, CancellationToken cancellationToken = default)

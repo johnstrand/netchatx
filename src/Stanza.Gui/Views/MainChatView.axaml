@@ -19,6 +19,7 @@
     <UserControl.KeyBindings>
         <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding OpenNewChatDialogCommand}" />
+        <KeyBinding Gesture="F1" Command="{Binding OpenHelpCommand}" />
     </UserControl.KeyBindings>
 
     <UserControl.Styles>
@@ -423,7 +424,7 @@
             <StackPanel Grid.Row="0" Background="#131e2d"
                         IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <Border Padding="16,10">
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto">
                         <!-- Toggle/Restore Sidebar Button -->
                         <Button Grid.Column="0"
                                 Content="{Binding SidebarToggleIcon}"
@@ -472,8 +473,22 @@
                                 Classes="icon-btn"
                                 Margin="0,0,8,0"
                                 VerticalAlignment="Center" />
-                        <!-- Details & Security Menu (⋮) -->
+                        <!-- Help & About Dropdown Menu -->
                         <Button Grid.Column="5"
+                                Content="?"
+                                ToolTip.Tip="Help &amp; About"
+                                Classes="icon-btn"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="❓ Help &amp; Feature Guide" InputGesture="F1" Command="{Binding OpenHelpCommand}" />
+                                    <MenuItem Header="ℹ️ About Stanza" Command="{Binding OpenAboutCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <!-- Details & Security Menu (⋮) -->
+                        <Button Grid.Column="6"
                                 Content="⋮"
                                 ToolTip.Tip="{DynamicResource Chat_DetailsAndSecurity}"
                                 Command="{Binding ToggleDetailsCommand}"
@@ -491,10 +506,25 @@
             <StackPanel Grid.Row="0" Background="#131e2d"
                         IsVisible="{Binding ShowEmptyStateHeader}">
                 <Border Padding="14,10">
-                    <Button Content="▶"
-                            ToolTip.Tip="{DynamicResource Sidebar_Restore_Tooltip}"
-                            Command="{Binding RestoreSidebarCommand}"
-                            Classes="icon-btn" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Button Grid.Column="0" Content="▶"
+                                ToolTip.Tip="{DynamicResource Sidebar_Restore_Tooltip}"
+                                Command="{Binding RestoreSidebarCommand}"
+                                Classes="icon-btn"
+                                HorizontalAlignment="Left" />
+                        <Button Grid.Column="1"
+                                Content="?"
+                                ToolTip.Tip="Help &amp; About"
+                                Classes="icon-btn"
+                                VerticalAlignment="Center">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="❓ Help &amp; Feature Guide" InputGesture="F1" Command="{Binding OpenHelpCommand}" />
+                                    <MenuItem Header="ℹ️ About Stanza" Command="{Binding OpenAboutCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </Grid>
                 </Border>
                 <!-- HR Divider -->
                 <Rectangle Height="1" Fill="#1E293B" Margin="16,0" HorizontalAlignment="Stretch" />
@@ -577,7 +607,7 @@
                                                 <!-- Sender Name for group chats + Action Buttons -->
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBlock Grid.Column="0" Text="{Binding SenderDisplayName}" FontWeight="Bold" FontSize="11"
-                                                               Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                               Foreground="{Binding BubbleForeground}"
                                                                Opacity="0.85" VerticalAlignment="Center"
                                                                IsVisible="{Binding !IsActionMessage}" />
                                                     <StackPanel Grid.Column="1" Classes="bubble-actions" Orientation="Horizontal" Spacing="4">
@@ -585,7 +615,7 @@
                                                         <Button Content="😀+" ToolTip.Tip="Add reaction"
                                                                 Classes="image-btn reaction-picker-btn"
                                                                 FontSize="12" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}">
+                                                                Foreground="{Binding BubbleForeground}">
                                                             <Button.Flyout>
                                                                 <Flyout Placement="Top">
                                                                     <StackPanel Spacing="6" Width="300" DataContext="{Binding EmojiPicker}">
@@ -700,20 +730,20 @@
                                                         <Button Content="↩" Command="{Binding ReplyCommand}"
                                                                 ToolTip.Tip="Reply"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                         <Button Content="✏️" Command="{Binding EditCommand}"
                                                                 ToolTip.Tip="Edit Message"
                                                                 IsVisible="{Binding IsOutbound}"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                         <Button Content="🗑" Command="{Binding DeleteCommand}"
                                                                 ToolTip.Tip="Delete Message"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                         <Button Content="📋" Command="{Binding CopyTextCommand}"
                                                                 ToolTip.Tip="Copy Text"
                                                                 Classes="image-btn" FontSize="11" Padding="4,1"
-                                                                Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                Foreground="{Binding BubbleForeground}" />
                                                     </StackPanel>
                                                 </Grid>
 
@@ -721,7 +751,7 @@
                                                 <controls:HyperlinkTextBlock Text="{Binding DisplayText}"
                                                                              IsMarkdownEnabled="{Binding !IsUnstyled}"
                                                                              MessageDirection="{Binding Direction}"
-                                                                             Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                             Foreground="{Binding BubbleForeground}"
                                                                              FontSize="{Binding ((vm:MainChatViewModel)DataContext).ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              FontFamily="{Binding ((vm:MainChatViewModel)DataContext).ChatFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              TextWrapping="Wrap"
@@ -792,18 +822,18 @@
                                                                 ToolTip.Tip="Toggle Raw XML"
                                                                 Margin="0,0,4,0" VerticalAlignment="Center">
                                                             <TextBlock Text="&lt;/&gt;" FontSize="10" Opacity="0.8"
-                                                                       Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                       Foreground="{Binding BubbleForeground}" />
                                                         </Button>
                                                         <TextBlock Text="(edited)" FontSize="10" FontStyle="Italic"
                                                                    IsVisible="{Binding IsEdited}"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Foreground="{Binding BubbleForeground}"
                                                                    Opacity="0.75" VerticalAlignment="Center" Margin="0,0,2,0" />
                                                         <TextBlock Text="{Binding FormattedTime}" FontSize="10"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Foreground="{Binding BubbleForeground}"
                                                                    Opacity="0.75" VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding ReceiptIcon}" FontSize="10"
                                                                    ToolTip.Tip="{Binding ReceiptTooltip}"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}"
+                                                                   Foreground="{Binding BubbleForeground}"
                                                                    Opacity="0.9" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Grid>
@@ -816,7 +846,7 @@
                                                         Margin="0,4,0,0">
                                                     <StackPanel Spacing="4">
                                                         <TextBlock Text="Raw XML" FontSize="10" FontWeight="Bold" Opacity="0.8"
-                                                                   Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                   Foreground="{Binding BubbleForeground}" />
                                                         <TextBox Text="{Binding RawXml, Mode=OneWay}"
                                                                  IsReadOnly="True"
                                                                  TextWrapping="Wrap"
@@ -826,7 +856,7 @@
                                                                  MaxHeight="180"
                                                                  Background="Transparent"
                                                                  BorderThickness="0"
-                                                                 Foreground="{Binding Direction, Converter={StaticResource DirectionToForeground}}" />
+                                                                 Foreground="{Binding BubbleForeground}" />
                                                     </StackPanel>
                                                 </Border>
                                             </StackPanel>
@@ -926,6 +956,20 @@
                 <StackPanel Spacing="4" HorizontalAlignment="Center">
                     <TextBlock Text="{DynamicResource Chat_Welcome_Title}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
                     <TextBlock Text="{DynamicResource Chat_Welcome_Subtitle}" Classes="muted" HorizontalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
+                    <Button Content="📖 Feature Guide"
+                            ToolTip.Tip="Open Help &amp; Feature Guide (F1)"
+                            Command="{Binding OpenHelpCommand}"
+                            Classes="icon-btn subtle"
+                            FontSize="11"
+                            Padding="12,5" />
+                    <Button Content="ℹ️ About Stanza"
+                            ToolTip.Tip="About Stanza, version, and license"
+                            Command="{Binding OpenAboutCommand}"
+                            Classes="icon-btn subtle"
+                            FontSize="11"
+                            Padding="12,5" />
                 </StackPanel>
                 <Button Content="▶"
                         ToolTip.Tip="{DynamicResource Sidebar_Restore_Tooltip}"
@@ -1029,6 +1073,31 @@
                                     ToolTip.Tip="{DynamicResource Chat_CancelReply}"
                                     Command="{Binding ActiveConversation.CancelReplyingMessageCommand}"
                                     Classes="icon-btn subtle"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Expression Live Preview Banner -->
+                    <Border Background="#131C2D"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12,6"
+                            Margin="8,0,8,6"
+                            IsVisible="{Binding ActiveConversation.IsExpressionPreviewVisible}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="💡 Preview: " FontWeight="SemiBold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding ActiveConversation.ExpressionPreviewText}"
+                                       Foreground="#E2E8F0" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1"
+                                       VerticalAlignment="Center" Margin="4,0" />
+                            <Button Grid.Column="2"
+                                    Content="Apply"
+                                    ToolTip.Tip="Replace input with evaluated expression"
+                                    Command="{Binding ActiveConversation.ApplyExpressionPreviewCommand}"
+                                    Classes="image-btn"
+                                    FontSize="10.5"
+                                    Foreground="#00F0FF"
+                                    Cursor="Hand"
                                     VerticalAlignment="Center" />
                         </Grid>
                     </Border>
@@ -1292,6 +1361,30 @@
             <views:SettingsView DataContext="{Binding Settings}"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- ================= HELP & FEATURE GUIDE MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding Help.IsOpen}"
+              ZIndex="997">
+            <!-- Dark semi-transparent backdrop (click to dismiss) -->
+            <Border Background="#80000000" PointerPressed="OnHelpBackdropPressed" />
+            <!-- Centered Modal Help Card -->
+            <views:HelpView DataContext="{Binding Help}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- ================= ABOUT MODAL OVERLAY ================= -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="4"
+              IsVisible="{Binding About.IsOpen}"
+              ZIndex="997">
+            <!-- Dark semi-transparent backdrop (click to dismiss) -->
+            <Border Background="#80000000" PointerPressed="OnAboutBackdropPressed" />
+            <!-- Centered Modal About Card -->
+            <views:AboutView DataContext="{Binding About}"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
         </Grid>
 
         <!-- ================= CLOSE PROMPT CHOICE MODAL OVERLAY ================= -->

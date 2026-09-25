@@ -32,6 +32,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<string>? _onCloseActionChanged;
     private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
     private readonly Action<string>? _onLanguageChanged;
+    private readonly Action<bool>? _onEvaluateExpressionsChanged;
     private readonly Func<byte[], string, Task>? _onAvatarChanged;
     private readonly Func<Task>? _onAvatarRemoved;
     private readonly Func<Task>? _onAvatarSyncRequested;
@@ -62,13 +63,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         "Exit"
     ];
 
-    public static readonly IReadOnlyList<string> CuratedAccents =
-    [
-        "#00F0FF", // Cyan
-        "#A855F7", // Purple
-        "#10B981", // Emerald
-        "#F59E0B"  // Amber
-    ];
+    public static readonly IReadOnlyList<string> CuratedAccents = ThemeManager.CuratedAccents;
 
     public static readonly IReadOnlyList<string> CuratedOutboundBubbleColors =
     [
@@ -88,6 +83,22 @@ public sealed partial class SettingsViewModel : ViewModelBase
         "#14332B", // Dark Forest
         "#2A1B28", // Dark Plum
         "#292524"  // Dark Stone
+    ];
+
+    public static readonly IReadOnlyList<string> CuratedOutboundBubbleTextColors =
+    [
+        "#FFFFFF", // Pure White
+        "#F8FAFC", // Off-White
+        "#0F172A", // Dark Slate
+        "#000000"  // Black
+    ];
+
+    public static readonly IReadOnlyList<string> CuratedInboundBubbleTextColors =
+    [
+        "#F1F5F9", // Crisp Light
+        "#FFFFFF", // Pure White
+        "#94A3B8", // Muted Slate
+        "#0F172A"  // Dark Slate
     ];
 
     public static readonly IReadOnlyList<string> PaletteEmojis =
@@ -152,6 +163,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _autoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
 
+    // --- Expression Evaluation ---
+    [ObservableProperty]
+    private bool _evaluateExpressions = SettingsRepository.DefaultEvaluateExpressions;
+
     [ObservableProperty]
     private ObservableCollection<EmoticonMapping> _emoticonMappings = new(SettingsRepository.DefaultEmoticonMappings);
 
@@ -180,6 +195,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _inboundBubbleColor = SettingsRepository.DefaultInboundBubbleColor;
+
+    [ObservableProperty]
+    private string _outboundBubbleTextColor = SettingsRepository.DefaultOutboundBubbleTextColor;
+
+    [ObservableProperty]
+    private string _inboundBubbleTextColor = SettingsRepository.DefaultInboundBubbleTextColor;
 
     // --- Notifications & Startup ---
     [ObservableProperty]
@@ -217,6 +238,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> AvailablePaletteEmojis => PaletteEmojis;
     public IReadOnlyList<string> AvailableOutboundBubbleColors => CuratedOutboundBubbleColors;
     public IReadOnlyList<string> AvailableInboundBubbleColors => CuratedInboundBubbleColors;
+    public IReadOnlyList<string> AvailableOutboundTextColors => CuratedOutboundBubbleTextColors;
+    public IReadOnlyList<string> AvailableInboundTextColors => CuratedInboundBubbleTextColors;
 
     public string EffectiveFontFamily
     {
@@ -250,6 +273,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<int>? onChatInputMaxLinesChanged = null,
         Action<string>? onCloseActionChanged = null,
         Action<bool, IReadOnlyList<EmoticonMapping>>? onEmoticonSettingsChanged = null,
+        Action<bool>? onEvaluateExpressionsChanged = null,
         IStartupService? startupService = null,
         Func<byte[], string, Task>? onAvatarChanged = null,
         Func<Task>? onAvatarRemoved = null,
@@ -272,6 +296,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onChatInputMaxLinesChanged = onChatInputMaxLinesChanged;
         _onCloseActionChanged = onCloseActionChanged;
         _onEmoticonSettingsChanged = onEmoticonSettingsChanged;
+        _onEvaluateExpressionsChanged = onEvaluateExpressionsChanged;
         _onAvatarChanged = onAvatarChanged;
         _onAvatarRemoved = onAvatarRemoved;
         _onAvatarSyncRequested = onAvatarSyncRequested;
@@ -343,6 +368,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
             MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
             AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
+            EvaluateExpressions = await _settingsRepo.GetEvaluateExpressionsAsync(_accountJid);
 
             var mappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
             EmoticonMappings.Clear();
@@ -374,6 +400,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             AccentColor = await _settingsRepo.GetAccentColorAsync(_accountJid);
             OutboundBubbleColor = await _settingsRepo.GetOutboundBubbleColorAsync(_accountJid);
             InboundBubbleColor = await _settingsRepo.GetInboundBubbleColorAsync(_accountJid);
+            OutboundBubbleTextColor = await _settingsRepo.GetOutboundBubbleTextColorAsync(_accountJid);
+            InboundBubbleTextColor = await _settingsRepo.GetInboundBubbleTextColorAsync(_accountJid);
             ChatInputMaxLines = await _settingsRepo.GetChatInputMaxLinesAsync(_accountJid);
             CloseAction = await _settingsRepo.GetCloseActionAsync(_accountJid);
 
@@ -401,6 +429,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         // Apply theme and accent
         ThemeManager.ApplyTheme(ThemeMode, AccentColor);
         DirectionToBackgroundConverter.SetColors(OutboundBubbleColor, InboundBubbleColor);
+        DirectionToForegroundConverter.SetColors(OutboundBubbleTextColor, InboundBubbleTextColor);
     }
 
     partial void OnNotificationPopupsEnabledChanged(bool value)
@@ -436,6 +465,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetAutoReplaceEmoticonsAsync(_accountJid, value);
             _onEmoticonSettingsChanged?.Invoke(value, EmoticonMappings.ToList());
+        }
+    }
+
+    partial void OnEvaluateExpressionsChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetEvaluateExpressionsAsync(_accountJid, value);
+            _onEvaluateExpressionsChanged?.Invoke(value);
         }
     }
 
@@ -624,14 +662,33 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public bool IsPurpleSelected => AccentColor.Contains("A855F7", StringComparison.OrdinalIgnoreCase);
     public bool IsEmeraldSelected => AccentColor.Contains("10B981", StringComparison.OrdinalIgnoreCase);
     public bool IsAmberSelected => AccentColor.Contains("F59E0B", StringComparison.OrdinalIgnoreCase);
+    public bool IsCrimsonSelected => AccentColor.Contains("EF4444", StringComparison.OrdinalIgnoreCase);
+    public bool IsRoseSelected => AccentColor.Contains("EC4899", StringComparison.OrdinalIgnoreCase);
+    public bool IsIndigoSelected => AccentColor.Contains("6366F1", StringComparison.OrdinalIgnoreCase);
+    public bool IsOrangeSelected => AccentColor.Contains("F97316", StringComparison.OrdinalIgnoreCase);
 
-    public string SelectedAccentName => IsPurpleSelected
-        ? "Neon Purple (#A855F7)"
-        : IsEmeraldSelected
-            ? "Emerald Green (#10B981)"
-            : IsAmberSelected
-                ? "Vibrant Amber (#F59E0B)"
-                : "Electric Cyan (#00F0FF)";
+    public bool IsCustomAccentSelected => !IsCyanSelected && !IsPurpleSelected && !IsEmeraldSelected && !IsAmberSelected &&
+                                          !IsCrimsonSelected && !IsRoseSelected && !IsIndigoSelected && !IsOrangeSelected;
+
+    public string SelectedAccentName
+    {
+        get
+        {
+            if (IsCyanSelected) return "Electric Cyan (#00F0FF)";
+            if (IsPurpleSelected) return "Neon Purple (#A855F7)";
+            if (IsEmeraldSelected) return "Emerald Green (#10B981)";
+            if (IsAmberSelected) return "Vibrant Amber (#F59E0B)";
+            if (IsCrimsonSelected) return "Crimson Red (#EF4444)";
+            if (IsRoseSelected) return "Rose Pink (#EC4899)";
+            if (IsIndigoSelected) return "Indigo (#6366F1)";
+            if (IsOrangeSelected) return "Sunset Orange (#F97316)";
+            return $"Custom Accent ({AccentColor})";
+        }
+    }
+
+    public IBrush CustomAccentBrush => Color.TryParse(ThemeManager.NormalizeHex(AccentColor), out var c)
+        ? new SolidColorBrush(c)
+        : new SolidColorBrush(Color.Parse("#00F0FF"));
 
     partial void OnAccentColorChanged(string value)
     {
@@ -639,7 +696,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsPurpleSelected));
         OnPropertyChanged(nameof(IsEmeraldSelected));
         OnPropertyChanged(nameof(IsAmberSelected));
+        OnPropertyChanged(nameof(IsCrimsonSelected));
+        OnPropertyChanged(nameof(IsRoseSelected));
+        OnPropertyChanged(nameof(IsIndigoSelected));
+        OnPropertyChanged(nameof(IsOrangeSelected));
+        OnPropertyChanged(nameof(IsCustomAccentSelected));
         OnPropertyChanged(nameof(SelectedAccentName));
+        OnPropertyChanged(nameof(CustomAccentBrush));
 
         if (!_isInitializing)
         {
@@ -711,6 +774,60 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    // Outbound text color flags
+    public bool IsOutboundTextWhiteSelected => OutboundBubbleTextColor.Contains("FFFFFF", StringComparison.OrdinalIgnoreCase);
+    public bool IsOutboundTextOffWhiteSelected => OutboundBubbleTextColor.Contains("F8FAFC", StringComparison.OrdinalIgnoreCase);
+    public bool IsOutboundTextDarkSlateSelected => OutboundBubbleTextColor.Contains("0F172A", StringComparison.OrdinalIgnoreCase);
+    public bool IsOutboundTextBlackSelected => OutboundBubbleTextColor.Contains("000000", StringComparison.OrdinalIgnoreCase);
+
+    // Inbound text color flags
+    public bool IsInboundTextCrispLightSelected => InboundBubbleTextColor.Contains("F1F5F9", StringComparison.OrdinalIgnoreCase);
+    public bool IsInboundTextWhiteSelected => InboundBubbleTextColor.Contains("FFFFFF", StringComparison.OrdinalIgnoreCase);
+    public bool IsInboundTextMutedSlateSelected => InboundBubbleTextColor.Contains("94A3B8", StringComparison.OrdinalIgnoreCase);
+    public bool IsInboundTextDarkSlateSelected => InboundBubbleTextColor.Contains("0F172A", StringComparison.OrdinalIgnoreCase);
+
+    public IBrush PreviewOutboundTextBrush => Color.TryParse(OutboundBubbleTextColor, out var c)
+        ? new SolidColorBrush(c)
+        : Brushes.White;
+
+    public IBrush PreviewInboundTextBrush => Color.TryParse(InboundBubbleTextColor, out var c)
+        ? new SolidColorBrush(c)
+        : new SolidColorBrush(Color.Parse("#F1F5F9"));
+
+    partial void OnOutboundBubbleTextColorChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsOutboundTextWhiteSelected));
+        OnPropertyChanged(nameof(IsOutboundTextOffWhiteSelected));
+        OnPropertyChanged(nameof(IsOutboundTextDarkSlateSelected));
+        OnPropertyChanged(nameof(IsOutboundTextBlackSelected));
+        OnPropertyChanged(nameof(PreviewOutboundTextBrush));
+
+        DirectionToForegroundConverter.SetColors(value, InboundBubbleTextColor);
+
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetOutboundBubbleTextColorAsync(_accountJid, value);
+            _onBubbleColorChanged?.Invoke(OutboundBubbleColor, InboundBubbleColor);
+        }
+    }
+
+    partial void OnInboundBubbleTextColorChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsInboundTextCrispLightSelected));
+        OnPropertyChanged(nameof(IsInboundTextWhiteSelected));
+        OnPropertyChanged(nameof(IsInboundTextMutedSlateSelected));
+        OnPropertyChanged(nameof(IsInboundTextDarkSlateSelected));
+        OnPropertyChanged(nameof(PreviewInboundTextBrush));
+
+        DirectionToForegroundConverter.SetColors(OutboundBubbleTextColor, value);
+
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetInboundBubbleTextColorAsync(_accountJid, value);
+            _onBubbleColorChanged?.Invoke(OutboundBubbleColor, InboundBubbleColor);
+        }
+    }
+
     public string SelectedSlotLabel => SelectedEmojiSlot >= 0 && SelectedEmojiSlot < QuickEmojis.Count
         ? $"Editing Slot {SelectedEmojiSlot + 1}: Click an emoji below to swap"
         : "Click a slot (1-6) above, then pick an emoji below to replace it:";
@@ -759,6 +876,26 @@ public sealed partial class SettingsViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(hex))
         {
             InboundBubbleColor = hex;
+        }
+    }
+
+    [RelayCommand]
+    public void SelectOutboundBubbleTextColor(object? param)
+    {
+        var hex = param?.ToString();
+        if (!string.IsNullOrWhiteSpace(hex))
+        {
+            OutboundBubbleTextColor = hex;
+        }
+    }
+
+    [RelayCommand]
+    public void SelectInboundBubbleTextColor(object? param)
+    {
+        var hex = param?.ToString();
+        if (!string.IsNullOrWhiteSpace(hex))
+        {
+            InboundBubbleTextColor = hex;
         }
     }
 
@@ -840,6 +977,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         EnableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
         MessageMergeThresholdSeconds = SettingsRepository.DefaultMergeMessagesThresholdSeconds;
         AutoReplaceEmoticons = SettingsRepository.DefaultAutoReplaceEmoticons;
+        EvaluateExpressions = SettingsRepository.DefaultEvaluateExpressions;
 
         EmoticonMappings.Clear();
         foreach (var m in SettingsRepository.DefaultEmoticonMappings)
@@ -858,6 +996,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         AccentColor = SettingsRepository.DefaultAccentColor;
         OutboundBubbleColor = SettingsRepository.DefaultOutboundBubbleColor;
         InboundBubbleColor = SettingsRepository.DefaultInboundBubbleColor;
+        OutboundBubbleTextColor = SettingsRepository.DefaultOutboundBubbleTextColor;
+        InboundBubbleTextColor = SettingsRepository.DefaultInboundBubbleTextColor;
         ChatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
         CloseAction = SettingsRepository.DefaultCloseAction;
         SelectedLanguageItem = AvailableLanguages.FirstOrDefault(l => l.Code == SettingsRepository.DefaultLanguage) ?? AvailableLanguages[0];
@@ -877,6 +1017,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetMergeMessagesEnabledAsync(_accountJid, EnableMessageMerging);
         await _settingsRepo.SetMergeMessagesThresholdSecondsAsync(_accountJid, MessageMergeThresholdSeconds);
         await _settingsRepo.SetAutoReplaceEmoticonsAsync(_accountJid, AutoReplaceEmoticons);
+        await _settingsRepo.SetEvaluateExpressionsAsync(_accountJid, EvaluateExpressions);
         await _settingsRepo.SetEmoticonMappingsAsync(_accountJid, EmoticonMappings);
         await _settingsRepo.SetFontFamilyAsync(_accountJid, FontFamily);
         await _settingsRepo.SetFontSizeAsync(_accountJid, FontSize);
@@ -889,15 +1030,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetAccentColorAsync(_accountJid, AccentColor);
         await _settingsRepo.SetOutboundBubbleColorAsync(_accountJid, OutboundBubbleColor);
         await _settingsRepo.SetInboundBubbleColorAsync(_accountJid, InboundBubbleColor);
+        await _settingsRepo.SetOutboundBubbleTextColorAsync(_accountJid, OutboundBubbleTextColor);
+        await _settingsRepo.SetInboundBubbleTextColorAsync(_accountJid, InboundBubbleTextColor);
         await _settingsRepo.SetCloseActionAsync(_accountJid, CloseAction);
         await _settingsRepo.SetQuickEmojisAsync(_accountJid, QuickEmojis);
         await _settingsRepo.SetLanguageAsync(_accountJid, SettingsRepository.DefaultLanguage);
 
         ThemeManager.ApplyTheme(ThemeMode, AccentColor);
         DirectionToBackgroundConverter.SetColors(OutboundBubbleColor, InboundBubbleColor);
+        DirectionToForegroundConverter.SetColors(OutboundBubbleTextColor, InboundBubbleTextColor);
 
         _onBubbleMergeChanged?.Invoke(EnableMessageMerging, MessageMergeThresholdSeconds);
         _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
+        _onEvaluateExpressionsChanged?.Invoke(EvaluateExpressions);
         _onPopupsChanged?.Invoke(NotificationPopupsEnabled);
         _onFlashingChanged?.Invoke(IconFlashingEnabled);
         _onTypographyChanged?.Invoke(EffectiveFontFamily, FontSize);
