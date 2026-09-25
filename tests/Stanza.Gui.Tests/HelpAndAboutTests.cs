@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.VisualTree;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Transport;
@@ -149,5 +151,50 @@ public class HelpAndAboutTests : IDisposable
         chatVm.OpenNewChatDialog();
         Assert.True(chatVm.IsNewChatDialogOpen);
         Assert.False(chatVm.About.IsOpen);
+    }
+
+    [Avalonia.Headless.XUnit.AvaloniaFact]
+    public void AboutView_And_HelpView_Buttons_HaveSufficientDimensionsAndDoNotClip()
+    {
+        var aboutView = new Stanza.Gui.Views.AboutView { DataContext = new AboutViewModel() };
+        var window = new Avalonia.Controls.Window
+        {
+            Width = 1050,
+            Height = 700,
+            Content = aboutView
+        };
+        window.Show();
+        aboutView.Measure(new Avalonia.Size(1050, 700));
+        aboutView.Arrange(new Avalonia.Rect(0, 0, 1050, 700));
+
+        var buttons = aboutView.GetVisualDescendants().OfType<Avalonia.Controls.Button>().ToList();
+
+        // 1. Header close button is 32x32
+        var closeHeaderBtn = buttons.First(b => b.Content?.ToString() == "✕");
+        Assert.Equal(32, closeHeaderBtn.Bounds.Width);
+        Assert.Equal(32, closeHeaderBtn.Bounds.Height);
+
+        // 2. GitHub repository button has sufficient width and does not clip
+        var gitHubBtn = buttons.First(b => b.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t.Text == "GitHub"));
+        Assert.True(gitHubBtn.Bounds.Width >= 80, $"GitHub button width ({gitHubBtn.Bounds.Width}) should be >= 80px");
+        Assert.True(gitHubBtn.Bounds.Height >= 28, $"GitHub button height ({gitHubBtn.Bounds.Height}) should be >= 28px");
+
+        // 3. Copy System Info button has sufficient width
+        var copyBtn = buttons.First(b => b.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t.Text == "Copy System Info"));
+        Assert.True(copyBtn.Bounds.Width >= 140, $"Copy button width ({copyBtn.Bounds.Width}) should be >= 140px");
+
+        // 4. Footer close button has sufficient width
+        var closeFooterBtn = buttons.First(b => b.Content?.ToString() == "Close");
+        Assert.True(closeFooterBtn.Bounds.Width >= 60, $"Close button width ({closeFooterBtn.Bounds.Width}) should be >= 60px");
+
+        // 5. Verify HelpView "Got it" button also has sufficient width
+        var helpView = new Stanza.Gui.Views.HelpView { DataContext = new HelpViewModel() };
+        window.Content = helpView;
+        helpView.Measure(new Avalonia.Size(1050, 700));
+        helpView.Arrange(new Avalonia.Rect(0, 0, 1050, 700));
+
+        var helpButtons = helpView.GetVisualDescendants().OfType<Avalonia.Controls.Button>().ToList();
+        var gotItBtn = helpButtons.First(b => b.Content?.ToString() == "Got it");
+        Assert.True(gotItBtn.Bounds.Width >= 60, $"Got it button width ({gotItBtn.Bounds.Width}) should be >= 60px");
     }
 }
