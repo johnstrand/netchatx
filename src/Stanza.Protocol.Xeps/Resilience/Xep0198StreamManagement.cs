@@ -1,4 +1,4 @@
-﻿using Stanza.Core.Client;
+using Stanza.Core.Client;
 using Stanza.Core.Xml;
 using Stanza.Protocol.Xeps.Common;
 
@@ -28,21 +28,21 @@ public sealed class Xep0198StreamManagement : XepFeatureBase
             elem.Attr("resume", "true");
         }
 
-        await Client.SendElementAsync(elem, ct);
+        await Client.SendElementAsync(elem, ct).ConfigureAwait(false);
     }
 
     public async Task RequestAckAsync(CancellationToken ct = default)
     {
         if (Client is null || !IsEnabled) return;
         var r = new XmppElement("r", NsSm);
-        await Client.SendElementAsync(r, ct);
+        await Client.SendElementAsync(r, ct).ConfigureAwait(false);
     }
 
     public async Task SendAckAsync(CancellationToken ct = default)
     {
         if (Client is null || !IsEnabled) return;
         var a = new XmppElement("a", NsSm).Attr("h", InboundHandled.ToString());
-        await Client.SendElementAsync(a, ct);
+        await Client.SendElementAsync(a, ct).ConfigureAwait(false);
     }
 
     public override async ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)
@@ -58,7 +58,7 @@ public sealed class Xep0198StreamManagement : XepFeatureBase
             if (element.Name == "r")
             {
                 // Server requested ack
-                await SendAckAsync(cancellationToken);
+                await SendAckAsync(cancellationToken).ConfigureAwait(false);
                 return false;
             }
             if (element.Name == "a")

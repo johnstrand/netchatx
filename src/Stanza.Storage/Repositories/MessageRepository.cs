@@ -23,7 +23,7 @@ public sealed class MessageRepository
         if (messageList.Count == 0) return;
 
         using var connection = _context.CreateConnection();
-        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         // Comprehensive deduplication statement
         using var checkCmd = connection.CreateCommand();
@@ -102,7 +102,7 @@ public sealed class MessageRepository
             pCheckTimeMin.Value = message.Timestamp.AddSeconds(-60).ToString("O");
             pCheckTimeMax.Value = message.Timestamp.AddSeconds(60).ToString("O");
 
-            var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
+            var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             if (existingId is not null)
             {
                 message.Id = (string)existingId;
@@ -123,10 +123,10 @@ public sealed class MessageRepository
             pInsertIsRead.Value = message.IsRead ? 1 : 0;
             pInsertRawXml.Value = (object?)message.RawXml ?? DBNull.Value;
 
-            await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+            await insertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await transaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<ChatMessage>> GetMessagesAsync(
@@ -168,8 +168,8 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$limit", limit);
 
         var list = new List<ChatMessage>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(ReadMessage(reader));
         }
@@ -202,8 +202,8 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$limit", limit);
 
         var list = new List<ChatMessage>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(ReadMessage(reader));
         }
@@ -232,7 +232,7 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$replace_id", (object?)replacementStanzaId ?? targetId);
         cmd.Parameters.AddWithValue("$body", newBody);
 
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return rows > 0;
     }
 
@@ -244,7 +244,7 @@ public sealed class MessageRepository
         if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(messageId)) return false;
 
         using var connection = _context.CreateConnection();
-        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         // 1. Delete associated reactions
         using (var delReactCmd = connection.CreateCommand())
@@ -258,7 +258,7 @@ public sealed class MessageRepository
             """;
             delReactCmd.Parameters.AddWithValue("$account_jid", accountJid);
             delReactCmd.Parameters.AddWithValue("$id", messageId);
-            await delReactCmd.ExecuteNonQueryAsync(cancellationToken);
+            await delReactCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         // 2. Delete message
@@ -271,8 +271,8 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$id", messageId);
 
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return rows > 0;
     }
@@ -287,7 +287,7 @@ public sealed class MessageRepository
         CancellationToken cancellationToken = default)
     {
         using var connection = _context.CreateConnection();
-        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         // Normalize sender JID: for 1:1 chats, use bare JID so multiple resources of the same contact/user don't accumulate duplicates
         var normalizedSenderJid = senderJid;
@@ -314,7 +314,7 @@ public sealed class MessageRepository
             findCmd.Parameters.AddWithValue("$account_jid", accountJid);
             findCmd.Parameters.AddWithValue("$target_id", targetMessageId);
 
-            var found = await findCmd.ExecuteScalarAsync(cancellationToken);
+            var found = await findCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             if (found is string fid)
             {
                 canonicalMessageId = fid;
@@ -338,7 +338,7 @@ public sealed class MessageRepository
             deleteCmd.Parameters.AddWithValue("$sender_jid", normalizedSenderJid);
             deleteCmd.Parameters.AddWithValue("$sender_prefix", normalizedSenderJid + "/%");
 
-            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         var emojiList = emojis.Distinct().Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
@@ -360,11 +360,11 @@ public sealed class MessageRepository
             foreach (var emoji in emojiList)
             {
                 pEmoji.Value = emoji;
-                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                await insertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
         }
 
-        await transaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<MessageReaction>> GetReactionsForMessagesAsync(
@@ -392,8 +392,8 @@ public sealed class MessageRepository
         }
 
         var list = new List<MessageReaction>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(new MessageReaction
             {
@@ -416,7 +416,7 @@ public sealed class MessageRepository
         if (string.IsNullOrEmpty(accountJid) || string.IsNullOrEmpty(messageId)) return false;
 
         using var connection = _context.CreateConnection();
-        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         string? remoteJid = null;
         DateTimeOffset? targetTimestamp = null;
@@ -433,8 +433,8 @@ public sealed class MessageRepository
             findCmd.Parameters.AddWithValue("$account_jid", accountJid);
             findCmd.Parameters.AddWithValue("$messageId", messageId);
 
-            using var reader = await findCmd.ExecuteReaderAsync(cancellationToken);
-            if (await reader.ReadAsync(cancellationToken))
+            using var reader = await findCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 remoteJid = reader.GetString(0);
                 if (DateTimeOffset.TryParse(reader.GetString(1), out var ts))
@@ -472,8 +472,8 @@ public sealed class MessageRepository
                 cmd.Parameters.AddWithValue("$messageId", messageId);
             }
 
-            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return rows > 0;
         }
     }
@@ -498,9 +498,9 @@ public sealed class MessageRepository
         selectCmd.Parameters.AddWithValue("$remoteJid", remoteJid);
 
         var markedIds = new List<string>();
-        using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
+        using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
-            while (await reader.ReadAsync(cancellationToken))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 if (!reader.IsDBNull(0))
                 {
@@ -521,7 +521,7 @@ public sealed class MessageRepository
         updateCmd.Parameters.AddWithValue("$account_jid", accountJid);
         updateCmd.Parameters.AddWithValue("$remoteJid", remoteJid);
 
-        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+        await updateCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return markedIds;
     }
 
@@ -547,7 +547,7 @@ public sealed class MessageRepository
             cmd.Parameters.AddWithValue("$account_jid", accountJid);
         }
 
-        var val = await cmd.ExecuteScalarAsync(cancellationToken);
+        var val = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         if (val is string str && DateTimeOffset.TryParse(str, out var dto))
         {
             return dto;
@@ -578,8 +578,8 @@ public sealed class MessageRepository
         """;
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
 
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             var remote = reader.GetString(0);
             var unread = reader.IsDBNull(1) ? 0 : Convert.ToInt32(reader.GetValue(1));
@@ -605,7 +605,7 @@ public sealed class MessageRepository
             return;
 
         using var connection = _context.CreateConnection();
-        using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         string canonicalMessageId = lastReadMessageId;
         DateTimeOffset markerTimestamp = timestamp ?? DateTimeOffset.UtcNow;
@@ -622,8 +622,8 @@ public sealed class MessageRepository
             findCmd.Parameters.AddWithValue("$account_jid", accountJid);
             findCmd.Parameters.AddWithValue("$target_id", lastReadMessageId);
 
-            using var reader = await findCmd.ExecuteReaderAsync(cancellationToken);
-            if (await reader.ReadAsync(cancellationToken))
+            using var reader = await findCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 canonicalMessageId = reader.GetString(0);
                 if (!timestamp.HasValue && DateTimeOffset.TryParse(reader.GetString(1), out var msgTs))
@@ -649,7 +649,7 @@ public sealed class MessageRepository
         upsertCmd.Parameters.AddWithValue("$last_read_message_id", canonicalMessageId);
         upsertCmd.Parameters.AddWithValue("$last_read_timestamp", markerTimestamp.ToString("O"));
 
-        await upsertCmd.ExecuteNonQueryAsync(cancellationToken);
+        await upsertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
         using var updateMsgsCmd = connection.CreateCommand();
         updateMsgsCmd.Transaction = (SqliteTransaction)transaction;
@@ -665,9 +665,9 @@ public sealed class MessageRepository
         updateMsgsCmd.Parameters.AddWithValue("$account_jid", accountJid);
         updateMsgsCmd.Parameters.AddWithValue("$remote_jid", remoteJid);
         updateMsgsCmd.Parameters.AddWithValue("$last_read_timestamp", markerTimestamp.ToString("O"));
-        await updateMsgsCmd.ExecuteNonQueryAsync(cancellationToken);
+        await updateMsgsCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        await transaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<ChatReadMarker>> GetReadMarkersAsync(
@@ -690,8 +690,8 @@ public sealed class MessageRepository
         cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
 
         var list = new List<ChatReadMarker>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(new ChatReadMarker
             {
