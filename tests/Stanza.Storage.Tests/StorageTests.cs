@@ -828,6 +828,56 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public void DatabaseContext_ImplementsIDisposable()
+    {
+        Assert.True(typeof(IDisposable).IsAssignableFrom(typeof(DatabaseContext)));
+    }
+
+    [Fact]
+    public void DatabaseContext_Dispose_ReleasesFileLockAndClearsPool()
+    {
+        var tempDb = $"test_dispose_{Guid.NewGuid():N}.db";
+        var context = new DatabaseContext(tempDb);
+
+        using (var connection = context.CreateConnection())
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT 1;";
+            cmd.ExecuteScalar();
+        }
+
+        context.Dispose();
+
+        Assert.True(File.Exists(tempDb));
+        File.Delete(tempDb);
+        Assert.False(File.Exists(tempDb));
+    }
+
+    [Fact]
+    public void DatabaseContext_CreateConnection_AfterDispose_ThrowsObjectDisposedException()
+    {
+        var tempDb = $"test_disposed_throw_{Guid.NewGuid():N}.db";
+        var context = new DatabaseContext(tempDb);
+        context.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => context.CreateConnection());
+
+        try { File.Delete(tempDb); } catch { }
+    }
+
+    [Fact]
+    public void DatabaseContext_Dispose_CanBeCalledMultipleTimes()
+    {
+        var tempDb = $"test_multidispose_{Guid.NewGuid():N}.db";
+        var context = new DatabaseContext(tempDb);
+        context.Dispose();
+        var ex = Record.Exception(() => context.Dispose());
+        Assert.Null(ex);
+
+        try { File.Delete(tempDb); } catch { }
+    }
+
+    [Fact]
     public async Task AvatarRepository_SaveAndGetAvatar_ReturnsCorrectRecord()
     {
         var repo = new AvatarRepository(_context);
@@ -933,6 +983,7 @@ public class StorageTests : IDisposable
 
     public void Dispose()
     {
+        _context.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }
