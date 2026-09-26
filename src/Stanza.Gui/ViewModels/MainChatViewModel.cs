@@ -63,13 +63,25 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly SemaphoreSlim _resumeLock = new(1, 1);
     private Task<bool>? _currentReconnectTask;
 
+    private Action<Stanza.Protocol.Xeps.Avatars.AvatarChangedEventArgs>? _avatarUpdatedHandler;
+    private Action<XmppClientState>? _stateChangedHandler;
+    private Action<MessageStanza, string>? _messageCorrectedHandler;
+    private Action<string, Jid?>? _messageRetractedHandler;
+    private Action<Jid, ChatState>? _chatStateReceivedHandler;
+    private Action<string, Jid?>? _receiptReceivedHandler;
+    private Action<string, Jid?, ChatMarkerType>? _markerReceivedHandler;
+    private Func<MessageStanza, Task>? _messageReceivedHandler;
+    private Action<MessageStanza, bool>? _carbonMessageReceivedHandler;
+    private Action<DecryptedOmemoMessage>? _messageDecryptedHandler;
+    private Action<ReactionEventArgs>? _reactionReceivedHandler;
+    private Func<PresenceStanza, Task>? _presenceReceivedHandler;
+
     internal const int MaxReconnectAttempts = 10;
     internal const double InitialReconnectDelaySeconds = 2.0;
     internal const double MaxReconnectDelaySeconds = 60.0;
     internal const double JitterRatio = 0.20;
 
     internal Func<TimeSpan, CancellationToken, Task>? DelayProvider { get; set; }
-
     private static int ShowScore(string show) => show switch
     {
         "chat" => 4,
@@ -683,12 +695,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
         await _avatarManager.AttachAsync(_client);
-        _avatarManager.AvatarUpdated += async args =>
+        _avatarUpdatedHandler = async args =>
         {
             await HandleAvatarUpdatedAsync(args);
         };
+        _avatarManager.AvatarUpdated += _avatarUpdatedHandler;
 
-        _client.StateChanged += state =>
+        _stateChangedHandler = state =>
         {
             if (state == XmppClientState.Disconnected && !_isManualDisconnect && !IsReconnecting)
             {
@@ -714,18 +727,21 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 });
             }
         };
+        _client.StateChanged += _stateChangedHandler;
 
-        _correction.MessageCorrected += async (msg, originalId) =>
+        _messageCorrectedHandler = async (msg, originalId) =>
         {
             await HandleMessageCorrectionAsync(msg, originalId);
         };
+        _correction.MessageCorrected += _messageCorrectedHandler;
 
-        _retraction.MessageRetracted += async (targetId, fromJid) =>
+        _messageRetractedHandler = async (targetId, fromJid) =>
         {
             await HandleMessageRetractionAsync(targetId, fromJid);
         };
+        _retraction.MessageRetracted += _messageRetractedHandler;
 
-        _chatStates.ChatStateReceived += (fromJid, state) =>
+        _chatStateReceivedHandler = (fromJid, state) =>
         {
             PostToUi(() =>
             {
@@ -733,15 +749,17 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 conv?.HandleRemoteChatState(state);
             });
         };
+        _chatStates.ChatStateReceived += _chatStateReceivedHandler;
 
-        _receipts.ReceiptReceived += (stanzaId, fromJid) =>
+        _receiptReceivedHandler = (stanzaId, fromJid) =>
         {
             // XEP-0184 Delivery Receipts confirm delivery to the recipient's client,
             // but do not indicate that the message was read or displayed.
             // Do not mark message as read on delivery receipt.
         };
+        _receipts.ReceiptReceived += _receiptReceivedHandler;
 
-        _chatMarkers.MarkerReceived += async (stanzaId, fromJid, markerType) =>
+        _markerReceivedHandler = async (stanzaId, fromJid, markerType) =>
         {
             // XEP-0333 Chat Markers: Only Displayed and Acknowledged indicate the message has been read.
             // Received indicates delivery only.
@@ -750,6 +768,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 await HandleReadMarkerReceivedAsync(stanzaId, fromJid);
             }
         };
+        _chatMarkers.MarkerReceived += _markerReceivedHandler;
 
         try
         {
@@ -764,34 +783,39 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         // Wire incoming messages
-        _client.MessageReceived += async msg =>
+        _messageReceivedHandler = async msg =>
         {
             await HandleIncomingMessageAsync(msg);
         };
+        _client.MessageReceived += _messageReceivedHandler;
 
         // Wire carbon copy messages
-        _carbons.CarbonMessageReceived += async (msg, isSentByUs) =>
+        _carbonMessageReceivedHandler = async (msg, isSentByUs) =>
         {
             await HandleCarbonMessageAsync(msg, isSentByUs);
         };
+        _carbons.CarbonMessageReceived += _carbonMessageReceivedHandler;
 
         // Wire OMEMO decrypted messages
-        _omemo.MessageDecrypted += async dec =>
+        _messageDecryptedHandler = async dec =>
         {
             await HandleDecryptedMessageAsync(dec);
         };
+        _omemo.MessageDecrypted += _messageDecryptedHandler;
 
         // Wire reactions
-        _reactions.ReactionReceived += async args =>
+        _reactionReceivedHandler = async args =>
         {
             await HandleIncomingReactionAsync(args);
         };
+        _reactions.ReactionReceived += _reactionReceivedHandler;
 
         // Wire incoming presence
-        _client.PresenceReceived += async pres =>
+        _presenceReceivedHandler = async pres =>
         {
             await HandleIncomingPresenceAsync(pres);
         };
+        _client.PresenceReceived += _presenceReceivedHandler;
 
         // Restore last presence mode and status message from settings per user preference
         var initialPresence = SettingsRepository.DefaultPresenceMode;
@@ -1910,6 +1934,20 @@ public sealed partial class MainChatViewModel : ViewModelBase
             c.PresenceShow = "offline";
             c.StatusMessage = null;
         }
+
+        if (_avatarUpdatedHandler is not null && _avatarManager is not null) _avatarManager.AvatarUpdated -= _avatarUpdatedHandler;
+        if (_stateChangedHandler is not null) _client.StateChanged -= _stateChangedHandler;
+        if (_messageCorrectedHandler is not null && _correction is not null) _correction.MessageCorrected -= _messageCorrectedHandler;
+        if (_messageRetractedHandler is not null && _retraction is not null) _retraction.MessageRetracted -= _messageRetractedHandler;
+        if (_chatStateReceivedHandler is not null && _chatStates is not null) _chatStates.ChatStateReceived -= _chatStateReceivedHandler;
+        if (_receiptReceivedHandler is not null && _receipts is not null) _receipts.ReceiptReceived -= _receiptReceivedHandler;
+        if (_markerReceivedHandler is not null && _chatMarkers is not null) _chatMarkers.MarkerReceived -= _markerReceivedHandler;
+        if (_messageReceivedHandler is not null) _client.MessageReceived -= _messageReceivedHandler;
+        if (_carbonMessageReceivedHandler is not null && _carbons is not null) _carbons.CarbonMessageReceived -= _carbonMessageReceivedHandler;
+        if (_messageDecryptedHandler is not null && _omemo is not null) _omemo.MessageDecrypted -= _messageDecryptedHandler;
+        if (_reactionReceivedHandler is not null && _reactions is not null) _reactions.ReactionReceived -= _reactionReceivedHandler;
+        if (_presenceReceivedHandler is not null) _client.PresenceReceived -= _presenceReceivedHandler;
+
         await _client.DisconnectAsync();
         await _onDisconnectRequested();
     }
