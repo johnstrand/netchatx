@@ -2,9 +2,10 @@ using Microsoft.Data.Sqlite;
 
 namespace Stanza.Storage;
 
-public sealed class DatabaseContext
+public sealed class DatabaseContext : IDisposable
 {
     private readonly string _connectionString;
+    private bool _disposed;
 
     public static string GetDefaultDatabasePath()
     {
@@ -52,6 +53,7 @@ public sealed class DatabaseContext
 
     public SqliteConnection CreateConnection()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
         return connection;
@@ -124,4 +126,15 @@ public sealed class DatabaseContext
         }
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        using var connection = new SqliteConnection(_connectionString);
+        SqliteConnection.ClearPool(connection);
+    }
 }
