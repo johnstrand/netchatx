@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Stanza.Core;
 
@@ -19,13 +19,27 @@ public sealed class Jid : IEquatable<Jid>, IComparable<Jid>
     private readonly string _fullString;
     private readonly string _bareString;
 
+    // Characters prohibited in JID local parts per RFC 7622
+    private static readonly char[] ProhibitedLocalPartChars = ['"', '&', '\'', '/', ':', '<', '>', '@'];
+
     public Jid(string? localPart, string domain, string? resource = null)
     {
         if (string.IsNullOrWhiteSpace(domain))
             throw new ArgumentException("Domain cannot be null or whitespace.", nameof(domain));
 
-        LocalPart = string.IsNullOrWhiteSpace(localPart) ? null : localPart.Trim();
-        Domain = domain.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(localPart))
+        {
+            var trimmedLocal = localPart.Trim().Normalize(System.Text.NormalizationForm.FormKC);
+            if (trimmedLocal.AsSpan().IndexOfAny(ProhibitedLocalPartChars) >= 0)
+                throw new FormatException($"JID localpart contains prohibited characters.");
+            LocalPart = trimmedLocal;
+        }
+        else
+        {
+            LocalPart = null;
+        }
+
+        Domain = domain.Trim().Normalize(System.Text.NormalizationForm.FormKC).ToLowerInvariant();
         Resource = string.IsNullOrWhiteSpace(resource) ? null : resource.Trim();
 
         _bareString = LocalPart is not null ? $"{LocalPart}@{Domain}" : Domain;
