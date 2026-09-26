@@ -9,6 +9,7 @@ Welcome, AI Agent! This document contains instructions, operational rules, and p
 To keep the primary repository tree pristine and avoid interference across parallel or isolated tasks, **all development, testing, and modifications must occur within a Git worktree inside the `.worktree` directory**.
 
 ### 1.1 Directory Initialization
+
 Before starting work on a feature, bugfix, or refactor, verify if the `.worktree` directory exists at the root of the repository. If it does not exist, create it:
 
 - **PowerShell**:
@@ -22,9 +23,10 @@ Before starting work on a feature, bugfix, or refactor, verify if the `.worktree
   mkdir -p .worktree
   ```
 
-*(Note: `.worktree/` is ignored by Git in `.gitignore`.)*
+_(Note: `.worktree/` is ignored by Git in `.gitignore`.)_
 
 ### 1.2 Creating a Worktree
+
 Always create an isolated branch and worktree under `.worktree/<branch-name>`:
 
 - **New branch from current `HEAD` (or `main`)**:
@@ -37,14 +39,23 @@ Always create an isolated branch and worktree under `.worktree/<branch-name>`:
   ```
 
 ### 1.3 Working in the Worktree
+
 Once the worktree is created, switch your working directory to the newly created worktree path:
+
 ```bash
 cd .worktree/<branch-name>
 ```
+
 Perform all code modifications, builds, tests, and Git operations (stage, commit, push) **exclusively within that directory**.
 
-### 1.4 Pull Requests & Post-Task Cleanup
+### 1.4 Before committing
+
+Ensure that all changes are tested and verified. Ensure that `dotnet format` is run to maintain code style consistency. Run the test suite to confirm that no regressions are introduced.
+
+### 1.5 Pull Requests & Post-Task Cleanup
+
 When your task is complete, committed, and ready:
+
 1. Push your branch and open a Pull Request (PR) on GitHub. **Pull Requests via GitHub are mandatory for merging code into `main`**; direct pushes or merges to `main` are strictly prohibited.
 2. Once the PR is merged, navigate back to the repository root.
 3. Remove the worktree when it is no longer needed:
@@ -89,17 +100,21 @@ Stanza/
 Always verify your changes by building the solution and executing tests before marking any task as complete:
 
 ### 3.1 Build Solution
+
 ```bash
 dotnet build Stanza.slnx
 ```
 
 ### 3.2 Run Test Suite
+
 ```bash
 dotnet test Stanza.slnx
 ```
-*(Tests utilize `Stanza.MockServer`, an in-memory loopback server, requiring no external network dependencies.)*
+
+_(Tests utilize `Stanza.MockServer`, an in-memory loopback server, requiring no external network dependencies.)_
 
 ### 3.3 Run Code Coverage (Optional / Verification)
+
 - **PowerShell**:
   ```powershell
   pwsh ./scripts/coverage.ps1
@@ -110,11 +125,13 @@ dotnet test Stanza.slnx
   ```
 
 ### 3.4 Running the Application
+
 ```bash
 dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
 ```
 
 ### 3.5 Native AOT Publish
+
 ```bash
 dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64
 ```
