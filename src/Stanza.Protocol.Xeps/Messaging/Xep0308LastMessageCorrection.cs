@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Xml;
@@ -22,7 +22,7 @@ public sealed class Xep0308LastMessageCorrection : XepFeatureBase
         var msg = new MessageStanza(to: to, body: newBody, type: type);
         msg.RawElement.Child(new XmppElement("replace", NsCorrection).Attr("id", originalMessageId));
 
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public override ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)

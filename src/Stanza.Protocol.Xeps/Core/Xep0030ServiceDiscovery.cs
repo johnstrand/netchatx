@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Xml;
@@ -35,7 +35,7 @@ public sealed class Xep0030ServiceDiscovery : XepFeatureBase
         if (!string.IsNullOrEmpty(node)) query.Attr("node", node);
         iq.RawElement.Child(query);
 
-        var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
+        var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
         var resQuery = resultIq.RawElement.Element("query", NsInfo);
         if (resQuery is null) return new DiscoInfoResult([], new HashSet<string>());
 
@@ -58,7 +58,7 @@ public sealed class Xep0030ServiceDiscovery : XepFeatureBase
         if (!string.IsNullOrEmpty(node)) query.Attr("node", node);
         iq.RawElement.Child(query);
 
-        var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
+        var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
         var resQuery = resultIq.RawElement.Element("query", NsItems);
         if (resQuery is null) return [];
 
@@ -88,7 +88,7 @@ public sealed class Xep0030ServiceDiscovery : XepFeatureBase
                 }
 
                 var responseIq = iq.CreateResult(respQuery);
-                await client.SendStanzaAsync(responseIq, cancellationToken);
+                await client.SendStanzaAsync(responseIq, cancellationToken).ConfigureAwait(false);
                 return false; // Handled internally
             }
         }
