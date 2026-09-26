@@ -58,6 +58,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _isManualDisconnect;
+    private CancellationTokenSource? _reconnectCts;
     private readonly SemaphoreSlim _reconnectLock = new(1, 1);
     private readonly SemaphoreSlim _resumeLock = new(1, 1);
     private Task<bool>? _currentReconnectTask;
@@ -74,6 +75,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Action<DecryptedOmemoMessage>? _messageDecryptedHandler;
     private Action<ReactionEventArgs>? _reactionReceivedHandler;
     private Func<PresenceStanza, Task>? _presenceReceivedHandler;
+
+    internal const int MaxReconnectAttempts = 10;
+    internal const double InitialReconnectDelaySeconds = 2.0;
+    internal const double MaxReconnectDelaySeconds = 60.0;
+    internal const double JitterRatio = 0.20;
+
+    internal Func<TimeSpan, CancellationToken, Task>? DelayProvider { get; set; }
     private static int ShowScore(string show) => show switch
     {
         "chat" => 4,
@@ -116,6 +124,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusMessage = "Online with Stanza";
+
+    [ObservableProperty]
+    private bool _isReconnecting;
+
+    [ObservableProperty]
+    private bool _canManualReconnect;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUserAvatar))]
@@ -689,7 +703,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         _stateChangedHandler = state =>
         {
-            if (state == XmppClientState.Disconnected && !_isManualDisconnect)
+            if (state == XmppClientState.Disconnected && !_isManualDisconnect && !IsReconnecting)
             {
                 PostToUi(() =>
                 {
@@ -707,6 +721,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             {
                 PostToUi(() =>
                 {
+                    IsReconnecting = false;
+                    CanManualReconnect = false;
                     StatusMessage = $"Connected as {_client.BoundJid}";
                 });
             }
@@ -1061,28 +1077,81 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     public async Task<bool> ReconnectAsync()
     {
+        Task<bool> task;
         await _reconnectLock.WaitAsync();
         try
         {
             if (_client.IsReady) return true;
             if (_currentReconnectTask is not null && !_currentReconnectTask.IsCompleted)
             {
-                return await _currentReconnectTask;
+                task = _currentReconnectTask;
             }
-
-            _currentReconnectTask = PerformReconnectAsync();
-            return await _currentReconnectTask;
+            else
+            {
+                task = _currentReconnectTask = PerformReconnectAsync();
+            }
         }
         finally
         {
             _reconnectLock.Release();
         }
+
+        return await task;
+    }
+
+    [RelayCommand]
+    public async Task ManualReconnectAsync()
+    {
+        _isManualDisconnect = false;
+        CanManualReconnect = false;
+        await ReconnectAsync();
+    }
+
+    [RelayCommand]
+    public Task RetryConnectionAsync() => ManualReconnectAsync();
+
+    internal static TimeSpan CalculateBackoffDelay(
+        int attempt,
+        double initialDelaySeconds = InitialReconnectDelaySeconds,
+        double maxDelaySeconds = MaxReconnectDelaySeconds,
+        Random? random = null)
+    {
+        if (attempt < 1) attempt = 1;
+        if (initialDelaySeconds <= 0) initialDelaySeconds = 1.0;
+        if (maxDelaySeconds < initialDelaySeconds) maxDelaySeconds = initialDelaySeconds;
+
+        double baseDelay = Math.Min(maxDelaySeconds, initialDelaySeconds * Math.Pow(2, attempt - 1));
+        double jitterMultiplier = (1.0 - JitterRatio) + (random ?? Random.Shared).NextDouble() * (2.0 * JitterRatio);
+        double delaySeconds = Math.Min(maxDelaySeconds, Math.Max(1.0, baseDelay * jitterMultiplier));
+        return TimeSpan.FromSeconds(delaySeconds);
+    }
+
+    private Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        if (DelayProvider is not null)
+        {
+            return DelayProvider(duration, cancellationToken);
+        }
+
+        return Task.Delay(duration, cancellationToken);
     }
 
     private async Task<bool> PerformReconnectAsync()
     {
+        if (_isManualDisconnect)
+        {
+            return false;
+        }
+
+        _reconnectCts?.Cancel();
+        _reconnectCts?.Dispose();
+        _reconnectCts = new CancellationTokenSource();
+        var cancellationToken = _reconnectCts.Token;
+
         PostToUi(() =>
         {
+            IsReconnecting = true;
+            CanManualReconnect = false;
             StatusMessage = "Reconnecting to server... ⏳";
         });
 
@@ -1095,9 +1164,30 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
         catch { }
 
-        int maxAttempts = 3;
+        if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+        {
+            PostToUi(() =>
+            {
+                IsReconnecting = false;
+                CanManualReconnect = false;
+            });
+            return false;
+        }
+
+        int maxAttempts = MaxReconnectAttempts;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
+            if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+            {
+                PostToUi(() =>
+                {
+                    IsReconnecting = false;
+                    CanManualReconnect = false;
+                });
+                return false;
+            }
+
+            bool connected = false;
             try
             {
                 PostToUi(() =>
@@ -1107,12 +1197,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         : $"Reconnecting to server (attempt {attempt}/{maxAttempts})... ⏳";
                 });
 
-                await _client.ConnectAsync();
+                await _client.ConnectAsync(cancellationToken);
 
                 if (_client.IsReady)
                 {
+                    connected = true;
                     PostToUi(() =>
                     {
+                        IsReconnecting = false;
+                        CanManualReconnect = false;
                         StatusMessage = $"Connected as {_client.BoundJid}";
                     });
 
@@ -1128,19 +1221,86 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     return true;
                 }
             }
+            catch (OperationCanceledException) when (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+            {
+                PostToUi(() =>
+                {
+                    IsReconnecting = false;
+                    CanManualReconnect = false;
+                });
+                return false;
+            }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Reconnect attempt {attempt} failed: {ex.Message}");
-                if (attempt < maxAttempts)
+            }
+
+            if (!connected)
+            {
+                try
                 {
-                    await Task.Delay(1000 * attempt);
+                    if (_client.State != XmppClientState.Disconnected)
+                    {
+                        await _client.DisconnectAsync();
+                    }
+                }
+                catch { }
+            }
+
+            if (!connected && attempt < maxAttempts)
+            {
+                var delay = CalculateBackoffDelay(attempt);
+                int totalSeconds = (int)Math.Max(1, Math.Round(delay.TotalSeconds));
+
+                for (int remaining = totalSeconds; remaining > 0; remaining--)
+                {
+                    if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+                    {
+                        PostToUi(() =>
+                        {
+                            IsReconnecting = false;
+                            CanManualReconnect = false;
+                        });
+                        return false;
+                    }
+
+                    PostToUi(() =>
+                    {
+                        StatusMessage = $"Reconnecting to server (attempt {attempt + 1}/{maxAttempts} in {remaining}s)... ⏳";
+                    });
+
+                    try
+                    {
+                        await DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+                    {
+                        PostToUi(() =>
+                        {
+                            IsReconnecting = false;
+                            CanManualReconnect = false;
+                        });
+                        return false;
+                    }
                 }
             }
         }
 
+        if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+        {
+            PostToUi(() =>
+            {
+                IsReconnecting = false;
+                CanManualReconnect = false;
+            });
+            return false;
+        }
+
         PostToUi(() =>
         {
-            StatusMessage = "Connection lost (Offline)";
+            IsReconnecting = false;
+            CanManualReconnect = true;
+            StatusMessage = "Connection failed (Offline). Reconnect manually";
         });
         return false;
     }
@@ -1761,6 +1921,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public async Task DisconnectAsync()
     {
         _isManualDisconnect = true;
+        _reconnectCts?.Cancel();
+        PostToUi(() =>
+        {
+            IsReconnecting = false;
+            CanManualReconnect = false;
+        });
         _resumeWatcher.Dispose();
         _contactResourcePresence.Clear();
         foreach (var c in Contacts)
