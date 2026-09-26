@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -51,7 +51,7 @@ public sealed class Xep0444Reactions : XepFeatureBase
         // Add message processing hint to store
         msg.RawElement.Child(new XmppElement("store", "urn:xmpp:hints"));
 
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public static bool TryExtractReaction(XmppElement messageElem, bool isCarbonSent, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ReactionEventArgs? args)

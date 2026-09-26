@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Xml;
@@ -43,7 +43,7 @@ public sealed class Xep0184MessageDeliveryReceipts : XepFeatureBase
                 {
                     var ack = new MessageStanza(to: fromJid, type: MessageStanza.TypeNormal);
                     ack.RawElement.Child(new XmppElement("received", NsReceipts).Attr("id", id));
-                    await client.SendStanzaAsync(ack, cancellationToken);
+                    await client.SendStanzaAsync(ack, cancellationToken).ConfigureAwait(false);
                 }
             }
         }

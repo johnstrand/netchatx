@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
@@ -60,7 +60,7 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
         };
         _joinedRooms[roomJid.BareJid] = state;
 
-        await Client.SendStanzaAsync(pres, ct);
+        await Client.SendStanzaAsync(pres, ct).ConfigureAwait(false);
     }
 
     public async Task LeaveRoomAsync(Jid roomJid, string? status = null, CancellationToken ct = default)
@@ -71,7 +71,7 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
         {
             var occupantJid = roomJid.WithResource(state.Nickname);
             var pres = new PresenceStanza(type: PresenceStanza.TypeUnavailable, to: occupantJid, status: status);
-            await Client.SendStanzaAsync(pres, ct);
+            await Client.SendStanzaAsync(pres, ct).ConfigureAwait(false);
         }
     }
 
@@ -80,7 +80,7 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
         if (Client is null) throw new InvalidOperationException("Client not attached.");
 
         var msg = MessageStanza.CreateGroupChat(roomJid.BareJid, body);
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public async Task SetSubjectAsync(Jid roomJid, string subject, CancellationToken ct = default)
@@ -89,7 +89,7 @@ public sealed class Xep0045MultiUserChat : XepFeatureBase
 
         var msg = new MessageStanza(to: roomJid.BareJid, type: MessageStanza.TypeGroupChat);
         msg.Subject = subject;
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public override ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)
