@@ -12,7 +12,31 @@ namespace Stanza.Gui.Helpers;
 public static class AsyncImageLoader
 {
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private const int MaxCacheSize = 200;
+    private static readonly ConcurrentQueue<string> _cacheOrder = new();
     private static readonly ConcurrentDictionary<string, (Bitmap Bitmap, List<(Bitmap Bitmap, int DurationMs)>? GifFrames)> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void AddToCache(string url, (Bitmap Bitmap, List<(Bitmap Bitmap, int DurationMs)>? GifFrames) entry)
+    {
+        Cache[url] = entry;
+        _cacheOrder.Enqueue(url);
+
+        // Evict oldest entries when cache exceeds limit
+        while (Cache.Count > MaxCacheSize && _cacheOrder.TryDequeue(out var oldKey))
+        {
+            if (Cache.TryRemove(oldKey, out var removed))
+            {
+                removed.Bitmap.Dispose();
+                if (removed.GifFrames is not null)
+                {
+                    foreach (var frame in removed.GifFrames)
+                    {
+                        frame.Bitmap.Dispose();
+                    }
+                }
+            }
+        }
+    }
 
     public static void PrecacheImage(string url, byte[] bytes)
     {
@@ -30,7 +54,7 @@ public static class AsyncImageLoader
                 gifFrames = GifDecoder.DecodeFrames(bytes);
             }
 
-            Cache[url] = (bitmap, gifFrames);
+            AddToCache(url, (bitmap, gifFrames));
         }
         catch
         {
@@ -41,7 +65,7 @@ public static class AsyncImageLoader
     public static void PrecacheImage(string url, Bitmap bitmap, List<(Bitmap Bitmap, int DurationMs)>? gifFrames = null)
     {
         if (string.IsNullOrWhiteSpace(url) || bitmap is null) return;
-        Cache[url.Trim()] = (bitmap, gifFrames);
+        AddToCache(url.Trim(), (bitmap, gifFrames));
     }
 
     public static async Task<Bitmap?> LoadImageAsync(string url, CancellationToken ct = default)
@@ -95,7 +119,7 @@ public static class AsyncImageLoader
                 }
 
                 var entry = (bitmap, gifFrames);
-                Cache[url] = entry;
+                AddToCache(url, entry);
                 return entry;
             }
         }
