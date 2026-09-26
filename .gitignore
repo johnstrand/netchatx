@@ -498,6 +498,9 @@ dmg-staging/
 bundle/
 icon.iconset/
 
+# Legacy NetChatx project artifacts (superseded by Stanza.*)
+src/NetChatx.*/
+
 # Agent worktrees
 .worktree/
 
