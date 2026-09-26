@@ -217,6 +217,7 @@ public sealed class XmppStreamParser
 
         if (_buffer.Length > _maxElementSize)
         {
+            Reset();
             throw new InvalidOperationException($"Element size exceeded maximum allowed limit of {_maxElementSize} characters.");
         }
 
