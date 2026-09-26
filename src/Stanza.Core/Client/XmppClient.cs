@@ -16,6 +16,7 @@ public sealed class XmppClient : IAsyncDisposable
     private readonly List<IIncomingStanzaFilter> _incomingFilters = [];
     private readonly List<IOutgoingStanzaFilter> _outgoingFilters = [];
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private const int MaxEarlyMessageBufferSize = 100;
 
     private CancellationTokenSource? _sessionCts;
     private Task? _readLoopTask;
@@ -371,7 +372,7 @@ public sealed class XmppClient : IAsyncDisposable
                     var msg = new MessageStanza(elem);
                     if (_messageReceived is not null)
                         _ = _messageReceived(msg);
-                    else
+                    else if (_earlyMessageBuffer.Count < MaxEarlyMessageBufferSize)
                         _earlyMessageBuffer.Enqueue(msg);
                 }
                 else if (elem.Name == "presence")
