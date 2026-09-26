@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Storage.Models;
 using Stanza.Storage.Repositories;
 using Xunit;
@@ -112,6 +112,7 @@ public class ChatHistoryTests : IDisposable
 
     public void Dispose()
     {
+        _context.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }

@@ -1,4 +1,5 @@
-﻿using System.IO.Pipelines;
+using System.Buffers;
+using System.IO.Pipelines;
 using System.Text;
 
 namespace Stanza.Core.Xml;
@@ -9,6 +10,8 @@ namespace Stanza.Core.Xml;
 /// </summary>
 public sealed class XmppStreamParser
 {
+    public const int DefaultMaxElementSize = 1024 * 1024; // 1 MB
+
     private enum ParserState
     {
         AwaitingStreamHeader,
@@ -18,12 +21,29 @@ public sealed class XmppStreamParser
     private ParserState _state = ParserState.AwaitingStreamHeader;
     private readonly StringBuilder _buffer = new(4096);
     private readonly Queue<XmppElement> _readyElements = new();
+    private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
+    private int _maxElementSize = DefaultMaxElementSize;
     private int _depth;
     private bool _inTag;
     private bool _inQuotes;
     private char _quoteChar;
     private bool _inCData;
     private bool _inComment;
+
+    public int MaxElementSize
+    {
+        get => _maxElementSize;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            _maxElementSize = value;
+        }
+    }
+
+    public XmppStreamParser(int maxElementSize = DefaultMaxElementSize)
+    {
+        MaxElementSize = maxElementSize;
+    }
 
     public void Reset()
     {
@@ -35,6 +55,7 @@ public sealed class XmppStreamParser
         _inQuotes = false;
         _inCData = false;
         _inComment = false;
+        _decoder.Reset();
     }
 
     /// <summary>
@@ -44,7 +65,7 @@ public sealed class XmppStreamParser
     {
         while (_readyElements.Count == 0)
         {
-            var result = await reader.ReadAsync(cancellationToken);
+            var result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             var buffer = result.Buffer;
 
             if (buffer.IsEmpty && result.IsCompleted)
@@ -54,14 +75,22 @@ public sealed class XmppStreamParser
 
             foreach (var segment in buffer)
             {
-                var text = Encoding.UTF8.GetString(segment.Span);
-                foreach (var c in text)
+                var charBuffer = ArrayPool<char>.Shared.Rent(segment.Length + 4);
+                try
                 {
-                    var elem = ProcessChar(c);
-                    if (elem is not null)
+                    var charCount = _decoder.GetChars(segment.Span, charBuffer.AsSpan(), flush: false);
+                    for (var i = 0; i < charCount; i++)
                     {
-                        _readyElements.Enqueue(elem);
+                        var elem = ProcessChar(charBuffer[i]);
+                        if (elem is not null)
+                        {
+                            _readyElements.Enqueue(elem);
+                        }
                     }
+                }
+                finally
+                {
+                    ArrayPool<char>.Shared.Return(charBuffer);
                 }
             }
 
@@ -93,7 +122,7 @@ public sealed class XmppStreamParser
             XmppElement elem;
             try
             {
-                elem = await ReadElementAsync(reader, cancellationToken);
+                elem = await ReadElementAsync(reader, cancellationToken).ConfigureAwait(false);
             }
             catch (EndOfStreamException)
             {
@@ -101,6 +130,23 @@ public sealed class XmppStreamParser
             }
 
             yield return elem;
+        }
+    }
+
+    /// <summary>
+    /// Feeds a chunk of UTF-8 encoded bytes directly (for unit testing) and returns all newly completed elements.
+    /// </summary>
+    public IEnumerable<XmppElement> ParseChunk(byte[] chunk)
+    {
+        var charBuffer = new char[chunk.Length + 4];
+        var charCount = _decoder.GetChars(chunk, 0, chunk.Length, charBuffer, 0, false);
+        for (var i = 0; i < charCount; i++)
+        {
+            var elem = ProcessChar(charBuffer[i]);
+            if (elem is not null)
+            {
+                yield return elem;
+            }
         }
     }
 
@@ -167,6 +213,12 @@ public sealed class XmppStreamParser
             }
 
             return null;
+        }
+
+        if (_buffer.Length > _maxElementSize)
+        {
+            Reset();
+            throw new InvalidOperationException($"Element size exceeded maximum allowed limit of {_maxElementSize} characters.");
         }
 
         var len = _buffer.Length;

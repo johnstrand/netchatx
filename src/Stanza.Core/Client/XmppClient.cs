@@ -16,6 +16,7 @@ public sealed class XmppClient : IAsyncDisposable
     private readonly List<IIncomingStanzaFilter> _incomingFilters = [];
     private readonly List<IOutgoingStanzaFilter> _outgoingFilters = [];
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private const int MaxEarlyMessageBufferSize = 100;
 
     private CancellationTokenSource? _sessionCts;
     private Task? _readLoopTask;
@@ -60,6 +61,7 @@ public sealed class XmppClient : IAsyncDisposable
     public event Func<PresenceStanza, Task>? PresenceReceived;
     public event Func<IqStanza, Task>? IqReceived;
     public event Func<XmppElement, Task>? ElementReceived;
+    public event Action<Exception?>? Disconnected;
 
     public XmppClient(XmppClientOptions options, IXmppTransport? transport = null)
     {
@@ -328,6 +330,7 @@ public sealed class XmppClient : IAsyncDisposable
 
     private async Task RunReadLoopAsync(CancellationToken cancellationToken)
     {
+        Exception? disconnectReason = null;
         try
         {
             await foreach (var elem in _parser.ReadAllAsync(_transport.Input, cancellationToken))
@@ -371,7 +374,7 @@ public sealed class XmppClient : IAsyncDisposable
                     var msg = new MessageStanza(elem);
                     if (_messageReceived is not null)
                         _ = _messageReceived(msg);
-                    else
+                    else if (_earlyMessageBuffer.Count < MaxEarlyMessageBufferSize)
                         _earlyMessageBuffer.Enqueue(msg);
                 }
                 else if (elem.Name == "presence")
@@ -391,6 +394,7 @@ public sealed class XmppClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            disconnectReason = ex;
             System.Diagnostics.Debug.WriteLine($"Read loop terminated: {ex}");
         }
         finally
@@ -402,6 +406,7 @@ public sealed class XmppClient : IAsyncDisposable
                 tcs.TrySetException(new IOException("Connection closed."));
             }
             _pendingIqs.Clear();
+            Disconnected?.Invoke(disconnectReason);
         }
     }
 
