@@ -79,7 +79,7 @@ public sealed class DoubleRatchetSession
 
         var iv = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 12, null, "IV"u8.ToArray());
         var key = HKDF.DeriveKey(HashAlgorithmName.SHA256, messageKey, 16, null, "KEY"u8.ToArray());
-        
+
         CryptographicOperations.ZeroMemory(messageKey);
 
         var num = Ns++;
