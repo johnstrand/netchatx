@@ -40,6 +40,7 @@ This guide provides instructions, operational rules, and project-specific conven
 ## Project Overview
 
 Stanza is built on a modern .NET stack:
+
 - **.NET 10** (`net10.0`) and C# 13.
 - **Avalonia UI 11**: Cross-platform desktop interface (Windows, Linux, macOS) using Fluent Design.
 - **`System.IO.Pipelines` & Low-Allocation Streaming XML**: High-throughput non-blocking network I/O.
@@ -73,7 +74,9 @@ To keep the primary repository tree pristine, prevent unintentional file trackin
 This workflow is mandatory for both human contributors and AI agents (as documented in `AGENTS.md`).
 
 ### 1. Ensure `.worktree` Directory Exists
+
 From the repository root (`netchatx`):
+
 - **PowerShell**:
   ```powershell
   if (!(Test-Path -Path ".worktree")) {
@@ -84,10 +87,12 @@ From the repository root (`netchatx`):
   ```bash
   mkdir -p .worktree
   ```
-*(Note: `.worktree/` is ignored by Git in `.gitignore`.)*
+  _(Note: `.worktree/` is ignored by Git in `.gitignore`.)_
 
 ### 2. Create a Worktree
+
 Always create an isolated branch and worktree under `.worktree/<branch-name>`:
+
 - **Create new branch from `main`**:
   ```bash
   git worktree add .worktree/<branch-name> -b <branch-name>
@@ -98,14 +103,21 @@ Always create an isolated branch and worktree under `.worktree/<branch-name>`:
   ```
 
 ### 3. Work Inside the Worktree
+
 Navigate to your newly created worktree directory:
+
 ```bash
 cd .worktree/<branch-name>
 ```
+
 Perform all code modifications, builds, tests, and Git commits **exclusively within this directory**. Do **not** modify files in the main repository root while working on a branch.
 
+Ensure that `dotnet format` is run before committing to maintain consistent code style.
+
 ### 4. Post-Task Cleanup
+
 Once your pull request is merged:
+
 1. Return to the repository root:
    ```bash
    cd ../..
@@ -128,6 +140,7 @@ Once your pull request is merged:
 ## Coding Guidelines & Standards
 
 ### Target Runtime & C# Version
+
 - All projects target **.NET 10** (`net10.0`) and C# 13.
 - Modern C# features are encouraged where they enhance clarity and performance:
   - Primary constructors
@@ -136,6 +149,7 @@ Once your pull request is merged:
   - Target-typed `new()`
 
 ### File-Scoped Namespaces
+
 Always use **file-scoped namespaces** (`namespace Stanza.Core;`). Do **not** use block-scoped namespaces with braces (`namespace Stanza.Core { ... }`).
 
 ```csharp
@@ -149,12 +163,15 @@ public sealed class TcpTlsTransport : IXmppTransport
 ```
 
 ### Nullable Reference Types
+
 Nullable reference types are enabled across all projects (`<Nullable>enable</Nullable>`).
+
 - Code must compile with **zero warnings** (`CS8600`, `CS8602`, `CS8603`, `CS8618`, etc.).
 - Annotate nullable parameters and return types appropriately (`string?`, `XmppElement?`).
 - Use null-forgiving operators (`!`) sparingly and only when accompanied by sound invariant justification.
 
 ### Asynchronous Patterns & ConfigureAwait
+
 - In library code (**`Stanza.Core`**, **`Stanza.Protocol.Xeps`**, **`Stanza.Storage`**), always append `.ConfigureAwait(false)` to awaited tasks:
   ```csharp
   var buffer = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -162,11 +179,13 @@ Nullable reference types are enabled across all projects (`<Nullable>enable</Nul
 - In GUI code (**`Stanza.Gui`**), omit `.ConfigureAwait(false)` when execution must resume on the Avalonia UI synchronization context.
 
 ### Threading & CancellationTokens
+
 - Always accept a `CancellationToken` for asynchronous I/O and network operations, with default value `cancellationToken = default`.
 - Thread `cancellationToken` down through all asynchronous call chains.
 - Ensure proper resource cleanup by using `await using` or `using` on disposables (`IAsyncDisposable` / `IDisposable`).
 
 ### MVVM & UI Thread Isolation
+
 - `Stanza.Gui` uses `CommunityToolkit.Mvvm`:
   - ViewModels inherit from `ViewModelBase` / `ObservableObject`.
   - Use `[ObservableProperty]` and `[RelayCommand]` attributes.
@@ -180,7 +199,9 @@ Nullable reference types are enabled across all projects (`<Nullable>enable</Nul
   ```
 
 ### Native AOT & Trimming Compatibility
+
 Stanza compiles as a self-contained Native Ahead-Of-Time application (`PublishAot=true`).
+
 - All libraries must maintain trim and AOT compatibility (`<IsAotCompatible>true</IsAotCompatible>`, `<IsTrimmable>true</IsTrimmable>`).
 - **Forbidden**:
   - Runtime reflection and unconstrained generic type instantiation (`Type.GetType`, `MakeGenericType`, `Activator.CreateInstance`).
@@ -191,6 +212,7 @@ Stanza compiles as a self-contained Native Ahead-Of-Time application (`PublishAo
   - Compile-time Roslyn source generators (such as `CommunityToolkit.Mvvm`).
 
 ### Security & Cryptography
+
 - **Never log, persist, or expose** sensitive credentials, including plaintext passwords, pre-shared secrets, or private cryptographic keys.
 - Cryptographic keys must be securely stored in SQLite or zeroed out from memory when no longer needed.
 - Follow XEP-0384 and XEP-0420 strictly for OMEMO encryption and SCE envelope construction.
@@ -202,21 +224,28 @@ Stanza compiles as a self-contained Native Ahead-Of-Time application (`PublishAo
 Always verify your changes by building the entire solution and running all tests prior to committing.
 
 ### Build Solution
+
 Build the solution from within your worktree directory:
+
 ```bash
 dotnet build Stanza.slnx
 ```
 
 ### Run Tests
+
 Execute the full automated test suite:
+
 ```bash
 dotnet test Stanza.slnx
 ```
+
 > [!NOTE]
 > Tests run against `Stanza.MockServer`, an in-memory loopback mock server based on `System.IO.Pipelines`. No network connection or external XMPP server is required to run the full test suite.
 
 ### Code Coverage
+
 Generate HTML and Cobertura code coverage reports:
+
 - **PowerShell**:
   ```powershell
   pwsh ./scripts/coverage.ps1
@@ -225,16 +254,20 @@ Generate HTML and Cobertura code coverage reports:
   ```bash
   ./scripts/coverage.sh
   ```
-Reports are written to `coveragereport/index.html`.
+  Reports are written to `coveragereport/index.html`.
 
 ### Run GUI Application
+
 Launch Stanza locally:
+
 ```bash
 dotnet run --project src/Stanza.Gui/Stanza.Gui.csproj
 ```
 
 ### Native AOT Publish
+
 Test Native AOT publishing for your platform:
+
 ```bash
 # Windows
 dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r win-x64
@@ -251,7 +284,9 @@ dotnet publish src/Stanza.Gui/Stanza.Gui.csproj -c Release -r osx-arm64
 ## Git Commit & Branch Conventions
 
 ### Branch Naming
+
 Create descriptive branch names following the format:
+
 - `feat/<short-description>`: New feature
 - `fix/<short-description>`: Bug fix
 - `refactor/<short-description>`: Code refactoring
@@ -259,6 +294,7 @@ Create descriptive branch names following the format:
 - `docs/<short-description>`: Documentation changes
 
 ### Conventional Commits
+
 All commits must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
 
 ```
@@ -270,6 +306,7 @@ All commits must follow the [Conventional Commits](https://www.conventionalcommi
 ```
 
 #### Allowed Types:
+
 - `feat`: A new feature or capability.
 - `fix`: A bug fix.
 - `refactor`: Code changes that neither fix a bug nor add a feature.
@@ -279,6 +316,7 @@ All commits must follow the [Conventional Commits](https://www.conventionalcommi
 - `chore`: Maintenance, build dependencies, or auxiliary tool updates.
 
 #### Examples:
+
 - `feat(omemo): add support for prekey bundle rotation`
 - `fix(transport): handle reconnection backoff on socket disconnect (#112)`
 - `docs: add CONTRIBUTING.md and architecture guide`
