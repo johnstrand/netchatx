@@ -25,6 +25,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Verify code formatting
+        run: dotnet format Stanza.slnx --verify-no-changes
+
+      - name: Audit NuGet package vulnerabilities
+        run: |
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
+          if grep -q "has the following vulnerable packages" vuln.log; then
+            echo "Vulnerabilities found!"
+            exit 1
+          fi
+
       - name: Run tests with Code Coverage
         run: dotnet test Stanza.slnx --configuration Release --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
