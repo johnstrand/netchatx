@@ -60,7 +60,16 @@ public sealed class TcpTlsTransport : IXmppTransport
             sslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
         }
 
-        await _sslStream.AuthenticateAsClientAsync(sslOptions, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _sslStream.AuthenticateAsClientAsync(sslOptions, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await CloseAsync().ConfigureAwait(false);
+            throw;
+        }
+
         _activeStream = _sslStream;
 
         _reader = PipeReader.Create(_activeStream);
