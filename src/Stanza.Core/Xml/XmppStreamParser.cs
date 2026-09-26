@@ -18,8 +18,6 @@ public sealed class XmppStreamParser
         InsideStream
     }
 
-    private const int MaxElementSize = 256 * 1024;
-
     private ParserState _state = ParserState.AwaitingStreamHeader;
     private readonly StringBuilder _buffer = new(4096);
     private readonly Queue<XmppElement> _readyElements = new();
@@ -171,12 +169,6 @@ public sealed class XmppStreamParser
     {
         _buffer.Append(c);
 
-        if (_state == ParserState.InsideStream && _buffer.Length > MaxElementSize)
-        {
-            Reset();
-            throw new InvalidOperationException($"XMPP element exceeded maximum allowed size of {MaxElementSize} bytes.");
-        }
-
         if (_state == ParserState.AwaitingStreamHeader)
         {
             var current = _buffer.ToString();
@@ -225,6 +217,7 @@ public sealed class XmppStreamParser
 
         if (_buffer.Length > _maxElementSize)
         {
+            Reset();
             throw new InvalidOperationException($"Element size exceeded maximum allowed limit of {_maxElementSize} characters.");
         }
 
