@@ -60,6 +60,7 @@ public sealed class XmppClient : IAsyncDisposable
     public event Func<PresenceStanza, Task>? PresenceReceived;
     public event Func<IqStanza, Task>? IqReceived;
     public event Func<XmppElement, Task>? ElementReceived;
+    public event Action<Exception?>? Disconnected;
 
     public XmppClient(XmppClientOptions options, IXmppTransport? transport = null)
     {
@@ -328,6 +329,7 @@ public sealed class XmppClient : IAsyncDisposable
 
     private async Task RunReadLoopAsync(CancellationToken cancellationToken)
     {
+        Exception? disconnectReason = null;
         try
         {
             await foreach (var elem in _parser.ReadAllAsync(_transport.Input, cancellationToken))
@@ -391,6 +393,7 @@ public sealed class XmppClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            disconnectReason = ex;
             System.Diagnostics.Debug.WriteLine($"Read loop terminated: {ex}");
         }
         finally
@@ -402,6 +405,7 @@ public sealed class XmppClient : IAsyncDisposable
                 tcs.TrySetException(new IOException("Connection closed."));
             }
             _pendingIqs.Clear();
+            Disconnected?.Invoke(disconnectReason);
         }
     }
 
