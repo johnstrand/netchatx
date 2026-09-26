@@ -58,10 +58,30 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _isManualDisconnect;
+    private CancellationTokenSource? _reconnectCts;
     private readonly SemaphoreSlim _reconnectLock = new(1, 1);
     private readonly SemaphoreSlim _resumeLock = new(1, 1);
     private Task<bool>? _currentReconnectTask;
 
+    private Action<Stanza.Protocol.Xeps.Avatars.AvatarChangedEventArgs>? _avatarUpdatedHandler;
+    private Action<XmppClientState>? _stateChangedHandler;
+    private Action<MessageStanza, string>? _messageCorrectedHandler;
+    private Action<string, Jid?>? _messageRetractedHandler;
+    private Action<Jid, ChatState>? _chatStateReceivedHandler;
+    private Action<string, Jid?>? _receiptReceivedHandler;
+    private Action<string, Jid?, ChatMarkerType>? _markerReceivedHandler;
+    private Func<MessageStanza, Task>? _messageReceivedHandler;
+    private Action<MessageStanza, bool>? _carbonMessageReceivedHandler;
+    private Action<DecryptedOmemoMessage>? _messageDecryptedHandler;
+    private Action<ReactionEventArgs>? _reactionReceivedHandler;
+    private Func<PresenceStanza, Task>? _presenceReceivedHandler;
+
+    internal const int MaxReconnectAttempts = 10;
+    internal const double InitialReconnectDelaySeconds = 2.0;
+    internal const double MaxReconnectDelaySeconds = 60.0;
+    internal const double JitterRatio = 0.20;
+
+    internal Func<TimeSpan, CancellationToken, Task>? DelayProvider { get; set; }
     private static int ShowScore(string show) => show switch
     {
         "chat" => 4,
@@ -104,6 +124,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusMessage = "Online with Stanza";
+
+    [ObservableProperty]
+    private bool _isReconnecting;
+
+    [ObservableProperty]
+    private bool _canManualReconnect;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUserAvatar))]
@@ -669,14 +695,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
         await _avatarManager.AttachAsync(_client);
-        _avatarManager.AvatarUpdated += async args =>
+        _avatarUpdatedHandler = async args =>
         {
             await HandleAvatarUpdatedAsync(args);
         };
+        _avatarManager.AvatarUpdated += _avatarUpdatedHandler;
 
-        _client.StateChanged += state =>
+        _stateChangedHandler = state =>
         {
-            if (state == XmppClientState.Disconnected && !_isManualDisconnect)
+            if (state == XmppClientState.Disconnected && !_isManualDisconnect && !IsReconnecting)
             {
                 PostToUi(() =>
                 {
@@ -694,22 +721,27 @@ public sealed partial class MainChatViewModel : ViewModelBase
             {
                 PostToUi(() =>
                 {
+                    IsReconnecting = false;
+                    CanManualReconnect = false;
                     StatusMessage = $"Connected as {_client.BoundJid}";
                 });
             }
         };
+        _client.StateChanged += _stateChangedHandler;
 
-        _correction.MessageCorrected += async (msg, originalId) =>
+        _messageCorrectedHandler = async (msg, originalId) =>
         {
             await HandleMessageCorrectionAsync(msg, originalId);
         };
+        _correction.MessageCorrected += _messageCorrectedHandler;
 
-        _retraction.MessageRetracted += async (targetId, fromJid) =>
+        _messageRetractedHandler = async (targetId, fromJid) =>
         {
             await HandleMessageRetractionAsync(targetId, fromJid);
         };
+        _retraction.MessageRetracted += _messageRetractedHandler;
 
-        _chatStates.ChatStateReceived += (fromJid, state) =>
+        _chatStateReceivedHandler = (fromJid, state) =>
         {
             PostToUi(() =>
             {
@@ -717,15 +749,17 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 conv?.HandleRemoteChatState(state);
             });
         };
+        _chatStates.ChatStateReceived += _chatStateReceivedHandler;
 
-        _receipts.ReceiptReceived += (stanzaId, fromJid) =>
+        _receiptReceivedHandler = (stanzaId, fromJid) =>
         {
             // XEP-0184 Delivery Receipts confirm delivery to the recipient's client,
             // but do not indicate that the message was read or displayed.
             // Do not mark message as read on delivery receipt.
         };
+        _receipts.ReceiptReceived += _receiptReceivedHandler;
 
-        _chatMarkers.MarkerReceived += async (stanzaId, fromJid, markerType) =>
+        _markerReceivedHandler = async (stanzaId, fromJid, markerType) =>
         {
             // XEP-0333 Chat Markers: Only Displayed and Acknowledged indicate the message has been read.
             // Received indicates delivery only.
@@ -734,6 +768,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 await HandleReadMarkerReceivedAsync(stanzaId, fromJid);
             }
         };
+        _chatMarkers.MarkerReceived += _markerReceivedHandler;
 
         try
         {
@@ -748,34 +783,39 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
 
         // Wire incoming messages
-        _client.MessageReceived += async msg =>
+        _messageReceivedHandler = async msg =>
         {
             await HandleIncomingMessageAsync(msg);
         };
+        _client.MessageReceived += _messageReceivedHandler;
 
         // Wire carbon copy messages
-        _carbons.CarbonMessageReceived += async (msg, isSentByUs) =>
+        _carbonMessageReceivedHandler = async (msg, isSentByUs) =>
         {
             await HandleCarbonMessageAsync(msg, isSentByUs);
         };
+        _carbons.CarbonMessageReceived += _carbonMessageReceivedHandler;
 
         // Wire OMEMO decrypted messages
-        _omemo.MessageDecrypted += async dec =>
+        _messageDecryptedHandler = async dec =>
         {
             await HandleDecryptedMessageAsync(dec);
         };
+        _omemo.MessageDecrypted += _messageDecryptedHandler;
 
         // Wire reactions
-        _reactions.ReactionReceived += async args =>
+        _reactionReceivedHandler = async args =>
         {
             await HandleIncomingReactionAsync(args);
         };
+        _reactions.ReactionReceived += _reactionReceivedHandler;
 
         // Wire incoming presence
-        _client.PresenceReceived += async pres =>
+        _presenceReceivedHandler = async pres =>
         {
             await HandleIncomingPresenceAsync(pres);
         };
+        _client.PresenceReceived += _presenceReceivedHandler;
 
         // Restore last presence mode and status message from settings per user preference
         var initialPresence = SettingsRepository.DefaultPresenceMode;
@@ -1037,28 +1077,81 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     public async Task<bool> ReconnectAsync()
     {
+        Task<bool> task;
         await _reconnectLock.WaitAsync();
         try
         {
             if (_client.IsReady) return true;
             if (_currentReconnectTask is not null && !_currentReconnectTask.IsCompleted)
             {
-                return await _currentReconnectTask;
+                task = _currentReconnectTask;
             }
-
-            _currentReconnectTask = PerformReconnectAsync();
-            return await _currentReconnectTask;
+            else
+            {
+                task = _currentReconnectTask = PerformReconnectAsync();
+            }
         }
         finally
         {
             _reconnectLock.Release();
         }
+
+        return await task;
+    }
+
+    [RelayCommand]
+    public async Task ManualReconnectAsync()
+    {
+        _isManualDisconnect = false;
+        CanManualReconnect = false;
+        await ReconnectAsync();
+    }
+
+    [RelayCommand]
+    public Task RetryConnectionAsync() => ManualReconnectAsync();
+
+    internal static TimeSpan CalculateBackoffDelay(
+        int attempt,
+        double initialDelaySeconds = InitialReconnectDelaySeconds,
+        double maxDelaySeconds = MaxReconnectDelaySeconds,
+        Random? random = null)
+    {
+        if (attempt < 1) attempt = 1;
+        if (initialDelaySeconds <= 0) initialDelaySeconds = 1.0;
+        if (maxDelaySeconds < initialDelaySeconds) maxDelaySeconds = initialDelaySeconds;
+
+        double baseDelay = Math.Min(maxDelaySeconds, initialDelaySeconds * Math.Pow(2, attempt - 1));
+        double jitterMultiplier = (1.0 - JitterRatio) + (random ?? Random.Shared).NextDouble() * (2.0 * JitterRatio);
+        double delaySeconds = Math.Min(maxDelaySeconds, Math.Max(1.0, baseDelay * jitterMultiplier));
+        return TimeSpan.FromSeconds(delaySeconds);
+    }
+
+    private Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        if (DelayProvider is not null)
+        {
+            return DelayProvider(duration, cancellationToken);
+        }
+
+        return Task.Delay(duration, cancellationToken);
     }
 
     private async Task<bool> PerformReconnectAsync()
     {
+        if (_isManualDisconnect)
+        {
+            return false;
+        }
+
+        _reconnectCts?.Cancel();
+        _reconnectCts?.Dispose();
+        _reconnectCts = new CancellationTokenSource();
+        var cancellationToken = _reconnectCts.Token;
+
         PostToUi(() =>
         {
+            IsReconnecting = true;
+            CanManualReconnect = false;
             StatusMessage = "Reconnecting to server... ⏳";
         });
 
@@ -1071,9 +1164,30 @@ public sealed partial class MainChatViewModel : ViewModelBase
         }
         catch { }
 
-        int maxAttempts = 3;
+        if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+        {
+            PostToUi(() =>
+            {
+                IsReconnecting = false;
+                CanManualReconnect = false;
+            });
+            return false;
+        }
+
+        int maxAttempts = MaxReconnectAttempts;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
+            if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+            {
+                PostToUi(() =>
+                {
+                    IsReconnecting = false;
+                    CanManualReconnect = false;
+                });
+                return false;
+            }
+
+            bool connected = false;
             try
             {
                 PostToUi(() =>
@@ -1083,12 +1197,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         : $"Reconnecting to server (attempt {attempt}/{maxAttempts})... ⏳";
                 });
 
-                await _client.ConnectAsync();
+                await _client.ConnectAsync(cancellationToken);
 
                 if (_client.IsReady)
                 {
+                    connected = true;
                     PostToUi(() =>
                     {
+                        IsReconnecting = false;
+                        CanManualReconnect = false;
                         StatusMessage = $"Connected as {_client.BoundJid}";
                     });
 
@@ -1104,19 +1221,86 @@ public sealed partial class MainChatViewModel : ViewModelBase
                     return true;
                 }
             }
+            catch (OperationCanceledException) when (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+            {
+                PostToUi(() =>
+                {
+                    IsReconnecting = false;
+                    CanManualReconnect = false;
+                });
+                return false;
+            }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Reconnect attempt {attempt} failed: {ex.Message}");
-                if (attempt < maxAttempts)
+            }
+
+            if (!connected)
+            {
+                try
                 {
-                    await Task.Delay(1000 * attempt);
+                    if (_client.State != XmppClientState.Disconnected)
+                    {
+                        await _client.DisconnectAsync();
+                    }
+                }
+                catch { }
+            }
+
+            if (!connected && attempt < maxAttempts)
+            {
+                var delay = CalculateBackoffDelay(attempt);
+                int totalSeconds = (int)Math.Max(1, Math.Round(delay.TotalSeconds));
+
+                for (int remaining = totalSeconds; remaining > 0; remaining--)
+                {
+                    if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+                    {
+                        PostToUi(() =>
+                        {
+                            IsReconnecting = false;
+                            CanManualReconnect = false;
+                        });
+                        return false;
+                    }
+
+                    PostToUi(() =>
+                    {
+                        StatusMessage = $"Reconnecting to server (attempt {attempt + 1}/{maxAttempts} in {remaining}s)... ⏳";
+                    });
+
+                    try
+                    {
+                        await DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+                    {
+                        PostToUi(() =>
+                        {
+                            IsReconnecting = false;
+                            CanManualReconnect = false;
+                        });
+                        return false;
+                    }
                 }
             }
         }
 
+        if (_isManualDisconnect || cancellationToken.IsCancellationRequested)
+        {
+            PostToUi(() =>
+            {
+                IsReconnecting = false;
+                CanManualReconnect = false;
+            });
+            return false;
+        }
+
         PostToUi(() =>
         {
-            StatusMessage = "Connection lost (Offline)";
+            IsReconnecting = false;
+            CanManualReconnect = true;
+            StatusMessage = "Connection failed (Offline). Reconnect manually";
         });
         return false;
     }
@@ -1737,6 +1921,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
     public async Task DisconnectAsync()
     {
         _isManualDisconnect = true;
+        _reconnectCts?.Cancel();
+        PostToUi(() =>
+        {
+            IsReconnecting = false;
+            CanManualReconnect = false;
+        });
         _resumeWatcher.Dispose();
         _contactResourcePresence.Clear();
         foreach (var c in Contacts)
@@ -1744,6 +1934,20 @@ public sealed partial class MainChatViewModel : ViewModelBase
             c.PresenceShow = "offline";
             c.StatusMessage = null;
         }
+
+        if (_avatarUpdatedHandler is not null && _avatarManager is not null) _avatarManager.AvatarUpdated -= _avatarUpdatedHandler;
+        if (_stateChangedHandler is not null) _client.StateChanged -= _stateChangedHandler;
+        if (_messageCorrectedHandler is not null && _correction is not null) _correction.MessageCorrected -= _messageCorrectedHandler;
+        if (_messageRetractedHandler is not null && _retraction is not null) _retraction.MessageRetracted -= _messageRetractedHandler;
+        if (_chatStateReceivedHandler is not null && _chatStates is not null) _chatStates.ChatStateReceived -= _chatStateReceivedHandler;
+        if (_receiptReceivedHandler is not null && _receipts is not null) _receipts.ReceiptReceived -= _receiptReceivedHandler;
+        if (_markerReceivedHandler is not null && _chatMarkers is not null) _chatMarkers.MarkerReceived -= _markerReceivedHandler;
+        if (_messageReceivedHandler is not null) _client.MessageReceived -= _messageReceivedHandler;
+        if (_carbonMessageReceivedHandler is not null && _carbons is not null) _carbons.CarbonMessageReceived -= _carbonMessageReceivedHandler;
+        if (_messageDecryptedHandler is not null && _omemo is not null) _omemo.MessageDecrypted -= _messageDecryptedHandler;
+        if (_reactionReceivedHandler is not null && _reactions is not null) _reactions.ReactionReceived -= _reactionReceivedHandler;
+        if (_presenceReceivedHandler is not null) _client.PresenceReceived -= _presenceReceivedHandler;
+
         await _client.DisconnectAsync();
         await _onDisconnectRequested();
     }
