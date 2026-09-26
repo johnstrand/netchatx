@@ -677,15 +677,22 @@ public partial class MainChatView : UserControl
 
     private async void OnSearchInputKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key is Key.Enter or Key.Return && DataContext is MainChatViewModel vm)
+        try
         {
-            await vm.ExecuteSearchAsync();
-            e.Handled = true;
+            if (e.Key is Key.Enter or Key.Return && DataContext is MainChatViewModel vm)
+            {
+                await vm.ExecuteSearchAsync();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape && DataContext is MainChatViewModel mainVm)
+            {
+                mainVm.CloseSearch();
+                e.Handled = true;
+            }
         }
-        else if (e.Key == Key.Escape && DataContext is MainChatViewModel mainVm)
+        catch
         {
-            mainVm.CloseSearch();
-            e.Handled = true;
+            // Soft failure / prevent unhandled exception in async void event handler
         }
     }
 
