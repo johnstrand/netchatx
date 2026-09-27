@@ -97,6 +97,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
     public Xep0424MessageRetraction? Retraction { get; private set; }
     public Xep0393MessageStyling? Styling { get; private set; }
     public Xep0191Blocking? Blocking { get; private set; }
+    public Xep0234JingleFileTransfer? JingleFileTransfer { get; private set; }
     public AvatarManager? AvatarManager { get; private set; }
     public Xep0077InBandRegistration? Registration { get; private set; }
 
@@ -161,6 +162,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         Retraction = new Xep0424MessageRetraction();
         Styling = new Xep0393MessageStyling();
         Blocking = new Xep0191Blocking();
+        JingleFileTransfer = new Xep0234JingleFileTransfer();
         AvatarManager = new AvatarManager();
         Registration = new Xep0077InBandRegistration();
 
@@ -180,6 +182,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         await Retraction.AttachAsync(Client).ConfigureAwait(false);
         await Styling.AttachAsync(Client).ConfigureAwait(false);
         await Blocking.AttachAsync(Client).ConfigureAwait(false);
+        await JingleFileTransfer.AttachAsync(Client).ConfigureAwait(false);
         await AvatarManager.AttachAsync(Client).ConfigureAwait(false);
         await Registration.AttachAsync(Client).ConfigureAwait(false);
     }
