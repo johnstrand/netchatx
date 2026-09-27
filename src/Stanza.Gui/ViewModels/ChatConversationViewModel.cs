@@ -28,6 +28,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0313MessageArchiveManagement? _mamManager;
     private readonly Xep0384OmemoManager? _omemoManager;
     private readonly Xep0363HttpFileUpload? _httpUploadManager;
+    private readonly Xep0234JingleFileTransfer? _jingleFileTransfer;
     private readonly Xep0444Reactions? _reactionsManager;
     private readonly Xep0333ChatMarkers? _chatMarkers;
     private readonly Xep0085ChatStates? _chatStates;
@@ -70,6 +71,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showEmoticonBanner;
+
+    [ObservableProperty]
+    private string? _fileTransferStatusMessage;
 
     [ObservableProperty]
     private bool _isBlocked;
@@ -491,7 +495,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         Xep0333ChatMarkers? chatMarkers = null,
         Xep0085ChatStates? chatStates = null,
         SettingsRepository? settingsRepo = null,
-        Func<Task<bool>>? ensureConnected = null)
+        Func<Task<bool>>? ensureConnected = null,
+        Xep0234JingleFileTransfer? jingleFileTransfer = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -503,6 +508,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _mamManager = mamManager;
         _omemoManager = omemoManager;
         _httpUploadManager = httpUploadManager;
+        _jingleFileTransfer = jingleFileTransfer;
         _reactionsManager = reactionsManager;
         _chatMarkers = chatMarkers;
         _chatStates = chatStates;
@@ -1459,6 +1465,28 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         // 2. Fallback: Save to local media cache directory and send file URI
         if (string.IsNullOrEmpty(imageUrl))
         {
+            if (!IsGroupChat && _jingleFileTransfer is not null)
+            {
+                try
+                {
+                    var offer = new JingleFileTransferOffer(
+                        SessionId: Guid.NewGuid().ToString("N"),
+                        Name: fileName,
+                        Size: imageBytes.LongLength,
+                        MediaType: contentType,
+                        To: RemoteJid,
+                        CreatedAtUtc: DateTimeOffset.UtcNow);
+                    await _jingleFileTransfer.SendOfferAsync(offer).ConfigureAwait(false);
+                    FileTransferStatusMessage = $"Peer-to-peer transfer offer sent for {fileName}.";
+                    AddSystemMessage(FileTransferStatusMessage);
+                    return null;
+                }
+                catch
+                {
+                    // Soft fallback to local media file
+                }
+            }
+
             try
             {
                 var mediaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Stanza", "media");

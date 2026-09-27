@@ -57,6 +57,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0424MessageRetraction? _retraction;
     private Xep0393MessageStyling? _styling;
     private Xep0191Blocking? _blocking;
+    private Xep0234JingleFileTransfer? _jingleFileTransfer;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _isManualDisconnect;
@@ -1091,6 +1092,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _retraction = firstSession.Retraction;
             _styling = firstSession.Styling;
             _blocking = firstSession.Blocking;
+            _jingleFileTransfer = firstSession.JingleFileTransfer;
             _avatarManager = firstSession.AvatarManager;
         }
         else
@@ -1110,6 +1112,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _retraction = new Xep0424MessageRetraction();
             _styling = new Xep0393MessageStyling();
             _blocking = new Xep0191Blocking();
+            _jingleFileTransfer = new Xep0234JingleFileTransfer();
             _ping = new Xep0199Ping();
 
             await _mam.AttachAsync(_client);
@@ -1127,6 +1130,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await _retraction.AttachAsync(_client);
             await _styling.AttachAsync(_client);
             await _blocking.AttachAsync(_client);
+            await _jingleFileTransfer.AttachAsync(_client);
             await _ping.AttachAsync(_client);
 
             _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
@@ -2170,6 +2174,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var mamToUse = session?.Mam ?? _mam;
         var omemoToUse = session?.Omemo ?? _omemo;
         var httpUploadToUse = session?.HttpUpload ?? _httpUpload;
+        var jingleFileTransferToUse = session?.JingleFileTransfer ?? _jingleFileTransfer;
         var reactionsToUse = session?.Reactions ?? _reactions;
         var chatMarkersToUse = session?.ChatMarkers ?? _chatMarkers;
         var chatStatesToUse = session?.ChatStates ?? _chatStates;
@@ -2189,7 +2194,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             chatMarkersToUse,
             chatStatesToUse,
             _settingsRepo,
-            ensureConnected: () => session is not null ? session.ConnectAsync() : EnsureConnectedAsync())
+            ensureConnected: () => session is not null ? session.ConnectAsync() : EnsureConnectedAsync(),
+            jingleFileTransfer: jingleFileTransferToUse)
         {
             AccountLabel = session?.Profile.Label,
             AccountColorHex = session?.ColorHex,
