@@ -702,7 +702,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
             },
             sessionManager: _sessionManager,
             accountRepo: _accountRepo,
-            onOpenAddAccountRequested: OpenAddAccountDialog);
+            onOpenAddAccountRequested: OpenAddAccountDialog,
+            messageRepo: _messageRepo);
     }
 
     public MainChatViewModel(

@@ -16,6 +16,7 @@ using Stanza.Gui.Helpers;
 using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Omemo;
 using Stanza.Protocol.Xeps.Sharing;
+using Stanza.Storage.Export;
 using Stanza.Storage.Models;
 using Stanza.Storage.Repositories;
 
@@ -70,6 +71,34 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showEmoticonBanner;
+
+    [ObservableProperty]
+    private string? _exportStatusMessage;
+
+    public Func<Task>? RequestExportChatCallback { get; set; }
+
+    [RelayCommand]
+    public async Task RequestExportChat()
+    {
+        if (RequestExportChatCallback is not null)
+        {
+            await RequestExportChatCallback.Invoke();
+        }
+    }
+
+    public async Task ExportChatAsync(Stream destinationStream, MessageExportFormat format, bool includeMedia = true)
+    {
+        var service = new MessageExportService(_messageRepo);
+        var options = new MessageExportOptions
+        {
+            Format = format,
+            IncludeMedia = includeMedia,
+            IncludeMetadata = true,
+            AccountJid = _accountJid,
+            RemoteJid = RemoteJid
+        };
+        await service.ExportConversationAsync(_accountJid, RemoteJid, options, destinationStream);
+    }
 
     public Action? OpenSettingsToChatRequested { get; set; }
 

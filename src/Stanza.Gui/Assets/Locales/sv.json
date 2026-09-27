@@ -249,5 +249,17 @@
   "Settings_Accounts_Connecting": "Ansluter...",
   "Settings_Accounts_Disconnected": "Frånkopplad",
   "Settings_Accounts_Error": "Fel",
-  "NewChat_Account": "Skicka från konto"
+  "NewChat_Account": "Skicka från konto",
+  "Settings_Section_Backup": "Säkerhetskopiering & meddelandehistorik",
+  "Settings_ExportAll_Title": "Exportera alla meddelanden",
+  "Settings_ExportAll_Subtitle": "Exportera alla konversationer till JSON-, text- eller HTML-format",
+  "Settings_ImportBackup_Title": "Importera säkerhetskopia",
+  "Settings_ImportBackup_Subtitle": "Återställ chatthistorik från en JSON-säkerhetskopia",
+  "Settings_Export_Button": "Exportera alla...",
+  "Settings_Import_Button": "Importera säkerhetskopia...",
+  "Chat_Export_Button": "Exportera chatt...",
+  "Chat_Export_Tooltip": "Exportera denna konversation (JSON, TXT, HTML)",
+  "Backup_Import_Success": "Lyckades importera {0} meddelanden ({1} hoppades över).",
+  "Backup_Import_Failed": "Kunde inte importera säkerhetskopia: {0}",
+  "Backup_Export_Success": "Exporten slutfördes framgångsrikt."
 }
