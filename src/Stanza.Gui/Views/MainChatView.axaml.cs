@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Stanza.Gui.Helpers;
 using Stanza.Gui.ViewModels;
+using Stanza.Storage.Export;
 
 namespace Stanza.Gui.Views;
 
@@ -260,6 +261,7 @@ public partial class MainChatView : UserControl
             _currentConversation.OlderHistoryLoading -= OnOlderHistoryLoading;
             _currentConversation.OlderHistoryLoaded -= OnOlderHistoryLoaded;
             _currentConversation.ConversationSearchNavigationRequested -= OnConversationSearchNavigationRequested;
+            _currentConversation.RequestExportChatCallback = null;
         }
 
         _currentConversation = newConversation;
@@ -272,6 +274,7 @@ public partial class MainChatView : UserControl
             _currentConversation.OlderHistoryLoading += OnOlderHistoryLoading;
             _currentConversation.OlderHistoryLoaded += OnOlderHistoryLoaded;
             _currentConversation.ConversationSearchNavigationRequested += OnConversationSearchNavigationRequested;
+            _currentConversation.RequestExportChatCallback = HandleExportActiveChatAsync;
             ScrollToLatestMessage();
             _messageInputBox?.Focus();
         }
@@ -289,6 +292,54 @@ public partial class MainChatView : UserControl
             .FirstOrDefault(c => ReferenceEquals(c.DataContext, bubble));
 
         target?.BringIntoView();
+    }
+
+    private async Task HandleExportActiveChatAsync()
+    {
+        try
+        {
+            if (_currentConversation is null) return;
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.StorageProvider is null) return;
+
+            var safeName = SanitizeFileName(_currentConversation.RemoteJid);
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = $"Export Chat - {_currentConversation.Title}",
+                DefaultExtension = "json",
+                SuggestedFileName = $"stanza-chat-{safeName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("JSON Backup (*.json)") { Patterns = ["*.json"] },
+                    new FilePickerFileType("HTML Document (*.html)") { Patterns = ["*.html"] },
+                    new FilePickerFileType("Plain Text (*.txt)") { Patterns = ["*.txt"] }
+                ]
+            });
+
+            if (file is null) return;
+
+            var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+            var format = extension switch
+            {
+                ".html" or ".htm" => MessageExportFormat.Html,
+                ".txt" => MessageExportFormat.PlainText,
+                _ => MessageExportFormat.Json
+            };
+
+            await using var stream = await file.OpenWriteAsync();
+            await _currentConversation.ExportChatAsync(stream, format);
+        }
+        catch
+        {
+            // Soft fail / prevent unhandled exception
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var chars = name.Select(c => invalid.Contains(c) || c == '@' ? '_' : c).ToArray();
+        return new string(chars);
     }
 
     private void OnOlderHistoryLoading()

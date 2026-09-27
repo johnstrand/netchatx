@@ -276,5 +276,17 @@
   "Settings_Accounts_Connecting": "Connecting...",
   "Settings_Accounts_Disconnected": "Disconnected",
   "Settings_Accounts_Error": "Error",
-  "NewChat_Account": "Send from Account"
+  "NewChat_Account": "Send from Account",
+  "Settings_Section_Backup": "Backup & Message History",
+  "Settings_ExportAll_Title": "Export All Messages",
+  "Settings_ExportAll_Subtitle": "Export all conversations to JSON, Plain Text, or HTML format",
+  "Settings_ImportBackup_Title": "Import Message Backup",
+  "Settings_ImportBackup_Subtitle": "Restore chat history from a JSON backup file",
+  "Settings_Export_Button": "Export All...",
+  "Settings_Import_Button": "Import Backup...",
+  "Chat_Export_Button": "Export Chat...",
+  "Chat_Export_Tooltip": "Export this conversation (JSON, TXT, HTML)",
+  "Backup_Import_Success": "Successfully imported {0} messages ({1} skipped).",
+  "Backup_Import_Failed": "Failed to import backup: {0}",
+  "Backup_Export_Success": "Export completed successfully."
 }
