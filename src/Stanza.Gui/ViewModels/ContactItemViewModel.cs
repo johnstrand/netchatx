@@ -9,6 +9,30 @@ public sealed partial class ContactItemViewModel : ViewModelBase
     private string _accountJid = string.Empty;
 
     [ObservableProperty]
+    private string? _accountLabel;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccountBrush))]
+    private string? _accountColorHex;
+
+    [ObservableProperty]
+    private bool _showAccountBadge;
+
+    public Avalonia.Media.IBrush AccountBrush
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(AccountColorHex) && Avalonia.Media.Color.TryParse(AccountColorHex, out var c))
+            {
+                return new Avalonia.Media.SolidColorBrush(c);
+            }
+            return new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#00F0FF"));
+        }
+    }
+
+    public string AccountBadgeText => !string.IsNullOrWhiteSpace(AccountLabel) ? AccountLabel : AccountJid;
+
+    [ObservableProperty]
     private string _contactJid = string.Empty;
 
     [ObservableProperty]

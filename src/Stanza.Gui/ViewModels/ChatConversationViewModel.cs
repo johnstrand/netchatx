@@ -34,6 +34,31 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly SettingsRepository? _settingsRepo;
     private readonly Func<Task<bool>>? _ensureConnected;
     private readonly string _accountJid;
+    public string AccountJid => _accountJid;
+
+    [ObservableProperty]
+    private string? _accountLabel;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccountBrush))]
+    private string? _accountColorHex;
+
+    [ObservableProperty]
+    private bool _showAccountBadge;
+
+    public Avalonia.Media.IBrush AccountBrush
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(AccountColorHex) && Avalonia.Media.Color.TryParse(AccountColorHex, out var c))
+            {
+                return new Avalonia.Media.SolidColorBrush(c);
+            }
+            return new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#00F0FF"));
+        }
+    }
+
+    public string AccountBadgeText => !string.IsNullOrWhiteSpace(AccountLabel) ? AccountLabel : AccountJid;
 
     private List<string> _quickEmojis = [.. EmojiData.DefaultQuickEmojis];
     public IReadOnlyList<string> QuickEmojis => _quickEmojis;

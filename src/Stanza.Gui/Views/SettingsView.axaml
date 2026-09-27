@@ -976,6 +976,78 @@
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
+
+                <!-- ================= TAB 6: ACCOUNTS ================= -->
+                <TabItem Header="{DynamicResource Settings_Tab_Accounts}" AutomationProperties.Name="Account settings">
+                    <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <StackPanel Spacing="14" Margin="0,0,6,0">
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="14">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="2">
+                                            <TextBlock Text="{DynamicResource Settings_Accounts_Title}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+                                            <TextBlock Text="{DynamicResource Settings_Accounts_Subtitle}" Foreground="#64748B" FontSize="11" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="{DynamicResource Settings_Accounts_Add}"
+                                                Command="{Binding OpenAddAccountCommand}"
+                                                Classes="accent" Padding="12,5" FontSize="11.5"
+                                                AutomationProperties.Name="Add account" />
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding ManagedAccounts}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:AccountProfileViewModel}">
+                                                <Border Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                        <!-- Avatar / Initials with color indicator -->
+                                                        <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
+                                                                Background="{Binding AvatarBackgroundBrush}"
+                                                                BorderBrush="{Binding AccountBrush}" BorderThickness="2"
+                                                                Margin="0,0,12,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="13" FontWeight="Bold"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+
+                                                        <!-- Account Info -->
+                                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                                                            <TextBlock Text="{Binding Jid}" Foreground="#64748B" FontSize="11" />
+                                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
+                                                                <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding StatusDisplay}" Foreground="{Binding StatusBrush}" FontSize="10.5" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <!-- Active Toggle -->
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,12,0">
+                                                            <TextBlock Text="{DynamicResource Settings_Accounts_Active}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center" />
+                                                            <ToggleSwitch IsChecked="{Binding IsActive, Mode=OneWay}"
+                                                                          Command="{Binding ((vm:SettingsViewModel)DataContext).ToggleAccountActiveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                          CommandParameter="{Binding}"
+                                                                          OnContent="" OffContent=""
+                                                                          VerticalAlignment="Center"
+                                                                          AutomationProperties.Name="Toggle account active state" />
+                                                        </StackPanel>
+
+                                                        <!-- Remove Button -->
+                                                        <Button Grid.Column="3" Content="🗑"
+                                                                Command="{Binding ((vm:SettingsViewModel)DataContext).RemoveAccountCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Classes="icon-btn subtle"
+                                                                Foreground="#F43F5E"
+                                                                ToolTip.Tip="{DynamicResource Settings_Accounts_Remove}"
+                                                                VerticalAlignment="Center"
+                                                                AutomationProperties.Name="Remove account" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
             </TabControl>
 
             <!-- Modal Action Buttons (Footer) -->

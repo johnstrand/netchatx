@@ -9,7 +9,8 @@ public sealed class DatabaseMigrator
         new Migration001_InitialSchema(),
         new Migration002_AddRawXmlColumn(),
         new Migration003_AddAllowUntrustedCertificatesColumn(),
-        new Migration004_DeduplicateMessages()
+        new Migration004_DeduplicateMessages(),
+        new Migration005_AddAccountLabelAndColorHexColumns()
     ];
 
     private readonly IReadOnlyList<IDatabaseMigration> _migrations;
