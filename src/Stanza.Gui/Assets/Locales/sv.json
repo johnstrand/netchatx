@@ -240,6 +240,7 @@
   "Accounts_Dialog_Color": "Accentfärg",
   "Accounts_Dialog_Add": "Lägg till konto",
   "Settings_Tab_Accounts": "Konton",
+  "Settings_Tab_Privacy": "🛡️ Integritet",
   "Settings_Accounts_Title": "Hanterade konton",
   "Settings_Accounts_Subtitle": "Konfigurera flera samtidiga XMPP-konton.",
   "Settings_Accounts_Add": "+ Lägg till konto",
