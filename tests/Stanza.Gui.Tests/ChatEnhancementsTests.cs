@@ -433,5 +433,94 @@ public class ChatEnhancementsTests : IDisposable
         conv.Title = "Robert The Bruce";
         Assert.Equal("Robert The Bruce", conv.Messages[0].SenderDisplayName);
     }
+
+    [Fact]
+    public void ChatConversationViewModel_ConversationSearch_HighlightsMatchingMessages()
+    {
+        var account = "me@example.com";
+        var peerJid = Jid.Parse("sam@example.com");
+        var conv = new ChatConversationViewModel(account, peerJid.ToString(), "Sam", peerJid, false, _messageRepo);
+
+        conv.AddOrUpdateMessageInternal(new ChatMessage
+        {
+            Id = "m1",
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            SenderJid = peerJid.ToString(),
+            Body = "Meet at the library",
+            Direction = MessageDirection.Inbound,
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-2)
+        });
+        conv.AddOrUpdateMessageInternal(new ChatMessage
+        {
+            Id = "m2",
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            SenderJid = account,
+            Body = "I will bring coffee",
+            Direction = MessageDirection.Outbound,
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-1)
+        });
+
+        conv.ConversationSearchQuery = "library";
+
+        Assert.True(conv.HasConversationSearchResults);
+        Assert.Equal(1, conv.ConversationSearchResultCount);
+        Assert.Equal("1 / 1", conv.ConversationSearchSummary);
+        Assert.True(conv.Messages[0].IsSearchMatch);
+        Assert.True(conv.Messages[0].IsActiveSearchMatch);
+        Assert.False(conv.Messages[1].IsSearchMatch);
+    }
+
+    [Fact]
+    public void ChatConversationViewModel_ConversationSearch_NavigationWrapsBetweenMatches()
+    {
+        var account = "me@example.com";
+        var peerJid = Jid.Parse("sam@example.com");
+        var conv = new ChatConversationViewModel(account, peerJid.ToString(), "Sam", peerJid, false, _messageRepo);
+
+        conv.AddOrUpdateMessageInternal(new ChatMessage
+        {
+            Id = "m1",
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            SenderJid = peerJid.ToString(),
+            Body = "Alpha keyword",
+            Direction = MessageDirection.Inbound,
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-3)
+        });
+        conv.AddOrUpdateMessageInternal(new ChatMessage
+        {
+            Id = "m2",
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            SenderJid = account,
+            Body = "No match here",
+            Direction = MessageDirection.Outbound,
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-2)
+        });
+        conv.AddOrUpdateMessageInternal(new ChatMessage
+        {
+            Id = "m3",
+            AccountJid = account,
+            RemoteJid = peerJid.ToString(),
+            SenderJid = peerJid.ToString(),
+            Body = "Another KEYWORD appears",
+            Direction = MessageDirection.Inbound,
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-1)
+        });
+
+        conv.ConversationSearchQuery = "keyword";
+        Assert.Equal(0, conv.ActiveConversationSearchResultIndex);
+
+        conv.NextConversationSearchResult();
+        Assert.Equal(1, conv.ActiveConversationSearchResultIndex);
+
+        conv.NextConversationSearchResult();
+        Assert.Equal(0, conv.ActiveConversationSearchResultIndex);
+
+        conv.PreviousConversationSearchResult();
+        Assert.Equal(1, conv.ActiveConversationSearchResultIndex);
+    }
 }
 
