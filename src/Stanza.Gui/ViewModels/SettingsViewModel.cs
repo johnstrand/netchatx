@@ -1078,6 +1078,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         IsOpen = true;
         _ = RefreshAccountsAsync();
+        _ = RefreshBlockedContactsAsync();
         var osAutostart = _startupService.IsStartupEnabled();
         if (LaunchOnStartup != osAutostart)
         {
@@ -1090,6 +1091,134 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         IsOpen = false;
         SelectedEmojiSlot = -1;
+    }
+
+    // --- Privacy & Blocking ---
+    public ObservableCollection<string> BlockedContacts { get; } = [];
+
+    [ObservableProperty]
+    private string? _selectedBlockedContact;
+
+    [ObservableProperty]
+    private string _newBlockedJid = string.Empty;
+
+    [ObservableProperty]
+    private string? _blockingStatusMessage;
+
+    [ObservableProperty]
+    private bool _isBlockingLoading;
+
+    [RelayCommand]
+    public async Task RefreshBlockedContactsAsync()
+    {
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            var list = await session.Blocking.GetBlockListAsync().ConfigureAwait(false);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                BlockedContacts.Clear();
+                foreach (var jid in list)
+                {
+                    BlockedContacts.Add(jid);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to load blocked contacts: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task BlockNewContactAsync()
+    {
+        var jid = NewBlockedJid?.Trim();
+        if (string.IsNullOrWhiteSpace(jid)) return;
+
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null)
+        {
+            BlockingStatusMessage = "Account session or blocking feature not available.";
+            return;
+        }
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            await session.Blocking.BlockAsync(jid).ConfigureAwait(false);
+            NewBlockedJid = string.Empty;
+            await RefreshBlockedContactsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to block: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnblockContactAsync(string? jidToUnblock)
+    {
+        var jid = jidToUnblock ?? SelectedBlockedContact;
+        if (string.IsNullOrWhiteSpace(jid)) return;
+
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null) return;
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            await session.Blocking.UnblockAsync(jid).ConfigureAwait(false);
+            await RefreshBlockedContactsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to unblock: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnblockAllContactsAsync()
+    {
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null) return;
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            await session.Blocking.UnblockAllAsync().ConfigureAwait(false);
+            await RefreshBlockedContactsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to unblock all: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
     }
 
     [RelayCommand]

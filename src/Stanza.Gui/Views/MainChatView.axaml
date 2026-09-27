@@ -359,6 +359,18 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
                                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,4">
+                                    <Grid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Block Contact"
+                                                      IsVisible="{Binding !IsBlocked}"
+                                                      Command="{Binding ((vm:MainChatViewModel)DataContext).BlockContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="Unblock Contact"
+                                                      IsVisible="{Binding IsBlocked}"
+                                                      Command="{Binding ((vm:MainChatViewModel)DataContext).UnblockContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}" />
+                                        </ContextMenu>
+                                    </Grid.ContextMenu>
                                     <!-- Avatar with Live Presence Dot -->
                                     <Panel Grid.Column="0" Width="40" Height="40" Margin="0,0,12,0" VerticalAlignment="Center">
                                         <Border Width="40" Height="40" CornerRadius="20" ClipToBounds="True" Background="{Binding AvatarBackgroundBrush}">
@@ -382,6 +394,9 @@
                                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis" />
+                                                <Border Background="#3B1824" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="4,1" IsVisible="{Binding IsBlocked}" VerticalAlignment="Center">
+                                                    <TextBlock Text="Blocked" FontSize="9" FontWeight="Bold" Foreground="#F87171" />
+                                                </Border>
                                                 <Border Background="{Binding AccountBrush}" CornerRadius="4" Padding="4,1" IsVisible="{Binding ShowAccountBadge}" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding AccountBadgeText}" FontSize="9" FontWeight="Bold" Foreground="#0B0F19" />
                                                 </Border>
@@ -412,6 +427,18 @@
                                         AutomationProperties.Name="{Binding DisplayName}"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                         Background="Transparent" BorderThickness="0" Padding="4,4">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Block Contact"
+                                                      IsVisible="{Binding !IsBlocked}"
+                                                      Command="{Binding ((vm:MainChatViewModel)DataContext).BlockContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="Unblock Contact"
+                                                      IsVisible="{Binding IsBlocked}"
+                                                      Command="{Binding ((vm:MainChatViewModel)DataContext).UnblockContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
                                     <Grid ColumnDefinitions="Auto,*,Auto">
                                         <!-- Avatar circle with presence dot -->
                                         <Panel Grid.Column="0" Width="40" Height="40" Margin="0,0,12,0" VerticalAlignment="Center">
@@ -433,6 +460,9 @@
                                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" Spacing="4">
                                                 <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis" />
+                                                <Border Background="#3B1824" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="4,1" IsVisible="{Binding IsBlocked}" VerticalAlignment="Center">
+                                                    <TextBlock Text="Blocked" FontSize="9" FontWeight="Bold" Foreground="#F87171" />
+                                                </Border>
                                                 <Border Background="{Binding AccountBrush}" CornerRadius="4" Padding="4,1" IsVisible="{Binding ShowAccountBadge}" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding AccountBadgeText}" FontSize="9" FontWeight="Bold" Foreground="#0B0F19" />
                                                 </Border>
@@ -622,6 +652,24 @@
 
                 <!-- HR Divider -->
                 <Rectangle Height="1" Fill="#1E293B" Margin="16,0" HorizontalAlignment="Stretch" />
+
+                <!-- Blocked Contact Warning Banner -->
+                <Border Background="#3B1824" BorderBrush="#EF4444" BorderThickness="0,1,0,1" Padding="14,8"
+                        IsVisible="{Binding ActiveConversation.IsBlocked, FallbackValue=False}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="🚫" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="This contact is blocked. You will not receive messages or presence updates from them."
+                                       Foreground="#FCA5A5" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Unblock"
+                                Command="{Binding UnblockActiveConversationCommand}"
+                                Classes="action-btn"
+                                Background="#EF4444" Foreground="White"
+                                Padding="12,3" FontSize="11" CornerRadius="4" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
             </StackPanel>
 
             <!-- Top Header Bar when no active conversation and sidebar is collapsed -->
@@ -1328,6 +1376,28 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                    <!-- Privacy & Blocking Action -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Privacy" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" />
+                        <Button Content="🚫 Block Contact"
+                                Command="{Binding BlockContactCommand}"
+                                CommandParameter="{Binding ActiveConversation}"
+                                IsVisible="{Binding !ActiveConversation.IsBlocked, FallbackValue=True}"
+                                Background="#3B1824" Foreground="#F87171"
+                                BorderBrush="#EF4444" BorderThickness="1"
+                                CornerRadius="8" Padding="12,6" FontSize="11"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Cursor="Hand" />
+                        <Button Content="✓ Unblock Contact"
+                                Command="{Binding UnblockActiveConversationCommand}"
+                                IsVisible="{Binding ActiveConversation.IsBlocked, FallbackValue=False}"
+                                Background="#10B981" Foreground="White"
+                                BorderThickness="0"
+                                CornerRadius="8" Padding="12,6" FontSize="11"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Cursor="Hand" />
+                    </StackPanel>
 
                     <Separator Background="#1E293B" Height="1" />
 

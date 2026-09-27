@@ -16,6 +16,7 @@ using Stanza.Protocol.Xeps.Core;
 using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Muc;
 using Stanza.Protocol.Xeps.Omemo;
+using Stanza.Protocol.Xeps.Privacy;
 using Stanza.Protocol.Xeps.Sharing;
 using Stanza.Storage;
 using Stanza.Storage.Models;
@@ -55,6 +56,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0308LastMessageCorrection? _correction;
     private Xep0424MessageRetraction? _retraction;
     private Xep0393MessageStyling? _styling;
+    private Xep0191Blocking? _blocking;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _isManualDisconnect;
@@ -837,6 +839,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
             item.AccountColorHex = session.ColorHex;
             item.ShowAccountBadge = IsAllAccountsSelected;
             ApplyPresenceToContact(item);
+            if (session.Blocking is not null)
+            {
+                item.IsBlocked = session.Blocking.IsBlocked(item.ContactJid);
+            }
             if (_avatarCache.TryGetValue(item.ContactJid, out var av))
             {
                 item.Avatar = av.Bitmap;
@@ -871,6 +877,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         Subscription = "none",
                         UnreadCount = kvp.Value.unreadCount
                     };
+                    if (session.Blocking is not null)
+                    {
+                        newContact.IsBlocked = session.Blocking.IsBlocked(newContact.ContactJid);
+                    }
                     if (_avatarCache.TryGetValue(newContact.ContactJid, out var av))
                     {
                         newContact.Avatar = av.Bitmap;
@@ -933,6 +943,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         StatusMessage = $"Connected as {session.Client.BoundJid}";
                     }
                 });
+
+                if (session.Blocking is not null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try { await session.Blocking.GetBlockListAsync().ConfigureAwait(false); } catch { }
+                    });
+                }
             }
         };
 
@@ -1018,6 +1036,34 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 await HandleAvatarUpdatedAsync(session, args);
             };
         }
+
+        if (session.Blocking is not null)
+        {
+            session.Blocking.BlockListUpdated += _ =>
+            {
+                PostToUi(() =>
+                {
+                    foreach (var c in Contacts)
+                    {
+                        if (c.AccountJid.Equals(session.AccountJid, StringComparison.OrdinalIgnoreCase))
+                        {
+                            c.IsBlocked = session.Blocking.IsBlocked(c.ContactJid);
+                        }
+                    }
+                    foreach (var c in Conversations)
+                    {
+                        if (c.AccountJid.Equals(session.AccountJid, StringComparison.OrdinalIgnoreCase))
+                        {
+                            c.IsBlocked = session.Blocking.IsBlocked(c.RemoteJid);
+                        }
+                    }
+                    if (ActiveConversation is not null && ActiveConversation.AccountJid.Equals(session.AccountJid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ActiveConversation.IsBlocked = session.Blocking.IsBlocked(ActiveConversation.RemoteJid);
+                    }
+                });
+            };
+        }
     }
 
     public async Task InitializeAsync()
@@ -1045,6 +1091,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _correction = firstSession.Correction;
             _retraction = firstSession.Retraction;
             _styling = firstSession.Styling;
+            _blocking = firstSession.Blocking;
             _avatarManager = firstSession.AvatarManager;
         }
         else
@@ -1063,6 +1110,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _correction = new Xep0308LastMessageCorrection();
             _retraction = new Xep0424MessageRetraction();
             _styling = new Xep0393MessageStyling();
+            _blocking = new Xep0191Blocking();
             _ping = new Xep0199Ping();
 
             await _mam.AttachAsync(_client);
@@ -1079,6 +1127,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await _correction.AttachAsync(_client);
             await _retraction.AttachAsync(_client);
             await _styling.AttachAsync(_client);
+            await _blocking.AttachAsync(_client);
             await _ping.AttachAsync(_client);
 
             _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
@@ -1817,6 +1866,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         ApplyPresenceToContact(contact);
         var conv = GetOrCreateConversation(contact.AccountJid, jid.BareJid.ToString(), contact.DisplayName, jid.BareJid, isGroupChat: false);
         conv.PresenceShow = contact.PresenceShow;
+        conv.IsBlocked = contact.IsBlocked;
         ActiveConversation = conv;
         await conv.EnsureHistoryLoadedAsync();
 
@@ -1837,6 +1887,16 @@ public sealed partial class MainChatViewModel : ViewModelBase
     [RelayCommand]
     public async Task SelectConversationAsync(ChatConversationViewModel conv)
     {
+        var session = _sessionManager?.GetSession(conv.AccountJid) ?? SelectedAccountSession;
+        if (session?.Blocking is not null)
+        {
+            conv.IsBlocked = session.Blocking.IsBlocked(conv.RemoteJid);
+        }
+        else if (_blocking is not null)
+        {
+            conv.IsBlocked = _blocking.IsBlocked(conv.RemoteJid);
+        }
+
         ActiveConversation = conv;
         _notificationService.StopFlashing();
 
@@ -1869,6 +1929,132 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var newConv = GetOrCreateConversation(parsedJid.BareJid.ToString(), title, parsedJid.BareJid, isGroupChat: false);
             await SelectConversationAsync(newConv);
         }
+    }
+
+    [RelayCommand]
+    public async Task BlockContactAsync(object? parameter)
+    {
+        string? jidToBlock = null;
+        AccountSession? session = null;
+
+        if (parameter is ContactItemViewModel contact)
+        {
+            jidToBlock = contact.ContactJid;
+            session = _sessionManager?.GetSession(contact.AccountJid) ?? SelectedAccountSession;
+        }
+        else if (parameter is ChatConversationViewModel conv)
+        {
+            jidToBlock = conv.RemoteJid.ToString();
+            session = _sessionManager?.GetSession(conv.AccountJid) ?? SelectedAccountSession;
+        }
+        else if (parameter is string jidStr)
+        {
+            jidToBlock = jidStr;
+            session = SelectedAccountSession;
+        }
+        else if (ActiveConversation is not null)
+        {
+            jidToBlock = ActiveConversation.RemoteJid.ToString();
+            session = _sessionManager?.GetSession(ActiveConversation.AccountJid) ?? SelectedAccountSession;
+        }
+
+        if (string.IsNullOrWhiteSpace(jidToBlock)) return;
+        var blocking = session?.Blocking ?? _blocking;
+        if (blocking is null) return;
+
+        try
+        {
+            await blocking.BlockAsync(jidToBlock).ConfigureAwait(false);
+            UpdateBlockedStatusForJid(session?.AccountJid ?? AccountJid, jidToBlock, isBlocked: true);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to block {jidToBlock}: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnblockContactAsync(object? parameter)
+    {
+        string? jidToUnblock = null;
+        AccountSession? session = null;
+
+        if (parameter is ContactItemViewModel contact)
+        {
+            jidToUnblock = contact.ContactJid;
+            session = _sessionManager?.GetSession(contact.AccountJid) ?? SelectedAccountSession;
+        }
+        else if (parameter is ChatConversationViewModel conv)
+        {
+            jidToUnblock = conv.RemoteJid.ToString();
+            session = _sessionManager?.GetSession(conv.AccountJid) ?? SelectedAccountSession;
+        }
+        else if (parameter is string jidStr)
+        {
+            jidToUnblock = jidStr;
+            session = SelectedAccountSession;
+        }
+        else if (ActiveConversation is not null)
+        {
+            jidToUnblock = ActiveConversation.RemoteJid.ToString();
+            session = _sessionManager?.GetSession(ActiveConversation.AccountJid) ?? SelectedAccountSession;
+        }
+
+        if (string.IsNullOrWhiteSpace(jidToUnblock)) return;
+        var blocking = session?.Blocking ?? _blocking;
+        if (blocking is null) return;
+
+        try
+        {
+            await blocking.UnblockAsync(jidToUnblock).ConfigureAwait(false);
+            UpdateBlockedStatusForJid(session?.AccountJid ?? AccountJid, jidToUnblock, isBlocked: false);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to unblock {jidToUnblock}: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnblockActiveConversationAsync()
+    {
+        if (ActiveConversation is null) return;
+        await UnblockContactAsync(ActiveConversation).ConfigureAwait(false);
+    }
+
+    private void UpdateBlockedStatusForJid(string accountJid, string jidStr, bool isBlocked)
+    {
+        var hasParsedTarget = Jid.TryParse(jidStr, out var targetJid);
+        PostToUi(() =>
+        {
+            foreach (var contact in Contacts)
+            {
+                if (contact.AccountJid.Equals(accountJid, StringComparison.OrdinalIgnoreCase) &&
+                    (contact.ContactJid.Equals(jidStr, StringComparison.OrdinalIgnoreCase) ||
+                     (hasParsedTarget && Jid.TryParse(contact.ContactJid, out var cj) && cj.EqualsBare(targetJid))))
+                {
+                    contact.IsBlocked = isBlocked;
+                }
+            }
+
+            foreach (var conv in Conversations)
+            {
+                if (conv.AccountJid.Equals(accountJid, StringComparison.OrdinalIgnoreCase) &&
+                    (conv.RemoteJid.ToString().Equals(jidStr, StringComparison.OrdinalIgnoreCase) ||
+                     (hasParsedTarget && conv.RemoteJid.EqualsBare(targetJid))))
+                {
+                    conv.IsBlocked = isBlocked;
+                }
+            }
+
+            if (ActiveConversation is not null &&
+                ActiveConversation.AccountJid.Equals(accountJid, StringComparison.OrdinalIgnoreCase) &&
+                (ActiveConversation.RemoteJid.ToString().Equals(jidStr, StringComparison.OrdinalIgnoreCase) ||
+                 (hasParsedTarget && ActiveConversation.RemoteJid.EqualsBare(targetJid))))
+            {
+                ActiveConversation.IsBlocked = isBlocked;
+            }
+        });
     }
 
     public void TriggerNotification(string remoteJid, string senderDisplayName, string previewText, bool isEncrypted)
@@ -2073,6 +2259,15 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             var best = resMap.Values.OrderByDescending(r => r.Priority).ThenByDescending(r => ShowScore(r.Show)).First();
             newConv.PresenceShow = best.Show;
+        }
+
+        if (session?.Blocking is not null)
+        {
+            newConv.IsBlocked = session.Blocking.IsBlocked(remoteJid);
+        }
+        else if (_blocking is not null)
+        {
+            newConv.IsBlocked = _blocking.IsBlocked(remoteJid);
         }
 
         _allConversations.Add(newConv);
