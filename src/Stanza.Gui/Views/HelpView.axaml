@@ -20,7 +20,8 @@
                 </StackPanel>
                 <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}"
                         ToolTip.Tip="Close (Esc)"
-                        Classes="icon-btn subtle" />
+                        Classes="icon-btn subtle"
+                        AutomationProperties.Name="Close help dialog" />
             </Grid>
 
             <!-- Scrollable Guide Topics -->
@@ -232,7 +233,8 @@
                         Padding="20,6"
                         Height="32"
                         FontSize="11.5"
-                        FontWeight="SemiBold" />
+                        FontWeight="SemiBold"
+                        AutomationProperties.Name="Dismiss help dialog" />
             </Grid>
         </Grid>
     </Border>

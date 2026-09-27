@@ -30,7 +30,8 @@
                 <Button Grid.Column="2" Content="✕"
                         Classes="icon-btn subtle"
                         Command="{Binding CancelCommand}"
-                        ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}" />
+                        ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}"
+                        AutomationProperties.Name="Cancel code block editing" />
             </Grid>
 
             <!-- Row 1: Language Picker Bar -->
@@ -41,7 +42,9 @@
                           x:Name="LanguageComboBox"
                           ItemsSource="{Binding AvailableLanguages}"
                           SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
-                          HorizontalAlignment="Stretch">
+                          HorizontalAlignment="Stretch"
+                          TabIndex="1"
+                          AutomationProperties.Name="Code programming language">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:CodeLanguageItem">
                             <TextBlock Text="{Binding Name}" />
@@ -55,7 +58,9 @@
                     <TextBlock Text="{DynamicResource Dialog_CodeBlock_Tag}" VerticalAlignment="Center" Classes="muted" />
                     <TextBox Text="{Binding CustomLanguageIdentifier, Mode=TwoWay}"
                              Watermark="e.g. zig, clojure" Width="140"
-                             VerticalContentAlignment="Center" />
+                             VerticalContentAlignment="Center"
+                             TabIndex="2"
+                             AutomationProperties.Name="Custom language identifier" />
                 </StackPanel>
             </Grid>
 
@@ -102,7 +107,9 @@
                              TextWrapping="NoWrap"
                              Watermark="{DynamicResource Dialog_CodeBlock_Watermark}"
                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             TabIndex="3"
+                             AutomationProperties.Name="Code content" />
                 </Grid>
             </Border>
 
@@ -120,11 +127,15 @@
                         ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}"
                         Command="{Binding CancelCommand}"
                         Classes="icon-btn"
-                        Margin="0,0,8,0" />
+                        Margin="0,0,8,0"
+                        TabIndex="4"
+                        AutomationProperties.Name="Cancel code block" />
                 <Button Grid.Column="3" Content="✓"
                         ToolTip.Tip="{DynamicResource Dialog_CodeBlock_Insert}"
                         Classes="icon-btn accent"
-                        Command="{Binding InsertCommand}" />
+                        Command="{Binding InsertCommand}"
+                        TabIndex="5"
+                        AutomationProperties.Name="Insert code block into chat" />
             </Grid>
         </Grid>
     </Border>

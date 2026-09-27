@@ -28,13 +28,15 @@
                 </StackPanel>
                 <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}"
                         ToolTip.Tip="{DynamicResource Settings_Close_Tooltip}"
-                        Classes="icon-btn subtle" />
+                        Classes="icon-btn subtle"
+                        AutomationProperties.Name="Close settings" />
             </Grid>
 
             <!-- Categorized Settings Tabs -->
-            <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex}" Margin="0,0,0,12">
+            <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex}" Margin="0,0,0,12"
+                        AutomationProperties.Name="Settings categories">
                 <!-- ================= TAB 1: APPEARANCE & THEME ================= -->
-                <TabItem Header="{DynamicResource Settings_Tab_Appearance}">
+                <TabItem Header="{DynamicResource Settings_Tab_Appearance}" AutomationProperties.Name="Appearance settings">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- Theme & Accent Section -->
@@ -51,7 +53,8 @@
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{Binding AvailableThemeModes}"
                                                   SelectedItem="{Binding ThemeMode, Mode=TwoWay}"
-                                                  Width="120" FontSize="11.5" VerticalAlignment="Center" />
+                                                  Width="120" FontSize="11.5" VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Theme mode" />
                                     </Grid>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -153,11 +156,12 @@
                                                            IsVisible="{Binding IsCustomAccentSelected}" />
                                             </Border>
 
-                                            <!-- Custom Hex TextBox -->
+                                             <!-- Custom Hex TextBox -->
                                             <TextBox Grid.Column="11" Text="{Binding AccentColor, Mode=TwoWay}"
                                                      Width="80" MaxLength="9" FontSize="11"
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                     VerticalAlignment="Center" ToolTip.Tip="Custom accent hex code (e.g. #3B82F6)" />
+                                                     VerticalAlignment="Center" ToolTip.Tip="Custom accent hex code (e.g. #3B82F6)"
+                                                     AutomationProperties.Name="Custom accent hex code" />
                                         </Grid>
                                     </StackPanel>
                                 </StackPanel>
@@ -177,7 +181,8 @@
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{Binding AvailableFontFamilies}"
                                                   SelectedItem="{Binding FontFamily, Mode=TwoWay}"
-                                                  Width="140" FontSize="11.5" VerticalAlignment="Center" />
+                                                  Width="140" FontSize="11.5" VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Font family" />
                                     </Grid>
 
                                     <!-- Custom Font Name Input -->
@@ -186,7 +191,8 @@
                                         <TextBox Text="{Binding CustomFontFamily, Mode=TwoWay}"
                                                  Watermark="{DynamicResource Settings_CustomFont_Watermark}"
                                                  Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
-                                                 Foreground="#F8FAFC" FontSize="11.5" />
+                                                 Foreground="#F8FAFC" FontSize="11.5"
+                                                 AutomationProperties.Name="Custom font family name" />
                                     </StackPanel>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -200,7 +206,8 @@
                                         </Grid>
                                         <Slider Minimum="11" Maximum="20"
                                                 Value="{Binding FontSize, Mode=TwoWay}"
-                                                TickFrequency="1" IsSnapToTickEnabled="True" />
+                                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                                AutomationProperties.Name="Font size" />
                                         <Grid ColumnDefinitions="Auto,*,Auto">
                                             <TextBlock Grid.Column="0" Text="11px" FontSize="9.5" Foreground="#475569" />
                                             <TextBlock Grid.Column="2" Text="20px" FontSize="9.5" Foreground="#475569" />
@@ -303,11 +310,12 @@
                                                     CornerRadius="6" Cursor="Hand" VerticalAlignment="Center"
                                                     ToolTip.Tip="Match bubble color to active theme accent" />
 
-                                            <!-- Custom Hex TextBox -->
+                                             <!-- Custom Hex TextBox -->
                                             <TextBox Grid.Column="9" Text="{Binding OutboundBubbleColor, Mode=TwoWay}"
                                                      Width="80" MaxLength="9" FontSize="11"
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                     VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #2563EB)" />
+                                                     VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #2563EB)"
+                                                     AutomationProperties.Name="Outbound bubble color hex" />
                                         </Grid>
 
                                         <!-- Outbound Text Color -->
@@ -350,7 +358,8 @@
                                                 <TextBox Grid.Column="5" Text="{Binding OutboundBubbleTextColor, Mode=TwoWay}"
                                                          Width="70" MaxLength="9" FontSize="10.5"
                                                          Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                         VerticalAlignment="Center" ToolTip.Tip="Custom text hex code (e.g. #FFFFFF)" />
+                                                         VerticalAlignment="Center" ToolTip.Tip="Custom text hex code (e.g. #FFFFFF)"
+                                                         AutomationProperties.Name="Outbound text color hex" />
                                             </Grid>
                                         </Grid>
                                     </StackPanel>
@@ -430,7 +439,8 @@
                                             <TextBox Grid.Column="7" Text="{Binding InboundBubbleColor, Mode=TwoWay}"
                                                      Width="80" MaxLength="9" FontSize="11"
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                     VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #1E293B)" />
+                                                     VerticalAlignment="Center" ToolTip.Tip="Custom hex code (e.g. #1E293B)"
+                                                     AutomationProperties.Name="Inbound bubble color hex" />
                                         </Grid>
 
                                         <!-- Inbound Text Color -->
@@ -473,7 +483,8 @@
                                                 <TextBox Grid.Column="5" Text="{Binding InboundBubbleTextColor, Mode=TwoWay}"
                                                          Width="70" MaxLength="9" FontSize="10.5"
                                                          Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                         VerticalAlignment="Center" ToolTip.Tip="Custom text hex code (e.g. #F1F5F9)" />
+                                                         VerticalAlignment="Center" ToolTip.Tip="Custom text hex code (e.g. #F1F5F9)"
+                                                         AutomationProperties.Name="Inbound text color hex" />
                                             </Grid>
                                         </Grid>
                                     </StackPanel>
@@ -505,7 +516,8 @@
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{Binding AvailableLanguages}"
                                                   SelectedItem="{Binding SelectedLanguageItem, Mode=TwoWay}"
-                                                  Width="140" FontSize="11.5" VerticalAlignment="Center" />
+                                                  Width="140" FontSize="11.5" VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Display language" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -514,7 +526,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 2: CHAT & INPUT ================= -->
-                <TabItem Header="{DynamicResource Settings_Tab_Chat}">
+                <TabItem Header="{DynamicResource Settings_Tab_Chat}" AutomationProperties.Name="Chat settings">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- Input Shortcuts & Clock -->
@@ -533,7 +545,8 @@
                                                       IsChecked="{Binding SendOnEnter, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Send message on Enter" />
                                     </Grid>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -549,7 +562,8 @@
                                                       IsChecked="{Binding Use24HourClock, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="24-hour clock" />
                                     </Grid>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -567,7 +581,8 @@
                                         </Grid>
                                         <Slider Minimum="1" Maximum="12"
                                                 Value="{Binding ChatInputMaxLines, Mode=TwoWay}"
-                                                TickFrequency="1" IsSnapToTickEnabled="True" />
+                                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                                AutomationProperties.Name="Chatbox auto-expansion limit" />
                                         <Grid ColumnDefinitions="Auto,*,Auto">
                                             <TextBlock Grid.Column="0" Text="1 line (No growth)" FontSize="9.5" Foreground="#475569" />
                                             <TextBlock Grid.Column="2" Text="12 lines (Expanded)" FontSize="9.5" Foreground="#475569" />
@@ -591,7 +606,8 @@
                                                       IsChecked="{Binding EvaluateExpressions, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Evaluate math expressions" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -611,7 +627,8 @@
                                                       IsChecked="{Binding AutoReplaceEmoticons, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Auto-replace emoticons with emojis" />
                                     </Grid>
 
                                     <!-- Emoticon Snippet Mappings -->
@@ -621,7 +638,8 @@
                                             <TextBlock Grid.Column="0" Text="Emoticon Mappings &amp; Custom Snippets" FontSize="11.5" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
                                             <Button Grid.Column="1" Content="↺ Reset to Default"
                                                     Command="{Binding ResetEmoticonMappingsCommand}"
-                                                    Classes="inline-link" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center" />
+                                                    Classes="inline-link" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="Reset emoticon mappings to default" />
                                         </Grid>
 
                                         <!-- Add New Snippet Form -->
@@ -629,14 +647,17 @@
                                             <TextBox Grid.Column="0" Text="{Binding NewShortcut, Mode=TwoWay}"
                                                      Watermark="Shortcut (e.g. :smile: or :))"
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                     FontSize="11" Height="30" Margin="0,0,4,0" VerticalContentAlignment="Center" />
+                                                     FontSize="11" Height="30" Margin="0,0,4,0" VerticalContentAlignment="Center"
+                                                     AutomationProperties.Name="New emoticon shortcut" />
                                             <TextBox Grid.Column="1" Text="{Binding NewEmoji, Mode=TwoWay}"
                                                      Watermark="Emoji (e.g. 🙂)"
                                                      Background="#090D16" BorderBrush="#1E293B" CornerRadius="6"
-                                                     FontSize="11" Height="30" Margin="4,0,4,0" VerticalContentAlignment="Center" />
+                                                     FontSize="11" Height="30" Margin="4,0,4,0" VerticalContentAlignment="Center"
+                                                     AutomationProperties.Name="New emoticon emoji replacement" />
                                             <Button Grid.Column="2" Content="+ Add Snippet"
                                                     Command="{Binding AddEmoticonMappingCommand}"
-                                                    Classes="accent" FontSize="10.5" Padding="10,0" Height="30" Cursor="Hand" />
+                                                    Classes="accent" FontSize="10.5" Padding="10,0" Height="30" Cursor="Hand"
+                                                    AutomationProperties.Name="Add emoticon snippet" />
                                         </Grid>
 
                                         <!-- Mappings List -->
@@ -651,7 +672,8 @@
                                                                 <Button Grid.Column="2" Content="✕"
                                                                         Command="{Binding ((vm:SettingsViewModel)DataContext).RemoveEmoticonMappingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                         CommandParameter="{Binding}"
-                                                                        Classes="icon-btn subtle" FontSize="10" Width="22" Height="22" Padding="0" Cursor="Hand" />
+                                                                        Classes="icon-btn subtle" FontSize="10" Width="22" Height="22" Padding="0" Cursor="Hand"
+                                                                        AutomationProperties.Name="Remove emoticon mapping" />
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
@@ -677,7 +699,8 @@
                                                       IsChecked="{Binding EnableMessageMerging, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Merge consecutive messages" />
                                     </Grid>
 
                                     <!-- Merge Threshold Slider -->
@@ -690,7 +713,8 @@
                                         </Grid>
                                         <Slider Minimum="1" Maximum="60"
                                                 Value="{Binding MessageMergeThresholdSeconds, Mode=TwoWay}"
-                                                TickFrequency="1" IsSnapToTickEnabled="True" />
+                                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                                AutomationProperties.Name="Message merge time window" />
                                         <Grid ColumnDefinitions="Auto,*,Auto">
                                             <TextBlock Grid.Column="0" Text="1s" FontSize="9.5" Foreground="#475569" />
                                             <TextBlock Grid.Column="2" Text="60s" FontSize="9.5" Foreground="#475569" />
@@ -761,7 +785,8 @@
                                             </ItemsControl>
                                             <Button Content="↺ Reset Quick Emojis to Default"
                                                     Command="{Binding ResetQuickEmojisCommand}"
-                                                    Classes="inline-link" Foreground="#94A3B8" FontSize="10" Margin="0,2,0,0" />
+                                                    Classes="inline-link" Foreground="#94A3B8" FontSize="10" Margin="0,2,0,0"
+                                                    AutomationProperties.Name="Reset quick emojis to default" />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -771,7 +796,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 3: MEDIA & PREVIEWS ================= -->
-                <TabItem Header="{DynamicResource Settings_Tab_Media}">
+                <TabItem Header="{DynamicResource Settings_Tab_Media}" AutomationProperties.Name="Media settings">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
@@ -789,7 +814,8 @@
                                                       IsChecked="{Binding ShowInlinePreviews, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Show inline image previews" />
                                     </Grid>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -805,7 +831,8 @@
                                                       IsChecked="{Binding AutoDownloadMedia, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Auto-download media" />
                                     </Grid>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -821,7 +848,8 @@
                                                   ItemsSource="{Binding AvailableCloseActionOptions}"
                                                   SelectedItem="{Binding CloseAction, Mode=TwoWay}"
                                                   Width="140" FontSize="11.5" VerticalAlignment="Center"
-                                                  Margin="10,0,0,0" />
+                                                  Margin="10,0,0,0"
+                                                  AutomationProperties.Name="On window close button action" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -830,7 +858,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 4: SYSTEM & STARTUP ================= -->
-                <TabItem Header="{DynamicResource Settings_Tab_System}">
+                <TabItem Header="{DynamicResource Settings_Tab_System}" AutomationProperties.Name="System settings">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="12" Margin="0,0,6,0">
                             <!-- System & Startup Switch -->
@@ -849,7 +877,8 @@
                                                       IsChecked="{Binding LaunchOnStartup, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Launch on system boot" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -869,7 +898,8 @@
                                                       IsChecked="{Binding NotificationPopupsEnabled, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="System notifications" />
                                     </Grid>
 
                                     <Separator Background="#1E293B" Height="1" />
@@ -885,7 +915,8 @@
                                                       IsChecked="{Binding IconFlashingEnabled, Mode=TwoWay}"
                                                       OnContent="" OffContent=""
                                                       VerticalAlignment="Center"
-                                                      Margin="10,0,0,0" />
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Flash taskbar icon" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -894,7 +925,7 @@
                 </TabItem>
 
                 <!-- ================= TAB 5: PROFILE & AVATAR ================= -->
-                <TabItem Header="{DynamicResource Settings_Tab_Profile}">
+                <TabItem Header="{DynamicResource Settings_Tab_Profile}" AutomationProperties.Name="Profile settings">
                     <ScrollViewer MaxHeight="410" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <StackPanel Spacing="14" Margin="0,0,6,0">
                             <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="16">
@@ -911,9 +942,9 @@
                                                 <Image Source="{Binding UserAvatar}" Width="80" Height="80" Stretch="UniformToFill"
                                                        IsVisible="{Binding HasUserAvatar}" />
                                                 <TextBlock Text="{Binding UserInitials}"
-                                                           IsVisible="{Binding !HasUserAvatar}"
-                                                           Foreground="White" FontWeight="Bold" FontSize="26"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            IsVisible="{Binding !HasUserAvatar}"
+                                                            Foreground="White" FontWeight="Bold" FontSize="26"
+                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Panel>
                                         </Border>
 
@@ -924,19 +955,22 @@
 
                                             <WrapPanel Orientation="Horizontal">
                                                 <Button x:Name="ChooseAvatarButton" Content="📷 Choose Picture..." Classes="accent" Click="OnChooseAvatarClicked"
-                                                        Padding="12,5" FontSize="11.5" Margin="0,0,8,8" />
+                                                        Padding="12,5" FontSize="11.5" Margin="0,0,8,8"
+                                                        AutomationProperties.Name="Choose profile picture" />
                                                 <Button Content="🔄 Sync from Server" Command="{Binding SyncAvatarCommand}"
                                                         Background="#1E293B" Foreground="#94A3B8" BorderBrush="#334155" BorderThickness="1"
-                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8" />
+                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8"
+                                                        AutomationProperties.Name="Sync avatar from server" />
                                                 <Button Content="🗑 Remove" Command="{Binding RemoveAvatarCommand}" IsVisible="{Binding HasUserAvatar}"
                                                         Background="#1E293B" Foreground="#F43F5E" BorderBrush="#334155" BorderThickness="1"
-                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8" />
+                                                        CornerRadius="8" Padding="12,5" FontSize="11.5" Cursor="Hand" Margin="0,0,8,8"
+                                                        AutomationProperties.Name="Remove avatar" />
                                             </WrapPanel>
                                         </StackPanel>
                                     </Grid>
 
                                     <TextBlock Text="{Binding AvatarStatusMessage}" Foreground="#10B981" FontSize="11"
-                                               IsVisible="{Binding AvatarStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                IsVisible="{Binding AvatarStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -951,11 +985,13 @@
                         Background="#1E293B" Foreground="#94A3B8"
                         BorderBrush="#334155" BorderThickness="1"
                         CornerRadius="8" Padding="12,5" FontSize="11.5"
-                        Cursor="Hand" />
+                        Cursor="Hand"
+                        AutomationProperties.Name="Reset all settings to default" />
                 <Button Grid.Column="2" Content="{DynamicResource Common_Done}"
                         Command="{Binding CloseCommand}"
                         Classes="accent"
-                        Padding="22,5" FontSize="11.5" />
+                        Padding="22,5" FontSize="11.5"
+                        AutomationProperties.Name="Close settings" />
             </Grid>
         </Grid>
     </Border>

@@ -163,6 +163,21 @@ public partial class MainChatView : UserControl
         {
             ApplySidebarState(vm.IsSidebarOpen);
         }
+        else if (e.PropertyName == nameof(MainChatViewModel.IsNewChatDialogOpen) && vm.IsNewChatDialogOpen)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                var input = this.FindControl<TextBox>("NewChatJidInput");
+                input?.Focus();
+            }, DispatcherPriority.Input);
+        }
+        else if (e.PropertyName == nameof(MainChatViewModel.IsSearching) && !vm.IsSearching)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                _messageInputBox?.Focus();
+            }, DispatcherPriority.Input);
+        }
     }
 
     private void ApplySidebarState(bool isOpen)
@@ -698,20 +713,54 @@ public partial class MainChatView : UserControl
 
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.F1 && DataContext is MainChatViewModel vmF1)
+        if (DataContext is not MainChatViewModel vm) return;
+
+        if (e.Key == Key.F1)
         {
-            vmF1.OpenHelp();
+            vm.OpenHelp();
             e.Handled = true;
         }
-        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && (e.Key == Key.F || e.Key == Key.K))
         {
             _searchInputBox?.Focus();
             _searchInputBox?.SelectAll();
             e.Handled = true;
         }
-        else if (e.Key == Key.Escape && DataContext is MainChatViewModel vm)
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && (e.Key == Key.OemComma || e.Key == Key.OemPeriod))
         {
-            if (vm.Settings.IsOpen)
+            vm.OpenChatSettingsCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F6)
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            var focused = topLevel?.FocusManager?.GetFocusedElement();
+            if (focused == _messageInputBox)
+            {
+                if (_searchInputBox is not null && _searchInputBox.IsVisible)
+                {
+                    _searchInputBox.Focus();
+                }
+            }
+            else
+            {
+                _messageInputBox?.Focus();
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            if (vm.IsClosePromptOpen)
+            {
+                vm.CancelClosePrompt();
+                e.Handled = true;
+            }
+            else if (vm.IsNewChatDialogOpen)
+            {
+                vm.CancelNewChatDialog();
+                e.Handled = true;
+            }
+            else if (vm.Settings.IsOpen)
             {
                 vm.Settings.Close();
                 e.Handled = true;
@@ -724,6 +773,21 @@ public partial class MainChatView : UserControl
             else if (vm.About.IsOpen)
             {
                 vm.CloseAbout();
+                e.Handled = true;
+            }
+            else if (vm.CodeBlockEditor.IsOpen)
+            {
+                vm.CodeBlockEditor.CancelCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (vm.IsSearching)
+            {
+                vm.CloseSearch();
+                e.Handled = true;
+            }
+            else if (vm.IsDetailsOpen)
+            {
+                vm.IsDetailsOpen = false;
                 e.Handled = true;
             }
         }
