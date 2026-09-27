@@ -71,6 +71,9 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showEmoticonBanner;
 
+    [ObservableProperty]
+    private bool _isBlocked;
+
     public Action? OpenSettingsToChatRequested { get; set; }
 
     public void UpdateQuickEmojis(IEnumerable<string> emojis)

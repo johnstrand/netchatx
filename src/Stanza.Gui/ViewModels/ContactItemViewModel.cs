@@ -56,6 +56,9 @@ public sealed partial class ContactItemViewModel : ViewModelBase
     private string? _lastMessagePreview;
 
     [ObservableProperty]
+    private bool _isBlocked;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvatar))]
     private Avalonia.Media.Imaging.Bitmap? _avatar;
 
