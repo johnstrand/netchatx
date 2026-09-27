@@ -107,6 +107,164 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isBlocked;
 
+    [ObservableProperty]
+    private string _conversationSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasConversationSearchResults))]
+    [NotifyPropertyChangedFor(nameof(ConversationSearchSummary))]
+    private int _conversationSearchResultCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasConversationSearchResults))]
+    [NotifyPropertyChangedFor(nameof(ConversationSearchSummary))]
+    private int _activeConversationSearchResultIndex = -1;
+
+    private readonly List<MessageBubbleViewModel> _conversationSearchMatches = [];
+
+    public bool HasConversationSearchResults => ConversationSearchResultCount > 0;
+
+    public string ConversationSearchSummary => ConversationSearchResultCount == 0
+        ? "No matches"
+        : $"{ActiveConversationSearchResultIndex + 1} / {ConversationSearchResultCount}";
+
+    public event Action<MessageBubbleViewModel>? ConversationSearchNavigationRequested;
+
+    partial void OnConversationSearchQueryChanged(string value)
+    {
+        ApplyConversationSearch(value);
+    }
+
+    [RelayCommand]
+    public void ExecuteConversationSearch()
+    {
+        ApplyConversationSearch(ConversationSearchQuery);
+    }
+
+    [RelayCommand]
+    public void ClearConversationSearch()
+    {
+        ConversationSearchQuery = string.Empty;
+    }
+
+    [RelayCommand]
+    public void NextConversationSearchResult()
+    {
+        if (_conversationSearchMatches.Count == 0)
+        {
+            return;
+        }
+
+        SetActiveConversationSearchResult(ActiveConversationSearchResultIndex + 1);
+    }
+
+    [RelayCommand]
+    public void PreviousConversationSearchResult()
+    {
+        if (_conversationSearchMatches.Count == 0)
+        {
+            return;
+        }
+
+        SetActiveConversationSearchResult(ActiveConversationSearchResultIndex - 1);
+    }
+
+    private void ApplyConversationSearch(string? rawQuery)
+    {
+        var query = rawQuery?.Trim();
+        if (string.IsNullOrEmpty(query))
+        {
+            ClearConversationSearchHighlights();
+            return;
+        }
+
+        _conversationSearchMatches.Clear();
+        foreach (var bubble in Messages)
+        {
+            var isMatch = MessageMatchesSearchQuery(bubble, query);
+            bubble.IsSearchMatch = isMatch;
+            bubble.IsActiveSearchMatch = false;
+            if (isMatch)
+            {
+                _conversationSearchMatches.Add(bubble);
+            }
+        }
+
+        ConversationSearchResultCount = _conversationSearchMatches.Count;
+        ActiveConversationSearchResultIndex = ConversationSearchResultCount == 0 ? -1 : 0;
+
+        if (ConversationSearchResultCount > 0)
+        {
+            SetActiveConversationSearchResult(ActiveConversationSearchResultIndex);
+        }
+    }
+
+    private static bool MessageMatchesSearchQuery(MessageBubbleViewModel bubble, string query)
+    {
+        if (!string.IsNullOrWhiteSpace(bubble.DisplayText) && bubble.DisplayText.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(bubble.Body) && bubble.Body.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return bubble.MergedMessages.Any(m => !string.IsNullOrWhiteSpace(m.Body) && m.Body.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void SetActiveConversationSearchResult(int candidateIndex)
+    {
+        if (_conversationSearchMatches.Count == 0)
+        {
+            ActiveConversationSearchResultIndex = -1;
+            return;
+        }
+
+        if (candidateIndex < 0)
+        {
+            candidateIndex = _conversationSearchMatches.Count - 1;
+        }
+        else if (candidateIndex >= _conversationSearchMatches.Count)
+        {
+            candidateIndex = 0;
+        }
+
+        foreach (var bubble in _conversationSearchMatches)
+        {
+            bubble.IsActiveSearchMatch = false;
+        }
+
+        var target = _conversationSearchMatches[candidateIndex];
+        target.IsActiveSearchMatch = true;
+        ActiveConversationSearchResultIndex = candidateIndex;
+        ConversationSearchNavigationRequested?.Invoke(target);
+    }
+
+    private void ClearConversationSearchHighlights()
+    {
+        foreach (var bubble in Messages)
+        {
+            bubble.IsSearchMatch = false;
+            bubble.IsActiveSearchMatch = false;
+        }
+
+        _conversationSearchMatches.Clear();
+        ConversationSearchResultCount = 0;
+        ActiveConversationSearchResultIndex = -1;
+    }
+
+    private void ReapplyConversationSearchIfNeeded()
+    {
+        if (string.IsNullOrWhiteSpace(ConversationSearchQuery))
+        {
+            return;
+        }
+
+        ApplyConversationSearch(ConversationSearchQuery);
+    }
+
     public Action? OpenSettingsToChatRequested { get; set; }
 
     public void UpdateQuickEmojis(IEnumerable<string> emojis)
@@ -495,6 +653,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 index++;
             }
             Messages.Insert(index, bubble);
+            ReapplyConversationSearchIfNeeded();
             UpdateDateHeaders();
             RequestScrollToBottom();
         });
@@ -505,6 +664,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PostToUi(() =>
         {
             Messages.Clear();
+            ClearConversationSearchHighlights();
             UpdateDateHeaders();
         });
     }
@@ -2159,6 +2319,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (existing is not null)
         {
             existing.UpdateMessageRecord(msg);
+            ReapplyConversationSearchIfNeeded();
             if (Messages.LastOrDefault() == existing)
             {
                 UpdateLastMessageSnippetAndTime(msg);
@@ -2182,6 +2343,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     prevBubble.ImageLoaded -= OnBubbleImageLoaded;
                     prevBubble.ImageLoaded += OnBubbleImageLoaded;
                     prevBubble.MergeMessage(msg);
+                    ReapplyConversationSearchIfNeeded();
                     if (Messages.LastOrDefault() == prevBubble)
                     {
                         UpdateLastMessageSnippetAndTime(msg);
@@ -2208,6 +2370,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             index++;
         }
         Messages.Insert(index, bubble);
+        ReapplyConversationSearchIfNeeded();
 
         if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
         {
@@ -2382,6 +2545,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             {
                 AddOrUpdateMessage(msg);
             }
+            ReapplyConversationSearchIfNeeded();
             UpdateDateHeaders();
             _ = LoadReactionsForCurrentMessagesAsync();
         }
