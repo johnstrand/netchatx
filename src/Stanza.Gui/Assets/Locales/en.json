@@ -240,6 +240,7 @@
   "Accounts_Dialog_Color": "Accent Color",
   "Accounts_Dialog_Add": "Add Account",
   "Settings_Tab_Accounts": "Accounts",
+  "Settings_Tab_Privacy": "🛡️ Privacy",
   "Settings_Accounts_Title": "Managed Accounts",
   "Settings_Accounts_Subtitle": "Configure multiple simultaneous XMPP accounts.",
   "Settings_Accounts_Add": "+ Add Account",

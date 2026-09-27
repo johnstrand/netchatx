@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Transport;
 using Stanza.Core.Xml;
@@ -14,6 +14,8 @@ public sealed class MockXmppServer : IAsyncDisposable
 
     public string Domain { get; set; } = "mock.example.com";
     public string ExpectedPassword { get; set; } = "password123";
+
+    private readonly HashSet<string> _mockBlockedJids = new(StringComparer.OrdinalIgnoreCase);
 
     public event Action<MessageStanza>? OnMessageReceived;
     public event Action<IqStanza>? OnIqReceived;
@@ -119,9 +121,57 @@ public sealed class MockXmppServer : IAsyncDisposable
                 .Child(new XmppElement("feature").Attr("var", "urn:xmpp:ping"))
                 .Child(new XmppElement("feature").Attr("var", "http://jabber.org/protocol/disco#info"))
                 .Child(new XmppElement("feature").Attr("var", "urn:xmpp:carbons:2"))
-                .Child(new XmppElement("feature").Attr("var", "urn:xmpp:mam:2"));
+                .Child(new XmppElement("feature").Attr("var", "urn:xmpp:mam:2"))
+                .Child(new XmppElement("feature").Attr("var", "urn:xmpp:blocking"));
 
             var result = iq.CreateResult(query);
+            await InjectStanzaAsync(result);
+            return;
+        }
+
+        var blocklist = iq.RawElement.Element("blocklist", "urn:xmpp:blocking");
+        if (blocklist is not null && iq.IsGet)
+        {
+            var resBlocklist = new XmppElement("blocklist", "urn:xmpp:blocking");
+            foreach (var j in _mockBlockedJids)
+            {
+                resBlocklist.Child(new XmppElement("item").Attr("jid", j));
+            }
+            var result = iq.CreateResult(resBlocklist);
+            await InjectStanzaAsync(result);
+            return;
+        }
+
+        var block = iq.RawElement.Element("block", "urn:xmpp:blocking");
+        if (block is not null && iq.IsSet)
+        {
+            foreach (var item in block.Elements("item"))
+            {
+                var j = item.GetAttr("jid");
+                if (!string.IsNullOrEmpty(j)) _mockBlockedJids.Add(j);
+            }
+            var result = iq.CreateResult();
+            await InjectStanzaAsync(result);
+            return;
+        }
+
+        var unblock = iq.RawElement.Element("unblock", "urn:xmpp:blocking");
+        if (unblock is not null && iq.IsSet)
+        {
+            var items = unblock.Elements("item").ToList();
+            if (items.Count > 0)
+            {
+                foreach (var item in items)
+                {
+                    var j = item.GetAttr("jid");
+                    if (!string.IsNullOrEmpty(j)) _mockBlockedJids.Remove(j);
+                }
+            }
+            else
+            {
+                _mockBlockedJids.Clear();
+            }
+            var result = iq.CreateResult();
             await InjectStanzaAsync(result);
             return;
         }

@@ -15,6 +15,7 @@ using Stanza.Protocol.Xeps.Core;
 using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Muc;
 using Stanza.Protocol.Xeps.Omemo;
+using Stanza.Protocol.Xeps.Privacy;
 using Stanza.Protocol.Xeps.Sharing;
 using Stanza.Storage.Models;
 
@@ -94,6 +95,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
     public Xep0308LastMessageCorrection? Correction { get; private set; }
     public Xep0424MessageRetraction? Retraction { get; private set; }
     public Xep0393MessageStyling? Styling { get; private set; }
+    public Xep0191Blocking? Blocking { get; private set; }
     public AvatarManager? AvatarManager { get; private set; }
 
     public ConcurrentDictionary<string, ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> ContactResourcePresence { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -156,6 +158,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         Correction = new Xep0308LastMessageCorrection();
         Retraction = new Xep0424MessageRetraction();
         Styling = new Xep0393MessageStyling();
+        Blocking = new Xep0191Blocking();
         AvatarManager = new AvatarManager();
 
         await Ping.AttachAsync(Client).ConfigureAwait(false);
@@ -173,6 +176,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         await Correction.AttachAsync(Client).ConfigureAwait(false);
         await Retraction.AttachAsync(Client).ConfigureAwait(false);
         await Styling.AttachAsync(Client).ConfigureAwait(false);
+        await Blocking.AttachAsync(Client).ConfigureAwait(false);
         await AvatarManager.AttachAsync(Client).ConfigureAwait(false);
     }
 
