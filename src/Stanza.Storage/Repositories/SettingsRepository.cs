@@ -62,6 +62,7 @@ public sealed class SettingsRepository
     public const string KeyLastActiveChat = "last_active_chat";
     public const string KeyLastPresenceMode = "last_presence_mode";
     public const string KeyLastStatusMessage = "last_status_message";
+    public const string KeyMucAutoJoinRooms = "muc_autojoin_rooms";
     public const string KeyCloseAction = "close_action";
     public const string KeyLanguage = "app_language";
 
@@ -458,6 +459,61 @@ public sealed class SettingsRepository
     public async Task SetLastStatusMessageAsync(string accountJid, string statusMessage, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyLastStatusMessage, statusMessage ?? DefaultStatusMessage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<List<string>> GetMucAutoJoinRoomsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var json = await GetSettingAsync(accountJid, KeyMucAutoJoinRooms, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.ListString);
+            if (list is not null)
+            {
+                return list.Where(j => !string.IsNullOrWhiteSpace(j))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+        catch
+        {
+            // Fallback to empty on JSON parse failure
+        }
+
+        return [];
+    }
+
+    public async Task SetMucAutoJoinRoomsAsync(string accountJid, IEnumerable<string> roomJids, CancellationToken cancellationToken = default)
+    {
+        var normalized = roomJids.Where(j => !string.IsNullOrWhiteSpace(j))
+            .Select(j => j.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var json = JsonSerializer.Serialize(normalized, SettingsJsonContext.Default.ListString);
+        await SetSettingAsync(accountJid, KeyMucAutoJoinRooms, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task AddMucAutoJoinRoomAsync(string accountJid, string roomJid, CancellationToken cancellationToken = default)
+    {
+        var rooms = await GetMucAutoJoinRoomsAsync(accountJid, cancellationToken).ConfigureAwait(false);
+        if (!rooms.Contains(roomJid, StringComparer.OrdinalIgnoreCase))
+        {
+            rooms.Add(roomJid.Trim());
+            await SetMucAutoJoinRoomsAsync(accountJid, rooms, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async Task RemoveMucAutoJoinRoomAsync(string accountJid, string roomJid, CancellationToken cancellationToken = default)
+    {
+        var rooms = await GetMucAutoJoinRoomsAsync(accountJid, cancellationToken).ConfigureAwait(false);
+        if (rooms.RemoveAll(r => r.Equals(roomJid, StringComparison.OrdinalIgnoreCase)) > 0)
+        {
+            await SetMucAutoJoinRoomsAsync(accountJid, rooms, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task<string> GetCloseActionAsync(string accountJid, CancellationToken cancellationToken = default)
