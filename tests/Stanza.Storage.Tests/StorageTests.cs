@@ -110,6 +110,30 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsRepository_MucAutoJoinRooms_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        var account = "muc_user@example.org";
+
+        var initial = await repo.GetMucAutoJoinRoomsAsync(account);
+        Assert.Empty(initial);
+
+        await repo.AddMucAutoJoinRoomAsync(account, "room1@conference.example.org");
+        await repo.AddMucAutoJoinRoomAsync(account, "room2@muc.example.org");
+        await repo.AddMucAutoJoinRoomAsync(account, "ROOM1@conference.example.org");
+
+        var rooms = await repo.GetMucAutoJoinRoomsAsync(account);
+        Assert.Equal(2, rooms.Count);
+        Assert.Contains("room1@conference.example.org", rooms, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("room2@muc.example.org", rooms, StringComparer.OrdinalIgnoreCase);
+
+        await repo.RemoveMucAutoJoinRoomAsync(account, "room2@muc.example.org");
+        rooms = await repo.GetMucAutoJoinRoomsAsync(account);
+        Assert.Single(rooms);
+        Assert.Contains("room1@conference.example.org", rooms, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SettingsRepository_FullConfigurability_SaveAndRetrieve_Succeeds()
     {
         var repo = new SettingsRepository(_context);
