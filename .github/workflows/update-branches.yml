@@ -1,0 +1,78 @@
+name: Update Branches from Main
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: update-branches-from-main
+  cancel-in-progress: false
+
+jobs:
+  update-branches:
+    name: Update Active PR Branches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Update active PR branches from main
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "### 🔄 PR Branch Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "*Triggered by closure of PR #${{ github.event.pull_request.number }}*" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "*Triggered manually via workflow_dispatch*" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| PR | Branch | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
+
+          open_prs=$(gh pr list --base main --state open --json number,headRefName,isCrossRepository --jq '.[] | "\(.number) \(.headRefName) \(.isCrossRepository)"')
+
+          if [ -z "$open_prs" ]; then
+            echo "No active open pull requests found."
+            echo "| — | — | ℹ️ None | No active pull requests targeting main |" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          while IFS=' ' read -r pr_number branch_name is_cross_repo; do
+            [ -z "$pr_number" ] && continue
+
+            if [ "$is_cross_repo" = "true" ]; then
+              echo "Skipping cross-repository fork PR #$pr_number ($branch_name)"
+              echo "| #$pr_number | \`$branch_name\` | ⏭️ Skipped | External fork branch |" >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
+            echo "Attempting to update PR #$pr_number (branch: $branch_name)..."
+            set +e
+            update_output=$(gh pr update-branch "$pr_number" 2>&1)
+            exit_code=$?
+            set -e
+
+            if [ $exit_code -eq 0 ]; then
+              if echo "$update_output" | grep -qi "already up-to-date"; then
+                echo "PR #$pr_number ($branch_name) is already up-to-date."
+                echo "| #$pr_number | \`$branch_name\` | ⏩ Up to date | Already contains latest main |" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "Successfully updated PR #$pr_number ($branch_name)."
+                echo "| #$pr_number | \`$branch_name\` | ✅ Updated | Successfully merged latest main |" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "Failed to update PR #$pr_number ($branch_name): $update_output"
+              echo "| #$pr_number | \`$branch_name\` | ⚠️ Conflict | Merge conflict detected — manual resolution required |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done <<< "$open_prs"
