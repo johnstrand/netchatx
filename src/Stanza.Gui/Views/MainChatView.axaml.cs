@@ -2,6 +2,7 @@ using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -9,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Stanza.Gui.Helpers;
 using Stanza.Gui.ViewModels;
 
@@ -20,6 +22,7 @@ public partial class MainChatView : UserControl
     private ScrollViewer? _messagesScrollViewer;
     private TextBox? _messageInputBox;
     private TextBox? _searchInputBox;
+    private TextBox? _conversationSearchInputBox;
     private Button? _attachFileButton;
     private Button? _insertCodeBlockButton;
     private GridSplitter? _sidebarSplitter;
@@ -39,6 +42,7 @@ public partial class MainChatView : UserControl
         _messagesScrollViewer = this.FindControl<ScrollViewer>("MessagesScrollViewer");
         _messageInputBox = this.FindControl<TextBox>("MessageInputBox");
         _searchInputBox = this.FindControl<TextBox>("SearchInputBox");
+        _conversationSearchInputBox = this.FindControl<TextBox>("ConversationSearchInputBox");
         _attachFileButton = this.FindControl<Button>("AttachFileButton");
         _insertCodeBlockButton = this.FindControl<Button>("InsertCodeBlockButton");
         _sidebarSplitter = this.FindControl<GridSplitter>("SidebarSplitter");
@@ -53,6 +57,11 @@ public partial class MainChatView : UserControl
         if (_searchInputBox is not null)
         {
             _searchInputBox.AddHandler(InputElement.KeyDownEvent, OnSearchInputKeyDown, RoutingStrategies.Tunnel);
+        }
+
+        if (_conversationSearchInputBox is not null)
+        {
+            _conversationSearchInputBox.AddHandler(InputElement.KeyDownEvent, OnConversationSearchInputKeyDown, RoutingStrategies.Tunnel);
         }
 
         AddHandler(InputElement.KeyDownEvent, OnGlobalKeyDown, RoutingStrategies.Tunnel);
@@ -109,6 +118,11 @@ public partial class MainChatView : UserControl
         if (_searchInputBox is not null)
         {
             _searchInputBox.RemoveHandler(InputElement.KeyDownEvent, OnSearchInputKeyDown);
+        }
+
+        if (_conversationSearchInputBox is not null)
+        {
+            _conversationSearchInputBox.RemoveHandler(InputElement.KeyDownEvent, OnConversationSearchInputKeyDown);
         }
 
         RemoveHandler(InputElement.KeyDownEvent, OnGlobalKeyDown);
@@ -245,6 +259,7 @@ public partial class MainChatView : UserControl
             _currentConversation.EditStarted -= OnConversationEditStarted;
             _currentConversation.OlderHistoryLoading -= OnOlderHistoryLoading;
             _currentConversation.OlderHistoryLoaded -= OnOlderHistoryLoaded;
+            _currentConversation.ConversationSearchNavigationRequested -= OnConversationSearchNavigationRequested;
         }
 
         _currentConversation = newConversation;
@@ -256,9 +271,24 @@ public partial class MainChatView : UserControl
             _currentConversation.EditStarted += OnConversationEditStarted;
             _currentConversation.OlderHistoryLoading += OnOlderHistoryLoading;
             _currentConversation.OlderHistoryLoaded += OnOlderHistoryLoaded;
+            _currentConversation.ConversationSearchNavigationRequested += OnConversationSearchNavigationRequested;
             ScrollToLatestMessage();
             _messageInputBox?.Focus();
         }
+    }
+
+    private void OnConversationSearchNavigationRequested(MessageBubbleViewModel bubble)
+    {
+        Dispatcher.UIThread.Post(() => BringMessageBubbleIntoView(bubble), DispatcherPriority.Loaded);
+    }
+
+    private void BringMessageBubbleIntoView(MessageBubbleViewModel bubble)
+    {
+        var target = this.GetVisualDescendants()
+            .OfType<Control>()
+            .FirstOrDefault(c => ReferenceEquals(c.DataContext, bubble));
+
+        target?.BringIntoView();
     }
 
     private void OnOlderHistoryLoading()
@@ -711,6 +741,43 @@ public partial class MainChatView : UserControl
         }
     }
 
+    private void OnConversationSearchInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        try
+        {
+            if (DataContext is not MainChatViewModel vm || vm.ActiveConversation is not { } conv)
+            {
+                return;
+            }
+
+            if (e.Key is Key.Enter or Key.Return)
+            {
+                conv.ExecuteConversationSearch();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Down)
+            {
+                conv.NextConversationSearchResult();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Up)
+            {
+                conv.PreviousConversationSearchResult();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                conv.ClearConversationSearch();
+                _messageInputBox?.Focus();
+                e.Handled = true;
+            }
+        }
+        catch
+        {
+            // Soft failure / prevent unhandled exception in event handler
+        }
+    }
+
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not MainChatViewModel vm) return;
@@ -722,8 +789,16 @@ public partial class MainChatView : UserControl
         }
         else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && (e.Key == Key.F || e.Key == Key.K))
         {
-            _searchInputBox?.Focus();
-            _searchInputBox?.SelectAll();
+            if (vm.ActiveConversation is not null && _conversationSearchInputBox is not null && _conversationSearchInputBox.IsVisible)
+            {
+                _conversationSearchInputBox.Focus();
+                _conversationSearchInputBox.SelectAll();
+            }
+            else
+            {
+                _searchInputBox?.Focus();
+                _searchInputBox?.SelectAll();
+            }
             e.Handled = true;
         }
         else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && (e.Key == Key.OemComma || e.Key == Key.OemPeriod))

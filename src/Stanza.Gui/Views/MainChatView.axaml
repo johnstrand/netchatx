@@ -644,6 +644,44 @@
                 <!-- HR Divider -->
                 <Rectangle Height="1" Fill="#1E293B" Margin="16,0" HorizontalAlignment="Stretch" />
 
+                <!-- Conversation Search -->
+                <Border Padding="16,8,16,6">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="ConversationSearchInputBox"
+                                 Grid.Column="0"
+                                 Text="{Binding ActiveConversation.ConversationSearchQuery, Mode=TwoWay}"
+                                 Watermark="Search in this conversation"
+                                 FontSize="12"
+                                 MinHeight="32"
+                                 VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ActiveConversation.ConversationSearchSummary}"
+                                   Foreground="#94A3B8"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="2"
+                                Content="↑"
+                                ToolTip.Tip="Previous match"
+                                Command="{Binding ActiveConversation.PreviousConversationSearchResultCommand}"
+                                IsEnabled="{Binding ActiveConversation.HasConversationSearchResults}"
+                                Classes="icon-btn subtle"
+                                VerticalAlignment="Center" />
+                        <Button Grid.Column="3"
+                                Content="↓"
+                                ToolTip.Tip="Next match"
+                                Command="{Binding ActiveConversation.NextConversationSearchResultCommand}"
+                                IsEnabled="{Binding ActiveConversation.HasConversationSearchResults}"
+                                Classes="icon-btn subtle"
+                                VerticalAlignment="Center" />
+                        <Button Grid.Column="4"
+                                Content="✕"
+                                ToolTip.Tip="Clear conversation search"
+                                Command="{Binding ActiveConversation.ClearConversationSearchCommand}"
+                                Classes="icon-btn subtle"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
                 <!-- Blocked Contact Warning Banner -->
                 <Border Background="#3B1824" BorderBrush="#EF4444" BorderThickness="0,1,0,1" Padding="14,8"
                         IsVisible="{Binding ActiveConversation.IsBlocked, FallbackValue=False}">
@@ -756,6 +794,8 @@
                                                     Classes="bubble-container"
                                                     Classes.action-bubble="{Binding IsActionMessage}"
                                                     Background="{Binding BubbleBackground}"
+                                                    BorderBrush="{Binding SearchBorderBrush}"
+                                                    BorderThickness="{Binding SearchBorderThickness}"
                                                     CornerRadius="16"
                                                     Padding="12,8">
                                             <Border.ContextFlyout>
