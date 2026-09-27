@@ -791,6 +791,45 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
+
+                            <!-- Backup & Message History Section -->
+                            <Border Background="#111827" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="12">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="{DynamicResource Settings_Section_Backup}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource StanzaCyanBrush}" LetterSpacing="0.8" />
+
+                                    <!-- Status Message Banner -->
+                                    <Border Background="#10233D" BorderBrush="#00F0FF" BorderThickness="1" CornerRadius="8" Padding="10,6"
+                                            IsVisible="{Binding BackupStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                        <TextBlock Text="{Binding BackupStatusMessage}" Foreground="#67E8F9" FontSize="11" TextWrapping="Wrap" />
+                                    </Border>
+
+                                    <!-- Export All Messages -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Settings_ExportAll_Title}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{DynamicResource Settings_ExportAll_Subtitle}" Foreground="#64748B" FontSize="10" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="{DynamicResource Settings_Export_Button}"
+                                                Command="{Binding RequestExportAllCommand}"
+                                                Classes="subtle" Height="30" FontSize="11"
+                                                AutomationProperties.Name="Export all messages" />
+                                    </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
+                                    <!-- Import Backup -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Settings_ImportBackup_Title}" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{DynamicResource Settings_ImportBackup_Subtitle}" Foreground="#64748B" FontSize="10" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="{DynamicResource Settings_Import_Button}"
+                                                Command="{Binding RequestImportBackupCommand}"
+                                                Classes="subtle" Height="30" FontSize="11"
+                                                AutomationProperties.Name="Import message backup" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
