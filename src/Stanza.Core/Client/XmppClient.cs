@@ -85,17 +85,17 @@ public sealed class XmppClient : IAsyncDisposable
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionCts.Token);
 
         var host = _options.Host ?? _options.Jid.Domain;
-        await _transport.ConnectAsync(host, _options.Port, linkedCts.Token);
+        await _transport.ConnectAsync(host, _options.Port, linkedCts.Token).ConfigureAwait(false);
 
         State = XmppClientState.Connected;
 
         if (_options.UseDirectTls && !_transport.IsSecure)
         {
-            await _transport.UpgradeToTlsAsync(host, linkedCts.Token);
+            await _transport.UpgradeToTlsAsync(host, linkedCts.Token).ConfigureAwait(false);
         }
 
         // Initiate stream negotiation
-        await NegotiateStreamAsync(linkedCts.Token);
+        await NegotiateStreamAsync(linkedCts.Token).ConfigureAwait(false);
 
         // Start background reading pump
         _readLoopTask = Task.Run(() => RunReadLoopAsync(_sessionCts.Token));
@@ -105,11 +105,11 @@ public sealed class XmppClient : IAsyncDisposable
     {
         // Step 1: Open stream
         _parser.Reset();
-        await SendStreamHeaderAsync(cancellationToken);
+        await SendStreamHeaderAsync(cancellationToken).ConfigureAwait(false);
 
         // Read stream header and features
-        var streamHeader = await ReadNextElementAsync(cancellationToken);
-        var features = await ReadNextElementAsync(cancellationToken);
+        var streamHeader = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
+        var features = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
         StreamFeatures = features;
 
         // Step 2: StartTLS if available and not direct TLS
@@ -120,19 +120,19 @@ public sealed class XmppClient : IAsyncDisposable
             {
                 State = XmppClientState.StartingTls;
                 var startTlsElem = new XmppElement("starttls", "urn:ietf:params:xml:ns:xmpp-tls");
-                await SendElementRawAsync(startTlsElem, cancellationToken);
+                await SendElementRawAsync(startTlsElem, cancellationToken).ConfigureAwait(false);
 
-                var response = await ReadNextElementAsync(cancellationToken);
+                var response = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
                 if (response.Name == "proceed")
                 {
                     var targetHost = _options.Host ?? _options.Jid.Domain;
-                    await _transport.UpgradeToTlsAsync(targetHost, cancellationToken);
+                    await _transport.UpgradeToTlsAsync(targetHost, cancellationToken).ConfigureAwait(false);
 
                     // Re-open stream over TLS
                     _parser.Reset();
-                    await SendStreamHeaderAsync(cancellationToken);
-                    _ = await ReadNextElementAsync(cancellationToken); // stream header
-                    features = await ReadNextElementAsync(cancellationToken);
+                    await SendStreamHeaderAsync(cancellationToken).ConfigureAwait(false);
+                    _ = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false); // stream header
+                    features = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
                     StreamFeatures = features;
                 }
                 else
@@ -169,11 +169,11 @@ public sealed class XmppClient : IAsyncDisposable
         if (!string.IsNullOrEmpty(initialPayload))
             authElem.Value = initialPayload;
 
-        await SendElementRawAsync(authElem, cancellationToken);
+        await SendElementRawAsync(authElem, cancellationToken).ConfigureAwait(false);
 
         while (true)
         {
-            var saslResp = await ReadNextElementAsync(cancellationToken);
+            var saslResp = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
             if (saslResp.Name == "challenge")
             {
                 var challengeResp = saslMech.HandleChallenge(saslResp.Value ?? "", _options.Password);
@@ -181,7 +181,7 @@ public sealed class XmppClient : IAsyncDisposable
                 {
                     Value = challengeResp ?? ""
                 };
-                await SendElementRawAsync(respElem, cancellationToken);
+                await SendElementRawAsync(respElem, cancellationToken).ConfigureAwait(false);
             }
             else if (saslResp.Name == "success")
             {
@@ -203,9 +203,9 @@ public sealed class XmppClient : IAsyncDisposable
 
         // Step 4: Re-open stream post-auth
         _parser.Reset();
-        await SendStreamHeaderAsync(cancellationToken);
-        _ = await ReadNextElementAsync(cancellationToken); // stream header
-        features = await ReadNextElementAsync(cancellationToken);
+        await SendStreamHeaderAsync(cancellationToken).ConfigureAwait(false);
+        _ = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false); // stream header
+        features = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
         StreamFeatures = features;
 
         // Step 5: Resource Binding
@@ -222,9 +222,9 @@ public sealed class XmppClient : IAsyncDisposable
             bindReq.Child(new XmppElement("resource") { Value = _options.Resource });
         }
         bindIq.RawElement.Child(bindReq);
-        await SendElementRawAsync(bindIq.RawElement, cancellationToken);
+        await SendElementRawAsync(bindIq.RawElement, cancellationToken).ConfigureAwait(false);
 
-        var bindResult = await ReadNextElementAsync(cancellationToken);
+        var bindResult = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
         if (bindResult.GetAttr("type") != "result")
             throw new InvalidOperationException($"Resource binding failed: {bindResult.ToXmlString()}");
 
@@ -241,8 +241,8 @@ public sealed class XmppClient : IAsyncDisposable
             var sessionIqId = Guid.NewGuid().ToString("N");
             var sessionIq = new IqStanza(IqStanza.TypeSet, id: sessionIqId);
             sessionIq.RawElement.Child(new XmppElement("session", "urn:ietf:params:xml:ns:xmpp-session"));
-            await SendElementRawAsync(sessionIq.RawElement, cancellationToken);
-            _ = await ReadNextElementAsync(cancellationToken);
+            await SendElementRawAsync(sessionIq.RawElement, cancellationToken).ConfigureAwait(false);
+            _ = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
         }
 
         State = XmppClientState.Ready;
@@ -257,11 +257,11 @@ public sealed class XmppClient : IAsyncDisposable
     {
         var header = $"<?xml version='1.0'?><stream:stream to='{_options.Jid.Domain}' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>";
         var bytes = Encoding.UTF8.GetBytes(header);
-        await _sendLock.WaitAsync(cancellationToken);
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _transport.Output.WriteAsync(bytes, cancellationToken);
-            await _transport.Output.FlushAsync(cancellationToken);
+            await _transport.Output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+            await _transport.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -273,17 +273,17 @@ public sealed class XmppClient : IAsyncDisposable
     {
         foreach (var filter in _outgoingFilters)
         {
-            var proceed = await filter.OnOutgoingElementAsync(this, element, cancellationToken);
+            var proceed = await filter.OnOutgoingElementAsync(this, element, cancellationToken).ConfigureAwait(false);
             if (!proceed) return;
         }
 
-        await SendElementRawAsync(element, cancellationToken);
+        await SendElementRawAsync(element, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task SendStanzaAsync(XmppStanza stanza, CancellationToken cancellationToken = default)
     {
         stanza.SyncAttributes();
-        await SendElementAsync(stanza.RawElement, cancellationToken);
+        await SendElementAsync(stanza.RawElement, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IqStanza> SendIqAsync(IqStanza iq, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
@@ -299,12 +299,12 @@ public sealed class XmppClient : IAsyncDisposable
 
         try
         {
-            await SendStanzaAsync(iq, cancellationToken);
+            await SendStanzaAsync(iq, cancellationToken).ConfigureAwait(false);
             var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(10);
             using var timeoutCts = new CancellationTokenSource(effectiveTimeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            return await tcs.Task.WaitAsync(linkedCts.Token);
+            return await tcs.Task.WaitAsync(linkedCts.Token).ConfigureAwait(false);
         }
         finally
         {
@@ -316,11 +316,11 @@ public sealed class XmppClient : IAsyncDisposable
     {
         var xml = element.ToXmlString();
         var bytes = Encoding.UTF8.GetBytes(xml);
-        await _sendLock.WaitAsync(cancellationToken);
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _transport.Output.WriteAsync(bytes, cancellationToken);
-            await _transport.Output.FlushAsync(cancellationToken);
+            await _transport.Output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+            await _transport.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -333,7 +333,7 @@ public sealed class XmppClient : IAsyncDisposable
         Exception? disconnectReason = null;
         try
         {
-            await foreach (var elem in _parser.ReadAllAsync(_transport.Input, cancellationToken))
+            await foreach (var elem in _parser.ReadAllAsync(_transport.Input, cancellationToken).ConfigureAwait(false))
             {
                 if (elem.FullName == "stream:stream" && elem.GetAttr("closed") == "true")
                 {
@@ -344,7 +344,7 @@ public sealed class XmppClient : IAsyncDisposable
                 var pass = true;
                 foreach (var filter in _incomingFilters)
                 {
-                    if (!await filter.OnIncomingElementAsync(this, elem, cancellationToken))
+                    if (!await filter.OnIncomingElementAsync(this, elem, cancellationToken).ConfigureAwait(false))
                     {
                         pass = false;
                         break;
@@ -400,7 +400,7 @@ public sealed class XmppClient : IAsyncDisposable
         finally
         {
             State = XmppClientState.Disconnected;
-            try { await _transport.CloseAsync(); } catch { }
+            try { await _transport.CloseAsync().ConfigureAwait(false); } catch { }
             foreach (var (_, tcs) in _pendingIqs)
             {
                 tcs.TrySetException(new IOException("Connection closed."));
@@ -419,13 +419,13 @@ public sealed class XmppClient : IAsyncDisposable
 
         try
         {
-            await _sendLock.WaitAsync();
+            await _sendLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 // Send </stream:stream>
                 var closeTag = "</stream:stream>"u8.ToArray();
-                await _transport.Output.WriteAsync(closeTag);
-                await _transport.Output.FlushAsync();
+                await _transport.Output.WriteAsync(closeTag).ConfigureAwait(false);
+                await _transport.Output.FlushAsync().ConfigureAwait(false);
             }
             finally
             {
@@ -441,18 +441,18 @@ public sealed class XmppClient : IAsyncDisposable
         _sessionCts?.Cancel();
         if (_readLoopTask is not null)
         {
-            try { await _readLoopTask; } catch { }
+            try { await _readLoopTask.ConfigureAwait(false); } catch { }
         }
 
-        await _transport.CloseAsync();
+        await _transport.CloseAsync().ConfigureAwait(false);
         State = XmppClientState.Disconnected;
     }
 
     public async ValueTask DisposeAsync()
     {
-        await DisconnectAsync();
+        await DisconnectAsync().ConfigureAwait(false);
         _sessionCts?.Dispose();
         _sendLock.Dispose();
-        await _transport.DisposeAsync();
+        await _transport.DisposeAsync().ConfigureAwait(false);
     }
 }

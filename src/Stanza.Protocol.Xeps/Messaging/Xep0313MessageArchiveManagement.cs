@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
@@ -102,7 +102,7 @@ public class Xep0313MessageArchiveManagement : XepFeatureBase
             queryElem.Child(rsm);
             iq.RawElement.Child(queryElem);
 
-            var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
+            var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
             var fin = resultIq.RawElement.Element("fin", NsMam) ?? resultIq.RawElement.Element("fin");
 
             var isComplete = fin?.GetAttr("complete") == "true";

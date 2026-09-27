@@ -1,4 +1,4 @@
-﻿using System.IO.Pipelines;
+using System.IO.Pipelines;
 
 namespace Stanza.Core.Transport;
 
@@ -36,12 +36,12 @@ public sealed class LoopbackTransport : IXmppTransport
 
     public async ValueTask CloseAsync()
     {
-        await _clientToServerPipe.Writer.CompleteAsync();
-        await _serverToClientPipe.Writer.CompleteAsync();
+        await _clientToServerPipe.Writer.CompleteAsync().ConfigureAwait(false);
+        await _serverToClientPipe.Writer.CompleteAsync().ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
     {
-        await CloseAsync();
+        await CloseAsync().ConfigureAwait(false);
     }
 }

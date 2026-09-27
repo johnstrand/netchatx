@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Xml;
@@ -33,7 +33,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
         var msg = new MessageStanza(to: to, type: MessageStanza.TypeChat);
         msg.RawElement.Child(new XmppElement("displayed", NsChatMarkers).Attr("id", messageId));
 
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public async Task SendReceivedMarkerAsync(Jid to, string messageId, CancellationToken ct = default)
@@ -44,7 +44,7 @@ public sealed class Xep0333ChatMarkers : XepFeatureBase
         var msg = new MessageStanza(to: to, type: MessageStanza.TypeChat);
         msg.RawElement.Child(new XmppElement("received", NsChatMarkers).Attr("id", messageId));
 
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public override ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)
