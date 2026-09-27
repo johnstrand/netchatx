@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Stanza.Gui.Converters;
 using Stanza.Gui.Helpers;
 using Stanza.Gui.Services;
+using Stanza.Storage.Export;
 using Stanza.Storage.Repositories;
 
 namespace Stanza.Gui.ViewModels;
@@ -38,6 +39,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Func<Task>? _onAvatarSyncRequested;
     private readonly AccountSessionManager? _sessionManager;
     private readonly AccountRepository? _accountRepo;
+    private readonly MessageRepository? _messageRepo;
     private readonly Action? _onOpenAddAccountRequested;
     private bool _isInitializing;
 
@@ -286,13 +288,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Action<string>? onLanguageChanged = null,
         AccountSessionManager? sessionManager = null,
         AccountRepository? accountRepo = null,
-        Action? onOpenAddAccountRequested = null)
+        Action? onOpenAddAccountRequested = null,
+        MessageRepository? messageRepo = null)
     {
         _settingsRepo = settingsRepo;
         _startupService = startupService ?? new StartupService();
         _accountJid = accountJid;
         _sessionManager = sessionManager;
         _accountRepo = accountRepo;
+        _messageRepo = messageRepo;
         _onOpenAddAccountRequested = onOpenAddAccountRequested;
         _onBubbleMergeChanged = onBubbleMergeChanged;
         _onPopupsChanged = onPopupsChanged;
@@ -312,6 +316,75 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onAvatarRemoved = onAvatarRemoved;
         _onAvatarSyncRequested = onAvatarSyncRequested;
         _onLanguageChanged = onLanguageChanged;
+    }
+
+    [ObservableProperty]
+    private string? _backupStatusMessage;
+
+    public Func<Task>? RequestExportAllCallback { get; set; }
+    public Func<Task>? RequestImportBackupCallback { get; set; }
+
+    [RelayCommand]
+    public async Task RequestExportAll()
+    {
+        if (RequestExportAllCallback is not null)
+        {
+            await RequestExportAllCallback.Invoke();
+        }
+    }
+
+    [RelayCommand]
+    public async Task RequestImportBackup()
+    {
+        if (RequestImportBackupCallback is not null)
+        {
+            await RequestImportBackupCallback.Invoke();
+        }
+    }
+
+    public async Task ExportAllMessagesAsync(Stream destinationStream, MessageExportFormat format, bool includeMedia = true)
+    {
+        if (_messageRepo is null)
+        {
+            BackupStatusMessage = "Message repository not available.";
+            return;
+        }
+
+        var service = new MessageExportService(_messageRepo);
+        var options = new MessageExportOptions
+        {
+            Format = format,
+            IncludeMedia = includeMedia,
+            IncludeMetadata = true
+        };
+        await service.ExportAllMessagesAsync(options, destinationStream);
+        BackupStatusMessage = LocalizationManager.Instance.GetString("Backup_Export_Success");
+    }
+
+    public async Task<MessageImportResult> ImportBackupAsync(Stream sourceStream)
+    {
+        if (_messageRepo is null)
+        {
+            var errResult = new MessageImportResult();
+            errResult.Errors.Add("Message repository not available.");
+            BackupStatusMessage = errResult.Errors[0];
+            return errResult;
+        }
+
+        var service = new MessageExportService(_messageRepo);
+        var result = await service.ImportBackupAsync(sourceStream);
+
+        if (result.IsSuccess)
+        {
+            BackupStatusMessage = LocalizationManager.Instance.GetString("Backup_Import_Success", result.ImportedCount, result.SkippedCount);
+        }
+        else
+        {
+            var firstErr = result.Errors.Count > 0 ? result.Errors[0] : "Unknown error";
+            BackupStatusMessage = LocalizationManager.Instance.GetString("Backup_Import_Failed", firstErr);
+        }
+
+        return result;
     }
 
     [RelayCommand]
