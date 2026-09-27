@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -83,6 +84,82 @@ public sealed partial class MainChatViewModel : ViewModelBase
         "xa" => 0,
         _ => -1
     };
+
+    private static bool IsLikelyMucRoom(Jid jid)
+        => jid.Domain.Contains("conference", StringComparison.OrdinalIgnoreCase)
+           || jid.Domain.Contains("muc", StringComparison.OrdinalIgnoreCase)
+           || jid.Domain.Contains("rooms", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetDefaultMucNick(string accountJid)
+    {
+        if (Jid.TryParse(accountJid, out var parsed) && !string.IsNullOrWhiteSpace(parsed.LocalPart))
+        {
+            return parsed.LocalPart;
+        }
+
+        return "stanza";
+    }
+
+    private async Task<bool> JoinBookmarkedRoomAsync(AccountSession session, Jid roomJid)
+    {
+        if (session.Muc is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!session.Client.IsReady)
+            {
+                var connected = await session.ConnectAsync().ConfigureAwait(false);
+                if (!connected)
+                {
+                    return false;
+                }
+            }
+
+            var nick = GetDefaultMucNick(session.AccountJid);
+            await session.Muc.JoinRoomAsync(roomJid, nick).ConfigureAwait(false);
+
+            PostToUi(() =>
+            {
+                var conv = GetOrCreateConversation(session.AccountJid, roomJid.ToString(), roomJid.ToString(), roomJid, isGroupChat: true);
+                conv.AddSystemMessage($"Joined room {roomJid} as {nick}.");
+            });
+            await _settingsRepo.AddMucAutoJoinRoomAsync(session.AccountJid, roomJid.ToBareString()).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task AutoJoinBookmarkedRoomsAsync(AccountSession session)
+    {
+        if (session.Muc is null)
+        {
+            return;
+        }
+
+        List<string> rooms;
+        try
+        {
+            rooms = await _settingsRepo.GetMucAutoJoinRoomsAsync(session.AccountJid).ConfigureAwait(false);
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (var room in rooms)
+        {
+            if (Jid.TryParse(room, out var roomJid))
+            {
+                await JoinBookmarkedRoomAsync(session, roomJid.BareJid).ConfigureAwait(false);
+            }
+        }
+    }
 
     private static string BuildConversationNotificationKey(string accountJid, Jid remoteJid)
         => $"{accountJid}::{remoteJid.ToBareString()}";
@@ -974,6 +1051,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
                         try { await session.Blocking.GetBlockListAsync().ConfigureAwait(false); } catch { }
                     });
                 }
+
+                _ = Task.Run(async () => await AutoJoinBookmarkedRoomsAsync(session).ConfigureAwait(false));
             }
         };
 
@@ -1247,6 +1326,11 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 if (session.Client.IsReady && session.Carbons is not null)
                 {
                     try { await session.Carbons.EnableAsync(); } catch { }
+                }
+
+                if (session.Client.IsReady)
+                {
+                    _ = Task.Run(async () => await AutoJoinBookmarkedRoomsAsync(session).ConfigureAwait(false));
                 }
             }
 
@@ -1949,7 +2033,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(conversationId, StringComparison.OrdinalIgnoreCase)
                                                     || (Jid.TryParse(c.ContactJid, out var cj) && cj.EqualsBare(parsedJid)));
             var title = contact?.DisplayName ?? parsedJid.BareJid.ToString();
-            var newConv = GetOrCreateConversation(parsedJid.BareJid.ToString(), title, parsedJid.BareJid, isGroupChat: false);
+            var newConv = GetOrCreateConversation(parsedJid.BareJid.ToString(), title, parsedJid.BareJid, isGroupChat: IsLikelyMucRoom(parsedJid.BareJid));
             await SelectConversationAsync(newConv);
         }
     }
@@ -2135,6 +2219,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 return true;
 
             case SlashCommandResultType.JoinRoom:
+                if (!string.IsNullOrEmpty(result.TargetJid))
+                {
+                    if (Jid.TryParse(result.TargetJid, out var roomJid) && IsLikelyMucRoom(roomJid.BareJid))
+                    {
+                        var targetSession = ActiveConversation is not null
+                            ? _sessionManager.GetSession(ActiveConversation.AccountJid)
+                            : (SelectedAccountSession ?? _sessionManager.Sessions.FirstOrDefault());
+                        if (targetSession is not null)
+                        {
+                            var joined = await JoinBookmarkedRoomAsync(targetSession, roomJid.BareJid).ConfigureAwait(false);
+                            if (joined)
+                            {
+                                await SelectConversationByIdAsync(roomJid.BareJid.ToString());
+                            }
+                        }
+                    }
+                    else
+                    {
+                        await SelectConversationByIdAsync(result.TargetJid);
+                    }
+                }
+                return true;
+
             case SlashCommandResultType.OpenChat:
                 if (!string.IsNullOrEmpty(result.TargetJid))
                 {
@@ -2148,6 +2255,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 return true;
 
             case SlashCommandResultType.LeaveRoom:
+                await _settingsRepo.RemoveMucAutoJoinRoomAsync(conv.AccountJid, conv.RemoteJid.ToBareString()).ConfigureAwait(false);
                 conv.AddSystemMessage($"Left room {conv.Title}.");
                 PostToUi(() => Conversations.Remove(conv));
                 if (ActiveConversation == conv)
