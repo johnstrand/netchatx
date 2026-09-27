@@ -179,6 +179,73 @@ public sealed class MessageRepository
         return list;
     }
 
+    public async Task<List<ChatMessage>> GetAllMessagesForConversationAsync(
+        string accountJid,
+        string remoteJid,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
+                   body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
+            FROM messages
+            WHERE account_jid = $account_jid AND remote_jid = $remote_jid
+            ORDER BY timestamp ASC;
+        """;
+
+        cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
+
+        var list = new List<ChatMessage>();
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add(ReadMessage(reader));
+        }
+
+        return list;
+    }
+
+    public async Task<List<ChatMessage>> GetAllMessagesAsync(
+        string? accountJid = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _context.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        if (!string.IsNullOrEmpty(accountJid))
+        {
+            cmd.CommandText = """
+                SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
+                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
+                FROM messages
+                WHERE account_jid = $account_jid
+                ORDER BY timestamp ASC;
+            """;
+            cmd.Parameters.AddWithValue("$account_jid", accountJid);
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
+                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
+                FROM messages
+                ORDER BY timestamp ASC;
+            """;
+        }
+
+        var list = new List<ChatMessage>();
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add(ReadMessage(reader));
+        }
+
+        return list;
+    }
+
     public async Task<List<ChatMessage>> SearchMessagesAsync(
         string accountJid,
         string searchQuery,
