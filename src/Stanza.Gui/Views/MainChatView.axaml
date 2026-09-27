@@ -19,6 +19,7 @@
     <UserControl.KeyBindings>
         <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding OpenNewChatDialogCommand}" />
+        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenChatSettingsCommand}" />
         <KeyBinding Gesture="F1" Command="{Binding OpenHelpCommand}" />
     </UserControl.KeyBindings>
 
@@ -200,6 +201,7 @@
                     <Button Grid.Column="2" Content="◀"
                             ToolTip.Tip="{DynamicResource Sidebar_Collapse_Tooltip}"
                             Command="{Binding CollapseSidebarCommand}"
+                            AutomationProperties.Name="Collapse sidebar"
                             Classes="icon-btn subtle"
                             VerticalAlignment="Center" />
                 </Grid>
@@ -214,6 +216,8 @@
                             <TextBox x:Name="SearchInputBox" Grid.Column="1"
                                      Text="{Binding SearchQuery, Mode=TwoWay}"
                                      Watermark="{DynamicResource Sidebar_SearchMessages_Watermark}"
+                                     AutomationProperties.Name="Search messages"
+                                     TabIndex="10"
                                      Height="34" VerticalContentAlignment="Center"
                                      Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" FontSize="12" />
                         </Grid>
@@ -221,6 +225,8 @@
                     <Button Grid.Column="1" Content="+"
                             ToolTip.Tip="{DynamicResource Sidebar_StartNewChat_Tooltip}"
                             Command="{Binding OpenNewChatDialogCommand}"
+                            AutomationProperties.Name="Start new chat"
+                            TabIndex="11"
                             Classes="icon-btn accent"
                             Width="34" Height="34" CornerRadius="17"
                             FontSize="16" FontWeight="Bold"
@@ -234,15 +240,17 @@
                 <Border Grid.Row="0" Padding="12,6" Background="#182436" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding SearchResultsHeader}" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="✕" Command="{Binding CloseSearchCommand}" ToolTip.Tip="{DynamicResource Sidebar_CloseSearch_Tooltip}" Classes="icon-btn subtle" />
+                        <Button Grid.Column="1" Content="✕" Command="{Binding CloseSearchCommand}" ToolTip.Tip="{DynamicResource Sidebar_CloseSearch_Tooltip}" AutomationProperties.Name="Close search" Classes="icon-btn subtle" />
                     </Grid>
                 </Border>
                 <ListBox Grid.Row="1" ItemsSource="{Binding SearchResults}"
+                         AutomationProperties.Name="Search results"
                          Background="Transparent">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:MessageBubbleViewModel}">
                             <Button Command="{Binding ((vm:MainChatViewModel)DataContext).SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"
+                                    AutomationProperties.Name="{Binding SenderDisplayName}"
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     Background="Transparent" BorderThickness="0" Padding="8,6">
                                 <StackPanel Spacing="3">
@@ -261,9 +269,11 @@
             <!-- Normal Navigation Tabs (Chats / Contacts) -->
             <TabControl Grid.Row="2" IsVisible="{Binding !IsSearching}" Margin="0">
                 <!-- Chats Tab -->
-                <TabItem Header="{DynamicResource Nav_Chats}">
+                <TabItem Header="{DynamicResource Nav_Chats}" AutomationProperties.Name="Chats">
                     <ListBox ItemsSource="{Binding Conversations}"
                              SelectedItem="{Binding ActiveConversation, Mode=TwoWay}"
+                             AutomationProperties.Name="Conversations"
+                             TabIndex="12"
                              Background="Transparent">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ChatConversationViewModel}">
@@ -304,12 +314,16 @@
                 </TabItem>
 
                 <!-- Contacts Roster Tab -->
-                <TabItem Header="{DynamicResource Nav_Contacts}">
-                    <ListBox ItemsSource="{Binding Contacts}" Background="Transparent">
+                <TabItem Header="{DynamicResource Nav_Contacts}" AutomationProperties.Name="Contacts">
+                    <ListBox ItemsSource="{Binding Contacts}"
+                             AutomationProperties.Name="Contacts"
+                             TabIndex="13"
+                             Background="Transparent">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ContactItemViewModel}">
                                 <Button Command="{Binding ((vm:MainChatViewModel)DataContext).SelectContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}"
+                                        AutomationProperties.Name="{Binding DisplayName}"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                         Background="Transparent" BorderThickness="0" Padding="4,4">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
@@ -357,6 +371,7 @@
                     <Panel Grid.Column="0" Width="36" Height="36" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Button Command="{Binding OpenProfileSettingsCommand}"
                                 ToolTip.Tip="{DynamicResource Sidebar_ProfileSettings_Tooltip}"
+                                AutomationProperties.Name="User profile settings"
                                 Classes="image-btn"
                                 Width="36" Height="36" Padding="0" Cursor="Hand">
                             <Panel Width="36" Height="36">
@@ -385,6 +400,7 @@
                     <Button Grid.Column="2" Content="●"
                             Classes="icon-btn subtle"
                             ToolTip.Tip="{DynamicResource Sidebar_SetStatus_Tooltip}"
+                            AutomationProperties.Name="Change presence status"
                             Foreground="{Binding UserPresence, Converter={StaticResource PresenceToBrush}}"
                             Margin="2,0,2,0">
                         <Button.Flyout>
@@ -399,12 +415,16 @@
                     <Button Grid.Column="3" Content="⚙"
                             Command="{Binding OpenChatSettingsCommand}"
                             ToolTip.Tip="{DynamicResource Sidebar_Preferences_Tooltip}"
+                            AutomationProperties.Name="Preferences and settings"
+                            TabIndex="14"
                             Classes="icon-btn"
                             Margin="2,0,2,0" />
                     <!-- Disconnect Button -->
                     <Button Grid.Column="4" Content="⏻"
                             Command="{Binding DisconnectCommand}"
                             ToolTip.Tip="{DynamicResource Sidebar_Disconnect_Tooltip}"
+                            AutomationProperties.Name="Disconnect"
+                            TabIndex="15"
                             Classes="icon-btn danger"
                             Margin="2,0,0,0" />
                 </Grid>
@@ -430,6 +450,7 @@
                                 Content="{Binding SidebarToggleIcon}"
                                 ToolTip.Tip="{Binding SidebarToggleTooltip}"
                                 Command="{Binding ToggleSidebarCommand}"
+                                AutomationProperties.Name="Toggle sidebar"
                                 Classes="icon-btn subtle"
                                 Margin="0,0,8,0"
                                 VerticalAlignment="Center" />
@@ -492,6 +513,7 @@
                                 Content="⋮"
                                 ToolTip.Tip="{DynamicResource Chat_DetailsAndSecurity}"
                                 Command="{Binding ToggleDetailsCommand}"
+                                AutomationProperties.Name="Details and security"
                                 Classes="icon-btn"
                                 FontSize="15"
                                 VerticalAlignment="Center" />
@@ -510,11 +532,13 @@
                         <Button Grid.Column="0" Content="▶"
                                 ToolTip.Tip="{DynamicResource Sidebar_Restore_Tooltip}"
                                 Command="{Binding RestoreSidebarCommand}"
+                                AutomationProperties.Name="Restore sidebar"
                                 Classes="icon-btn"
                                 HorizontalAlignment="Left" />
                         <Button Grid.Column="1"
                                 Content="?"
                                 ToolTip.Tip="Help &amp; About"
+                                AutomationProperties.Name="Help and About"
                                 Classes="icon-btn"
                                 VerticalAlignment="Center">
                             <Button.Flyout>
@@ -535,6 +559,7 @@
                 <ScrollViewer x:Name="MessagesScrollViewer"
                               FontFamily="{Binding ChatFontFamily}"
                               FontSize="{Binding ChatFontSize}"
+                              AutomationProperties.Name="Messages"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="8" Margin="16">
                         <!-- Load Older Messages Button -->
@@ -542,6 +567,7 @@
                                 ToolTip.Tip="{Binding ActiveConversation.LoadOlderButtonText}"
                                 Command="{Binding ActiveConversation.LoadOlderHistoryCommand}"
                                 IsEnabled="{Binding !ActiveConversation.IsLoadingOlderHistory}"
+                                AutomationProperties.Name="Load older messages"
                                 Classes="icon-btn"
                                 HorizontalAlignment="Center"
                                 Margin="0,0,0,8" />
@@ -1115,6 +1141,8 @@
                                     Grid.Column="0"
                                     Content="+"
                                     ToolTip.Tip="{DynamicResource Chat_AttachFile}"
+                                    AutomationProperties.Name="Attach file"
+                                    TabIndex="20"
                                     Classes="pill-attach-btn" />
 
                             <!-- Text Input Box -->
@@ -1124,6 +1152,8 @@
                                      Watermark="{Binding MessageInputWatermark}"
                                      FontFamily="{Binding ChatFontFamily}"
                                      FontSize="{Binding ChatFontSize}"
+                                     AutomationProperties.Name="Message input"
+                                     TabIndex="21"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -1142,6 +1172,8 @@
                                     Grid.Column="2"
                                     Content="&lt;/&gt;"
                                     ToolTip.Tip="{DynamicResource Chat_InsertCodeBlock}"
+                                    AutomationProperties.Name="Insert code block"
+                                    TabIndex="22"
                                     Classes="icon-btn subtle"
                                     Width="32" Height="32"
                                     CornerRadius="16"
@@ -1153,6 +1185,8 @@
                                     Content="➤"
                                     ToolTip.Tip="{Binding ActiveConversation.SendButtonToolTip}"
                                     Command="{Binding ActiveConversation.SendMessageCommand}"
+                                    AutomationProperties.Name="Send message"
+                                    TabIndex="23"
                                     Classes="pill-send-btn" />
                         </Grid>
                     </Border>
@@ -1301,6 +1335,7 @@
                         </StackPanel>
                         <Button Grid.Column="1" Content="✕" Command="{Binding CancelNewChatDialogCommand}"
                                 ToolTip.Tip="{DynamicResource Common_Close}"
+                                AutomationProperties.Name="Close new chat dialog"
                                 Classes="icon-btn subtle" />
                     </Grid>
 
@@ -1308,6 +1343,8 @@
                         <TextBlock Text="{DynamicResource Dialog_NewChat_Jid}" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
                         <TextBox x:Name="NewChatJidInput" Text="{Binding NewChatJid, Mode=TwoWay}"
                                  Watermark="e.g. alice@example.com"
+                                 AutomationProperties.Name="Contact Jabber ID"
+                                 TabIndex="1"
                                  Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
                                  Foreground="#F8FAFC" Height="36" VerticalContentAlignment="Center" />
                     </StackPanel>
@@ -1316,6 +1353,8 @@
                         <TextBlock Text="{DynamicResource Dialog_NewChat_DisplayName}" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" />
                         <TextBox Text="{Binding NewChatDisplayName, Mode=TwoWay}"
                                  Watermark="e.g. Alice Cooper"
+                                 AutomationProperties.Name="Contact display name"
+                                 TabIndex="2"
                                  Background="#090D16" BorderBrush="#1E293B" CornerRadius="8"
                                  Foreground="#F8FAFC" Height="36" VerticalContentAlignment="Center" />
                     </StackPanel>
@@ -1328,10 +1367,14 @@
                         <Button Grid.Column="1" Content="✕"
                                 ToolTip.Tip="{DynamicResource Common_Cancel}"
                                 Command="{Binding CancelNewChatDialogCommand}"
+                                AutomationProperties.Name="Cancel"
+                                TabIndex="3"
                                 Classes="icon-btn"
                                 Margin="0,0,8,0" />
                         <Button Grid.Column="2" Content="✓"
                                 ToolTip.Tip="{DynamicResource Dialog_NewChat_Start}"
+                                AutomationProperties.Name="Start chat"
+                                TabIndex="4"
                                 Classes="icon-btn accent"
                                 Command="{Binding ConfirmNewChatCommand}" />
                     </Grid>
@@ -1406,6 +1449,7 @@
                         </StackPanel>
                         <Button Grid.Column="1" Content="✕" Command="{Binding CancelClosePromptCommand}"
                                 ToolTip.Tip="{DynamicResource Common_Cancel}"
+                                AutomationProperties.Name="Cancel"
                                 Classes="icon-btn subtle" />
                     </Grid>
 
@@ -1415,18 +1459,21 @@
                     <!-- Remember my choice CheckBox -->
                     <CheckBox IsChecked="{Binding RememberCloseChoice, Mode=TwoWay}"
                               Content="{DynamicResource Dialog_Close_Remember}"
+                              AutomationProperties.Name="Remember choice"
                               FontSize="11.5" Foreground="#94A3B8" />
 
                     <!-- Action Buttons -->
                     <Grid ColumnDefinitions="*,Auto,Auto">
                         <Button Grid.Column="0" Content="{DynamicResource Common_Cancel}"
                                 Command="{Binding CancelClosePromptCommand}"
+                                AutomationProperties.Name="Cancel"
                                 Background="#1E293B" Foreground="#94A3B8"
                                 BorderBrush="#334155" BorderThickness="1"
                                 CornerRadius="8" Padding="12,6" FontSize="11.5" Cursor="Hand" />
 
                         <Button Grid.Column="1" Content="{DynamicResource Dialog_Close_Exit}"
                                 Command="{Binding ChooseExitAppCommand}"
+                                AutomationProperties.Name="Exit application"
                                 Background="#1E293B" Foreground="#F43F5E"
                                 BorderBrush="#334155" BorderThickness="1"
                                 CornerRadius="8" Padding="14,6" FontSize="11.5" Cursor="Hand"
@@ -1434,6 +1481,7 @@
 
                         <Button Grid.Column="2" Content="{DynamicResource Dialog_Close_Minimize}"
                                 Command="{Binding ChooseMinimizeToTrayCommand}"
+                                AutomationProperties.Name="Minimize to tray"
                                 Classes="accent"
                                 Padding="16,6" FontSize="11.5"
                                 Margin="8,0,0,0" />
