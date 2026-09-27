@@ -15,6 +15,7 @@ using Stanza.Protocol.Xeps.Core;
 using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Muc;
 using Stanza.Protocol.Xeps.Omemo;
+using Stanza.Protocol.Xeps.Registration;
 using Stanza.Protocol.Xeps.Sharing;
 using Stanza.Storage.Models;
 
@@ -95,6 +96,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
     public Xep0424MessageRetraction? Retraction { get; private set; }
     public Xep0393MessageStyling? Styling { get; private set; }
     public AvatarManager? AvatarManager { get; private set; }
+    public Xep0077InBandRegistration? Registration { get; private set; }
 
     public ConcurrentDictionary<string, ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> ContactResourcePresence { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -157,6 +159,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         Retraction = new Xep0424MessageRetraction();
         Styling = new Xep0393MessageStyling();
         AvatarManager = new AvatarManager();
+        Registration = new Xep0077InBandRegistration();
 
         await Ping.AttachAsync(Client).ConfigureAwait(false);
         await Mam.AttachAsync(Client).ConfigureAwait(false);
@@ -174,6 +177,20 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         await Retraction.AttachAsync(Client).ConfigureAwait(false);
         await Styling.AttachAsync(Client).ConfigureAwait(false);
         await AvatarManager.AttachAsync(Client).ConfigureAwait(false);
+        await Registration.AttachAsync(Client).ConfigureAwait(false);
+    }
+
+    public async Task ChangePasswordAsync(string newPassword, CancellationToken ct = default)
+    {
+        if (Registration is null) throw new InvalidOperationException("Registration feature not initialized.");
+        await Registration.ChangePasswordAsync(newPassword, ct).ConfigureAwait(false);
+        Profile.Password = newPassword;
+    }
+
+    public async Task UnregisterAccountAsync(CancellationToken ct = default)
+    {
+        if (Registration is null) throw new InvalidOperationException("Registration feature not initialized.");
+        await Registration.UnregisterAccountAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)

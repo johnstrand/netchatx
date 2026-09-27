@@ -12,111 +12,258 @@
             </RadialGradientBrush>
         </Grid.Background>
 
-        <!-- Centered Login Card -->
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                Width="440"
-                Padding="36,32"
-                CornerRadius="20"
-                Background="#0F172A"
-                BorderBrush="#1E293B"
-                BorderThickness="1"
-                BoxShadow="0 24 60 0 #60000000, 0 0 35 0 #1800F0FF">
+        <!-- Centered Login / Registration Card -->
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="460"
+                    Margin="0,24"
+                    Padding="36,28"
+                    CornerRadius="20"
+                    Background="#0F172A"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    BoxShadow="0 24 60 0 #60000000, 0 0 35 0 #1800F0FF">
 
-            <StackPanel Spacing="16">
-                <!-- Branding Header -->
-                <StackPanel HorizontalAlignment="Center" Spacing="10" Margin="0,0,0,12">
-                    <Border Width="88" Height="88" CornerRadius="22" ClipToBounds="True"
-                            HorizontalAlignment="Center"
-                            BoxShadow="0 8 26 0 #4000C8FF">
-                        <Image Source="/Assets/stanza-logo.png" Width="88" Height="88" Stretch="UniformToFill" />
-                    </Border>
-                    <StackPanel Spacing="3" HorizontalAlignment="Center">
-                        <TextBlock Text="{DynamicResource Login_Title}" FontSize="26" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
-                        <TextBlock Text="{DynamicResource Login_Subtitle}" Classes="muted" HorizontalAlignment="Center" />
+                <StackPanel Spacing="14">
+                    <!-- Branding Header -->
+                    <StackPanel HorizontalAlignment="Center" Spacing="10" Margin="0,0,0,6">
+                        <Border Width="80" Height="80" CornerRadius="20" ClipToBounds="True"
+                                HorizontalAlignment="Center"
+                                BoxShadow="0 8 26 0 #4000C8FF">
+                            <Image Source="/Assets/stanza-logo.png" Width="80" Height="80" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Spacing="3" HorizontalAlignment="Center">
+                            <TextBlock Text="{DynamicResource Login_Title}" FontSize="26" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                            <TextBlock Text="{DynamicResource Login_Subtitle}" Classes="muted" HorizontalAlignment="Center" IsVisible="{Binding !IsRegisterMode}" />
+                            <TextBlock Text="{DynamicResource Register_Subtitle}" Classes="muted" HorizontalAlignment="Center" IsVisible="{Binding IsRegisterMode}" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
 
-                <!-- Error Banner -->
-                <Border Background="#2B141D" BorderBrush="#F43F5E" BorderThickness="1"
-                        CornerRadius="8" Padding="12,8"
-                        IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#FDA4AF" TextWrapping="Wrap" FontSize="12" />
-                </Border>
-
-                <!-- Status Banner -->
-                <Border Background="#10233D" BorderBrush="#00F0FF" BorderThickness="1"
-                        CornerRadius="8" Padding="12,8"
-                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="#67E8F9" TextWrapping="Wrap" FontSize="12" />
-                </Border>
-
-                <!-- JID Input -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="{DynamicResource Login_JidLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                    <TextBox x:Name="JidTextBox" Text="{Binding Jid}" Watermark="{DynamicResource Login_JidWatermark}" IsEnabled="{Binding !IsConnecting}"
-                             AutomationProperties.Name="Jabber ID (JID)"
-                             TabIndex="1"
-                             Height="38" VerticalContentAlignment="Center" />
-                </StackPanel>
-
-                <!-- Password Input -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="{DynamicResource Login_PasswordLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                    <TextBox x:Name="PasswordTextBox" Text="{Binding Password}" PasswordChar="•" Watermark="{DynamicResource Login_PasswordWatermark}" IsEnabled="{Binding !IsConnecting}"
-                             AutomationProperties.Name="Password"
-                             TabIndex="2"
-                             Height="38" VerticalContentAlignment="Center" />
-                </StackPanel>
-
-                <!-- Advanced Connection Options -->
-                <Button Content="{DynamicResource Login_Advanced}" HorizontalAlignment="Left"
-                        Command="{Binding ToggleAdvancedCommand}" Margin="0,4"
-                        AutomationProperties.Name="Advanced connection options"
-                        TabIndex="3"
-                        Foreground="#00F0FF"
-                        Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" />
-
-                <StackPanel Spacing="12" IsVisible="{Binding ShowAdvanced}">
-                    <Grid ColumnDefinitions="*,100">
-                        <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
-                            <TextBlock Text="{DynamicResource Login_CustomHost}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                            <TextBox Text="{Binding Host}" Watermark="{DynamicResource Login_CustomHostWatermark}"
-                                     AutomationProperties.Name="Custom Host"
-                                     TabIndex="4"
-                                     Height="36" VerticalContentAlignment="Center" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock Text="{DynamicResource Login_Port}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
-                            <TextBox Text="{Binding Port}" Watermark="{DynamicResource Login_PortWatermark}"
-                                     AutomationProperties.Name="Custom Port"
-                                     TabIndex="5"
-                                     Height="36" VerticalContentAlignment="Center" />
-                        </StackPanel>
+                    <!-- Mode Toggle (Sign In / Register) -->
+                    <Grid ColumnDefinitions="*,*" Margin="0,0,0,4">
+                        <Button Grid.Column="0" Content="{DynamicResource Login_Tab_SignIn}"
+                                Command="{Binding SwitchToLoginCommand}"
+                                IsEnabled="{Binding !IsConnecting}"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Height="34" Margin="0,0,4,0"
+                                Classes.accent="{Binding !IsRegisterMode}" />
+                        <Button Grid.Column="1" Content="{DynamicResource Login_Tab_Register}"
+                                Command="{Binding SwitchToRegisterCommand}"
+                                IsEnabled="{Binding !IsConnecting}"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Height="34" Margin="4,0,0,0"
+                                Classes.accent="{Binding IsRegisterMode}" />
                     </Grid>
-                    <CheckBox IsChecked="{Binding UseDirectTls}" Content="{DynamicResource Login_DirectTls}"
-                              AutomationProperties.Name="Use direct TLS"
-                              TabIndex="6" />
-                    <CheckBox IsChecked="{Binding AllowUntrustedCertificates}" Content="{DynamicResource Login_AllowUntrusted}"
-                              AutomationProperties.Name="Allow untrusted certificates"
-                              TabIndex="7" />
+
+                    <!-- Error Banner -->
+                    <Border Background="#2B141D" BorderBrush="#F43F5E" BorderThickness="1"
+                            CornerRadius="8" Padding="12,8"
+                            IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding ErrorMessage}" Foreground="#FDA4AF" TextWrapping="Wrap" FontSize="12" />
+                    </Border>
+
+                    <!-- Status Banner -->
+                    <Border Background="#10233D" BorderBrush="#00F0FF" BorderThickness="1"
+                            CornerRadius="8" Padding="12,8"
+                            IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding StatusMessage}" Foreground="#67E8F9" TextWrapping="Wrap" FontSize="12" />
+                    </Border>
+
+                    <!-- Sign In Panel -->
+                    <StackPanel Spacing="14" IsVisible="{Binding !IsRegisterMode}">
+                        <!-- JID Input -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Login_JidLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="JidTextBox" Text="{Binding Jid}" Watermark="{DynamicResource Login_JidWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Jabber ID (JID)"
+                                     TabIndex="1"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Password Input -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Login_PasswordLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="PasswordTextBox" Text="{Binding Password}" PasswordChar="•" Watermark="{DynamicResource Login_PasswordWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Password"
+                                     TabIndex="2"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Advanced Connection Options -->
+                        <Button Content="{DynamicResource Login_Advanced}" HorizontalAlignment="Left"
+                                Command="{Binding ToggleAdvancedCommand}" Margin="0,2"
+                                AutomationProperties.Name="Advanced connection options"
+                                TabIndex="3"
+                                Foreground="#00F0FF"
+                                Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" />
+
+                        <StackPanel Spacing="12" IsVisible="{Binding ShowAdvanced}">
+                            <Grid ColumnDefinitions="*,100">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                                    <TextBlock Text="{DynamicResource Login_CustomHost}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                                    <TextBox Text="{Binding Host}" Watermark="{DynamicResource Login_CustomHostWatermark}"
+                                             AutomationProperties.Name="Custom Host"
+                                             TabIndex="4"
+                                             Height="36" VerticalContentAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Text="{DynamicResource Login_Port}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                                    <TextBox Text="{Binding Port}" Watermark="{DynamicResource Login_PortWatermark}"
+                                             AutomationProperties.Name="Custom Port"
+                                             TabIndex="5"
+                                             Height="36" VerticalContentAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                            <CheckBox IsChecked="{Binding UseDirectTls}" Content="{DynamicResource Login_DirectTls}"
+                                      AutomationProperties.Name="Use direct TLS"
+                                      TabIndex="6" />
+                            <CheckBox IsChecked="{Binding AllowUntrustedCertificates}" Content="{DynamicResource Login_AllowUntrusted}"
+                                      AutomationProperties.Name="Allow untrusted certificates"
+                                      TabIndex="7" />
+                        </StackPanel>
+
+                        <!-- Connect Button -->
+                        <Button x:Name="ConnectButton" Content="{DynamicResource Login_ConnectButton}" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Padding="0"
+                                Height="42"
+                                Command="{Binding ConnectCommand}"
+                                IsEnabled="{Binding !IsConnecting}"
+                                AutomationProperties.Name="Connect"
+                                TabIndex="8"
+                                Classes="accent"
+                                Margin="0,4,0,0" />
+
+                        <!-- Mode Prompt Link -->
+                        <Button Content="{DynamicResource Login_Prompt_Register}"
+                                Command="{Binding SwitchToRegisterCommand}"
+                                Classes="inline-link"
+                                HorizontalAlignment="Center"
+                                Foreground="#94A3B8"
+                                FontSize="12"
+                                Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <!-- Registration Panel -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsRegisterMode}">
+                        <!-- Domain Input -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Register_DomainLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="RegisterDomainTextBox" Text="{Binding RegisterDomain}" Watermark="{DynamicResource Register_DomainWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Server Domain"
+                                     TabIndex="1"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Desired Username Input -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Register_UsernameLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="RegisterUsernameTextBox" Text="{Binding RegisterUsername}" Watermark="{DynamicResource Register_UsernameWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Desired Username"
+                                     TabIndex="2"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Password Input -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Register_PasswordLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="RegisterPasswordTextBox" Text="{Binding RegisterPassword}" PasswordChar="•" Watermark="{DynamicResource Register_PasswordWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Password"
+                                     TabIndex="3"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Confirm Password Input -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Register_ConfirmPasswordLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="RegisterConfirmPasswordTextBox" Text="{Binding RegisterConfirmPassword}" PasswordChar="•" Watermark="{DynamicResource Register_ConfirmPasswordWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Confirm Password"
+                                     TabIndex="4"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Email Input (Optional) -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{DynamicResource Register_EmailLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                            <TextBox x:Name="RegisterEmailTextBox" Text="{Binding RegisterEmail}" Watermark="{DynamicResource Register_EmailWatermark}" IsEnabled="{Binding !IsConnecting}"
+                                     AutomationProperties.Name="Email"
+                                     TabIndex="5"
+                                     Height="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- CAPTCHA Verification Panel -->
+                        <Border Background="#151D33" BorderBrush="#00F0FF" BorderThickness="1" CornerRadius="8" Padding="12"
+                                IsVisible="{Binding IsCaptchaRequired}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{DynamicResource Register_CaptchaLabel}" FontSize="12" FontWeight="Bold" Foreground="#00F0FF" />
+                                <TextBlock Text="{Binding CaptchaInstructions}" TextWrapping="Wrap" FontSize="11" Foreground="#94A3B8"
+                                           IsVisible="{Binding CaptchaInstructions, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{Binding CaptchaQuestion}" TextWrapping="Wrap" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC"
+                                           IsVisible="{Binding CaptchaQuestion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <Image Source="{Binding CaptchaImage}" MaxHeight="120" Stretch="Uniform" HorizontalAlignment="Center"
+                                       IsVisible="{Binding CaptchaImage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBox x:Name="CaptchaAnswerTextBox" Text="{Binding CaptchaAnswer}" Watermark="{DynamicResource Register_CaptchaWatermark}"
+                                         IsEnabled="{Binding !IsConnecting}" Height="36" VerticalContentAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Advanced Connection Options -->
+                        <Button Content="{DynamicResource Login_Advanced}" HorizontalAlignment="Left"
+                                Command="{Binding ToggleAdvancedCommand}" Margin="0,2"
+                                AutomationProperties.Name="Advanced connection options"
+                                TabIndex="6"
+                                Foreground="#00F0FF"
+                                Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" />
+
+                        <StackPanel Spacing="12" IsVisible="{Binding ShowAdvanced}">
+                            <Grid ColumnDefinitions="*,100">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                                    <TextBlock Text="{DynamicResource Login_CustomHost}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                                    <TextBox Text="{Binding Host}" Watermark="{DynamicResource Login_CustomHostWatermark}"
+                                             AutomationProperties.Name="Custom Host"
+                                             Height="36" VerticalContentAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Text="{DynamicResource Login_Port}" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" />
+                                    <TextBox Text="{Binding Port}" Watermark="{DynamicResource Login_PortWatermark}"
+                                             AutomationProperties.Name="Custom Port"
+                                             Height="36" VerticalContentAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                            <CheckBox IsChecked="{Binding UseDirectTls}" Content="{DynamicResource Login_DirectTls}"
+                                      AutomationProperties.Name="Use direct TLS" />
+                            <CheckBox IsChecked="{Binding AllowUntrustedCertificates}" Content="{DynamicResource Login_AllowUntrusted}"
+                                      AutomationProperties.Name="Allow untrusted certificates" />
+                        </StackPanel>
+
+                        <!-- Register Button -->
+                        <Button x:Name="RegisterButton" Content="{DynamicResource Register_Button}" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Padding="0"
+                                Height="42"
+                                Command="{Binding RegisterCommand}"
+                                IsEnabled="{Binding !IsConnecting}"
+                                AutomationProperties.Name="Create Account"
+                                TabIndex="7"
+                                Classes="accent"
+                                Margin="0,4,0,0" />
+
+                        <!-- Mode Prompt Link -->
+                        <Button Content="{DynamicResource Login_Prompt_SignIn}"
+                                Command="{Binding SwitchToLoginCommand}"
+                                Classes="inline-link"
+                                HorizontalAlignment="Center"
+                                Foreground="#94A3B8"
+                                FontSize="12"
+                                Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <!-- Progress Bar -->
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}" Height="4" Margin="0,4,0,0" />
                 </StackPanel>
-
-                <!-- Connect Button -->
-                <Button x:Name="ConnectButton" Content="{DynamicResource Login_ConnectButton}" HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Padding="0"
-                        Height="42"
-                        Command="{Binding ConnectCommand}"
-                        IsEnabled="{Binding !IsConnecting}"
-                        AutomationProperties.Name="Connect"
-                        TabIndex="8"
-                        Classes="accent"
-                        Margin="0,8,0,0" />
-
-                <!-- Progress Bar -->
-                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}" Height="4" Margin="0,4,0,0" />
-            </StackPanel>
-        </Border>
+            </Border>
+        </ScrollViewer>
     </Grid>
 </UserControl>
