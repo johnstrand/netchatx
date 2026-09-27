@@ -68,6 +68,7 @@ public class NotificationAndSettingsTests : IDisposable
 
         // Verify default values
         Assert.True(vm.NotificationPopupsEnabled);
+        Assert.False(vm.DoNotDisturbMode);
         Assert.True(vm.IconFlashingEnabled);
         Assert.True(vm.EnableMessageMerging);
         Assert.Equal(SettingsRepository.DefaultMergeMessagesThresholdSeconds, vm.MessageMergeThresholdSeconds);
@@ -89,6 +90,9 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.True(flashingInvoked);
         Assert.False(await _settingsRepo.GetIconFlashingEnabledAsync(account));
 
+        vm.DoNotDisturbMode = true;
+        Assert.True(await _settingsRepo.GetDoNotDisturbModeAsync(account));
+
         // Toggling MessageMerging persists to SQLite and fires callback
         vm.EnableMessageMerging = false;
         Assert.True(bubbleMergeInvoked);
@@ -107,6 +111,7 @@ public class NotificationAndSettingsTests : IDisposable
         var vm2 = new SettingsViewModel(_settingsRepo, account);
         await vm2.LoadSettingsAsync();
         Assert.False(vm2.NotificationPopupsEnabled);
+        Assert.True(vm2.DoNotDisturbMode);
         Assert.False(vm2.IconFlashingEnabled);
         Assert.False(vm2.EnableMessageMerging);
         Assert.Equal(25, vm2.MessageMergeThresholdSeconds);
@@ -115,11 +120,13 @@ public class NotificationAndSettingsTests : IDisposable
         // Reset defaults
         await vm2.ResetDefaultsAsync();
         Assert.True(vm2.NotificationPopupsEnabled);
+        Assert.False(vm2.DoNotDisturbMode);
         Assert.True(vm2.IconFlashingEnabled);
         Assert.True(vm2.EnableMessageMerging);
         Assert.Equal(SettingsRepository.DefaultMergeMessagesThresholdSeconds, vm2.MessageMergeThresholdSeconds);
         Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, vm2.ChatInputMaxLines);
         Assert.True(await _settingsRepo.GetNotificationPopupsEnabledAsync(account));
+        Assert.False(await _settingsRepo.GetDoNotDisturbModeAsync(account));
         Assert.True(await _settingsRepo.GetIconFlashingEnabledAsync(account));
         Assert.Equal(SettingsRepository.DefaultChatInputMaxLines, await _settingsRepo.GetChatInputMaxLinesAsync(account));
     }
@@ -276,6 +283,33 @@ public class NotificationAndSettingsTests : IDisposable
         mainVm.Settings.IconFlashingEnabled = false;
         mainVm.TriggerNotification("alice@test.org", "Alice", "No flashing either", isEncrypted: false);
         Assert.False(notifService.IsFlashing);
+    }
+
+    [Fact]
+    public async Task MainChatViewModel_Notifications_RespectDoNotDisturbAndConversationMute()
+    {
+        var notifService = new MockNotificationService();
+        var mainVm = CreateMainChatViewModel(notificationService: notifService);
+        await mainVm.InitializeAsync();
+
+        var aliceJid = Jid.Parse("alice@test.org");
+        var convAlice = mainVm.GetOrCreateConversation("alice@test.org", "Alice", aliceJid, isGroupChat: false);
+
+        // Global DND suppresses notifications.
+        mainVm.Settings.DoNotDisturbMode = true;
+        mainVm.TriggerNotification("alice@test.org", "Alice", "Muted by DND", isEncrypted: false);
+        Assert.Equal(0, notifService.SystemNotificationCount);
+
+        // Conversation mute suppresses notifications when DND is off.
+        mainVm.Settings.DoNotDisturbMode = false;
+        await convAlice.MuteNotificationsOneHourAsync();
+        mainVm.TriggerNotification("alice@test.org", "Alice", "Muted by conversation", isEncrypted: false);
+        Assert.Equal(0, notifService.SystemNotificationCount);
+
+        // Unmuting allows notifications again.
+        await convAlice.UnmuteNotificationsAsync();
+        mainVm.TriggerNotification("alice@test.org", "Alice", "Visible notification", isEncrypted: false);
+        Assert.Equal(1, notifService.SystemNotificationCount);
     }
 
     [Fact]

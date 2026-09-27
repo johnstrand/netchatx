@@ -21,6 +21,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly string _accountJid;
     private readonly Action<bool, int>? _onBubbleMergeChanged;
     private readonly Action<bool>? _onPopupsChanged;
+    private readonly Action<bool>? _onDoNotDisturbChanged;
     private readonly Action<bool>? _onFlashingChanged;
     private readonly Action<string, double>? _onTypographyChanged;
     private readonly Action<bool>? _onSendOnEnterChanged;
@@ -214,6 +215,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private bool _notificationPopupsEnabled = SettingsRepository.DefaultNotificationPopupsEnabled;
 
     [ObservableProperty]
+    private bool _doNotDisturbMode = SettingsRepository.DefaultDoNotDisturbMode;
+
+    [ObservableProperty]
     private bool _iconFlashingEnabled = SettingsRepository.DefaultIconFlashingEnabled;
 
     [ObservableProperty]
@@ -269,6 +273,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         string accountJid,
         Action<bool, int>? onBubbleMergeChanged = null,
         Action<bool>? onPopupsChanged = null,
+        Action<bool>? onDoNotDisturbChanged = null,
         Action<bool>? onFlashingChanged = null,
         Action<string, double>? onTypographyChanged = null,
         Action<bool>? onSendOnEnterChanged = null,
@@ -300,6 +305,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onOpenAddAccountRequested = onOpenAddAccountRequested;
         _onBubbleMergeChanged = onBubbleMergeChanged;
         _onPopupsChanged = onPopupsChanged;
+        _onDoNotDisturbChanged = onDoNotDisturbChanged;
         _onFlashingChanged = onFlashingChanged;
         _onTypographyChanged = onTypographyChanged;
         _onSendOnEnterChanged = onSendOnEnterChanged;
@@ -470,6 +476,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         try
         {
             NotificationPopupsEnabled = await _settingsRepo.GetNotificationPopupsEnabledAsync(_accountJid);
+            DoNotDisturbMode = await _settingsRepo.GetDoNotDisturbModeAsync(_accountJid);
             IconFlashingEnabled = await _settingsRepo.GetIconFlashingEnabledAsync(_accountJid);
 
             var osAutostart = _startupService.IsStartupEnabled();
@@ -561,6 +568,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetNotificationPopupsEnabledAsync(_accountJid, value);
             _onPopupsChanged?.Invoke(value);
+        }
+    }
+
+    partial void OnDoNotDisturbModeChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetDoNotDisturbModeAsync(_accountJid, value);
+            _onDoNotDisturbChanged?.Invoke(value);
         }
     }
 
@@ -1225,6 +1241,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public async Task ResetDefaultsAsync()
     {
         NotificationPopupsEnabled = SettingsRepository.DefaultNotificationPopupsEnabled;
+        DoNotDisturbMode = SettingsRepository.DefaultDoNotDisturbMode;
         IconFlashingEnabled = SettingsRepository.DefaultIconFlashingEnabled;
         LaunchOnStartup = SettingsRepository.DefaultLaunchOnStartup;
         EnableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
@@ -1264,6 +1281,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SelectedEmojiSlot = -1;
 
         await _settingsRepo.SetNotificationPopupsEnabledAsync(_accountJid, NotificationPopupsEnabled);
+        await _settingsRepo.SetDoNotDisturbModeAsync(_accountJid, DoNotDisturbMode);
         await _settingsRepo.SetIconFlashingEnabledAsync(_accountJid, IconFlashingEnabled);
         await _settingsRepo.SetLaunchOnStartupAsync(_accountJid, LaunchOnStartup);
         _startupService.SetStartupEnabled(LaunchOnStartup);
@@ -1297,6 +1315,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
         _onEvaluateExpressionsChanged?.Invoke(EvaluateExpressions);
         _onPopupsChanged?.Invoke(NotificationPopupsEnabled);
+        _onDoNotDisturbChanged?.Invoke(DoNotDisturbMode);
         _onFlashingChanged?.Invoke(IconFlashingEnabled);
         _onTypographyChanged?.Invoke(EffectiveFontFamily, FontSize);
         _onSendOnEnterChanged?.Invoke(SendOnEnter);
