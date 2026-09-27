@@ -43,6 +43,7 @@ public sealed class SettingsRepository
     public const string KeyMergeMessagesEnabled = "merge_messages_enabled";
     public const string KeyMergeMessagesThresholdSeconds = "merge_messages_threshold_seconds";
     public const string KeyNotificationPopupsEnabled = "notification_popups_enabled";
+    public const string KeyDoNotDisturbMode = "notification_do_not_disturb_mode";
     public const string KeyIconFlashingEnabled = "icon_flashing_enabled";
     public const string KeyLaunchOnStartup = "launch_on_startup";
     public const string KeyFontFamily = "font_family";
@@ -72,6 +73,7 @@ public sealed class SettingsRepository
     public const bool DefaultEvaluateExpressions = true;
     public const bool DefaultEmoticonBannerDismissed = false;
     public const bool DefaultNotificationPopupsEnabled = true;
+    public const bool DefaultDoNotDisturbMode = false;
     public const bool DefaultIconFlashingEnabled = true;
     public const bool DefaultLaunchOnStartup = false;
     public const string DefaultFontFamily = "Inter";
@@ -244,6 +246,53 @@ public sealed class SettingsRepository
     public async Task SetNotificationPopupsEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
         await SetSettingAsync(accountJid, KeyNotificationPopupsEnabled, enabled.ToString(), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> GetDoNotDisturbModeAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyDoNotDisturbMode, cancellationToken).ConfigureAwait(false);
+        return bool.TryParse(val, out var result) ? result : DefaultDoNotDisturbMode;
+    }
+
+    public async Task SetDoNotDisturbModeAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyDoNotDisturbMode, enabled.ToString(), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DateTimeOffset?> GetConversationNotificationMuteUntilAsync(string accountJid, string remoteJid, CancellationToken cancellationToken = default)
+    {
+        var key = GetConversationMuteKey(remoteJid);
+        var val = await GetSettingAsync(accountJid, key, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(val))
+        {
+            return null;
+        }
+
+        if (string.Equals(val, "forever", StringComparison.OrdinalIgnoreCase))
+        {
+            return DateTimeOffset.MaxValue;
+        }
+
+        return DateTimeOffset.TryParse(val, out var until) ? until : null;
+    }
+
+    public async Task SetConversationNotificationMuteUntilAsync(string accountJid, string remoteJid, DateTimeOffset? mutedUntil, CancellationToken cancellationToken = default)
+    {
+        var key = GetConversationMuteKey(remoteJid);
+        if (mutedUntil is null)
+        {
+            await SetSettingAsync(accountJid, key, string.Empty, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var value = mutedUntil == DateTimeOffset.MaxValue ? "forever" : mutedUntil.Value.ToString("O");
+        await SetSettingAsync(accountJid, key, value, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string GetConversationMuteKey(string remoteJid)
+    {
+        var normalized = remoteJid?.Trim().ToLowerInvariant() ?? string.Empty;
+        return $"conversation_notification_mute_until::{normalized}";
     }
 
     public async Task<bool> GetIconFlashingEnabledAsync(string accountJid, CancellationToken cancellationToken = default)

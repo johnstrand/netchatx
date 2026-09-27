@@ -104,6 +104,57 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private bool _isBlocked;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotificationsMuted))]
+    [NotifyPropertyChangedFor(nameof(NotificationMuteStatusText))]
+    private DateTimeOffset? _notificationsMutedUntilUtc;
+
+    public bool IsNotificationsMuted => NotificationsMutedUntilUtc.HasValue &&
+                                        (NotificationsMutedUntilUtc == DateTimeOffset.MaxValue || NotificationsMutedUntilUtc.Value > DateTimeOffset.UtcNow);
+
+    public string NotificationMuteStatusText => NotificationsMutedUntilUtc switch
+    {
+        null => "Notifications enabled",
+        var v when v == DateTimeOffset.MaxValue => "Muted until manually unmuted",
+        var v when v > DateTimeOffset.UtcNow => $"Muted until {v.Value.ToLocalTime():g}",
+        _ => "Notifications enabled"
+    };
+
+    public Func<ChatConversationViewModel, DateTimeOffset?, Task>? SaveNotificationMuteAsync { get; set; }
+
+    [RelayCommand]
+    public async Task MuteNotificationsOneHourAsync()
+    {
+        await SetNotificationsMutedUntilAsync(DateTimeOffset.UtcNow.AddHours(1));
+    }
+
+    [RelayCommand]
+    public async Task MuteNotificationsEightHoursAsync()
+    {
+        await SetNotificationsMutedUntilAsync(DateTimeOffset.UtcNow.AddHours(8));
+    }
+
+    [RelayCommand]
+    public async Task MuteNotificationsUntilUnmutedAsync()
+    {
+        await SetNotificationsMutedUntilAsync(DateTimeOffset.MaxValue);
+    }
+
+    [RelayCommand]
+    public async Task UnmuteNotificationsAsync()
+    {
+        await SetNotificationsMutedUntilAsync(null);
+    }
+
+    public async Task SetNotificationsMutedUntilAsync(DateTimeOffset? mutedUntilUtc)
+    {
+        NotificationsMutedUntilUtc = mutedUntilUtc;
+        if (SaveNotificationMuteAsync is not null)
+        {
+            await SaveNotificationMuteAsync(this, mutedUntilUtc).ConfigureAwait(false);
+        }
+    }
+
+    [ObservableProperty]
     private string _conversationSearchQuery = string.Empty;
 
     [ObservableProperty]
