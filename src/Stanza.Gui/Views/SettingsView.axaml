@@ -904,6 +904,22 @@
 
                                     <Separator Background="#1E293B" Height="1" />
 
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Do Not Disturb" FontWeight="SemiBold" FontSize="12" Foreground="#F8FAFC" />
+                                            <TextBlock Text="Silence all desktop notifications and taskbar flashing until disabled."
+                                                       Foreground="#64748B" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding DoNotDisturbMode, Mode=TwoWay}"
+                                                      OnContent="" OffContent=""
+                                                      VerticalAlignment="Center"
+                                                      Margin="10,0,0,0"
+                                                      AutomationProperties.Name="Do not disturb mode" />
+                                    </Grid>
+
+                                    <Separator Background="#1E293B" Height="1" />
+
                                     <!-- Taskbar Icon Flashing Switch -->
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">

@@ -1388,6 +1388,36 @@
                                 CornerRadius="8" Padding="12,6" FontSize="11"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                 Cursor="Hand" />
+                        <Separator Background="#1E293B" Height="1" />
+                        <TextBlock Text="{Binding ActiveConversation.NotificationMuteStatusText}"
+                                   Foreground="#94A3B8"
+                                   FontSize="10"
+                                   TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Grid.Column="0"
+                                    Content="Mute 1h"
+                                    Command="{Binding ActiveConversation.MuteNotificationsOneHourCommand}"
+                                    Classes="icon-btn subtle"
+                                    HorizontalAlignment="Stretch" />
+                            <Button Grid.Column="1"
+                                    Content="Mute 8h"
+                                    Command="{Binding ActiveConversation.MuteNotificationsEightHoursCommand}"
+                                    Classes="icon-btn subtle"
+                                    HorizontalAlignment="Stretch" />
+                        </Grid>
+                        <Button Content="Mute until unmuted"
+                                Command="{Binding ActiveConversation.MuteNotificationsUntilUnmutedCommand}"
+                                Classes="icon-btn subtle"
+                                HorizontalAlignment="Stretch" />
+                        <Button Content="Enable notifications"
+                                Command="{Binding ActiveConversation.UnmuteNotificationsCommand}"
+                                IsVisible="{Binding ActiveConversation.IsNotificationsMuted}"
+                                Background="#1D4ED8"
+                                Foreground="White"
+                                BorderThickness="0"
+                                CornerRadius="8" Padding="10,5" FontSize="11"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Cursor="Hand" />
                     </StackPanel>
 
                     <Separator Background="#1E293B" Height="1" />

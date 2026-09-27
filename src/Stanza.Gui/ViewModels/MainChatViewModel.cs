@@ -58,6 +58,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0393MessageStyling? _styling;
     private Xep0191Blocking? _blocking;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset?> _conversationNotificationMuteUntil = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _isManualDisconnect;
     private CancellationTokenSource? _reconnectCts;
@@ -82,6 +83,21 @@ public sealed partial class MainChatViewModel : ViewModelBase
         "xa" => 0,
         _ => -1
     };
+
+    private static string BuildConversationNotificationKey(string accountJid, Jid remoteJid)
+        => $"{accountJid}::{remoteJid.ToBareString()}";
+
+    private DateTimeOffset? GetConversationMutedUntil(string accountJid, Jid remoteJid)
+    {
+        var key = BuildConversationNotificationKey(accountJid, remoteJid);
+        return _conversationNotificationMuteUntil.TryGetValue(key, out var mutedUntil) ? mutedUntil : null;
+    }
+
+    private bool IsConversationNotificationMuted(string accountJid, Jid remoteJid)
+    {
+        var mutedUntil = GetConversationMutedUntil(accountJid, remoteJid);
+        return mutedUntil.HasValue && (mutedUntil == DateTimeOffset.MaxValue || mutedUntil.Value > DateTimeOffset.UtcNow);
+    }
 
     private void ApplyPresenceToContact(ContactItemViewModel contact)
     {
@@ -602,6 +618,13 @@ public sealed partial class MainChatViewModel : ViewModelBase
             },
             onPopupsChanged: enabled =>
             {
+            },
+            onDoNotDisturbChanged: enabled =>
+            {
+                if (enabled)
+                {
+                    _notificationService.StopFlashing();
+                }
             },
             onFlashingChanged: enabled =>
             {
@@ -2056,13 +2079,24 @@ public sealed partial class MainChatViewModel : ViewModelBase
         });
     }
 
-    public void TriggerNotification(string remoteJid, string senderDisplayName, string previewText, bool isEncrypted)
+    public void TriggerNotification(string remoteJid, string senderDisplayName, string previewText, bool isEncrypted, string? accountJid = null)
     {
+        accountJid ??= ActiveConversation?.AccountJid ?? SelectedAccountSession?.AccountJid ?? AccountJid;
         var isChatActiveAndFocused = IsWindowActive && (ActiveConversation?.Id == remoteJid || (Jid.TryParse(remoteJid, out var rj) && ActiveConversation?.RemoteJid.EqualsBare(rj) == true));
 
         if (isChatActiveAndFocused)
         {
             // Do not spam OS notifications if the user is actively viewing this conversation in the foreground window
+            return;
+        }
+
+        if (Settings.DoNotDisturbMode)
+        {
+            return;
+        }
+
+        if (Jid.TryParse(remoteJid, out var parsedRemote) && IsConversationNotificationMuted(accountJid, parsedRemote.BareJid))
+        {
             return;
         }
 
@@ -2205,6 +2239,12 @@ public sealed partial class MainChatViewModel : ViewModelBase
             Settings.SelectedTabIndex = 1; // Tab 2: "💬 Chat"
             Settings.Open();
         };
+        newConv.SaveNotificationMuteAsync = async (conv, mutedUntil) =>
+        {
+            var key = BuildConversationNotificationKey(conv.AccountJid, conv.RemoteJid);
+            _conversationNotificationMuteUntil[key] = mutedUntil;
+            await _settingsRepo.SetConversationNotificationMuteUntilAsync(conv.AccountJid, conv.RemoteJid.ToBareString(), mutedUntil).ConfigureAwait(false);
+        };
 
         newConv.MessageProcessed += msg =>
         {
@@ -2267,6 +2307,21 @@ public sealed partial class MainChatViewModel : ViewModelBase
         else if (_blocking is not null)
         {
             newConv.IsBlocked = _blocking.IsBlocked(remoteJid);
+        }
+
+        var convNotificationKey = BuildConversationNotificationKey(targetAccountJid, remoteJid);
+        if (_conversationNotificationMuteUntil.TryGetValue(convNotificationKey, out var cachedMutedUntil))
+        {
+            newConv.NotificationsMutedUntilUtc = cachedMutedUntil;
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                var mutedUntil = await _settingsRepo.GetConversationNotificationMuteUntilAsync(targetAccountJid, remoteJid.ToBareString()).ConfigureAwait(false);
+                _conversationNotificationMuteUntil[convNotificationKey] = mutedUntil;
+                PostToUi(() => newConv.NotificationsMutedUntilUtc = mutedUntil);
+            });
         }
 
         _allConversations.Add(newConv);
@@ -2683,7 +2738,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
 
                 var senderDisplayName = contact?.DisplayName ?? (sender.IsBare ? sender.LocalPart : sender.Resource) ?? sender.ToString();
-                TriggerNotification(remote.ToString(), senderDisplayName, msg.Body, isEncrypted: false);
+                TriggerNotification(remote.ToString(), senderDisplayName, msg.Body, isEncrypted: false, accountJid: session.AccountJid);
             }
         });
     }
@@ -2791,7 +2846,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
 
                 var senderDisplayName = contact?.DisplayName ?? (sender.IsBare ? sender.LocalPart : sender.Resource) ?? sender.ToString();
-                TriggerNotification(remote.ToString(), senderDisplayName, msg.Body, isEncrypted: false);
+                TriggerNotification(remote.ToString(), senderDisplayName, msg.Body, isEncrypted: false, accountJid: session.AccountJid);
             }
         });
     }
@@ -2846,7 +2901,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             }
 
             var senderDisplayName = contact?.DisplayName ?? dec.SenderJid.LocalPart ?? dec.SenderJid.ToString();
-            TriggerNotification(remoteJid.ToString(), senderDisplayName, dec.PlaintextBody, isEncrypted: true);
+            TriggerNotification(remoteJid.ToString(), senderDisplayName, dec.PlaintextBody, isEncrypted: true, accountJid: session.AccountJid);
         });
     }
 
