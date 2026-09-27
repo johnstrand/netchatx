@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -110,7 +109,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvatar))]
-    private Bitmap? _avatar;
+    private object? _avatar;
 
     public bool HasAvatar => Avatar is not null;
 
@@ -205,7 +204,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
-    private Bitmap? _imageThumbnail;
+    private object? _imageThumbnail;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
@@ -712,7 +711,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         SettingsRepository? settingsRepo = null,
         IEnumerable<string>? quickEmojis = null,
         string? senderDisplayName = null,
-        Bitmap? avatar = null,
+        object? avatar = null,
         string? initials = null,
         IBrush? avatarBackgroundBrush = null)
     {
