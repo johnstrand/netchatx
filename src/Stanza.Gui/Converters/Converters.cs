@@ -121,3 +121,45 @@ public sealed class BoolToLockIconConverter : IValueConverter
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+public sealed class ConnectionStateToBrushConverter : IValueConverter
+{
+    public static readonly ConnectionStateToBrushConverter Instance = new();
+
+    private static readonly IBrush GreenBrush = new SolidColorBrush(Color.Parse("#10B981"));
+    private static readonly IBrush AmberBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
+    private static readonly IBrush RedBrush = new SolidColorBrush(Color.Parse("#F43F5E"));
+    private static readonly IBrush GrayBrush = new SolidColorBrush(Color.Parse("#64748B"));
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is Stanza.Gui.Services.AccountConnectionState state)
+        {
+            return state switch
+            {
+                Stanza.Gui.Services.AccountConnectionState.Connected => GreenBrush,
+                Stanza.Gui.Services.AccountConnectionState.Connecting or Stanza.Gui.Services.AccountConnectionState.Reconnecting => AmberBrush,
+                Stanza.Gui.Services.AccountConnectionState.Error => RedBrush,
+                _ => GrayBrush
+            };
+        }
+        return GrayBrush;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+public sealed class BoolToRailBackgroundConverter : IValueConverter
+{
+    public static readonly BoolToRailBackgroundConverter Instance = new();
+
+    private static readonly IBrush ActiveBrush = new SolidColorBrush(Color.Parse("#1E293B"));
+    private static readonly IBrush InactiveBrush = Brushes.Transparent;
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return value is true ? ActiveBrush : InactiveBrush;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}

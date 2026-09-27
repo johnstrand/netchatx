@@ -63,6 +63,8 @@ public sealed class AccountProfile
     public bool UseDirectTls { get; set; } = false;
     public bool AllowUntrustedCertificates { get; set; } = false;
     public bool IsActive { get; set; } = true;
+    public string? Label { get; set; }
+    public string? ColorHex { get; set; }
 }
 
 public sealed class AvatarRecord

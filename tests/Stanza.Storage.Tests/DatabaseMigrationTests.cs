@@ -29,8 +29,8 @@ public class DatabaseMigrationTests : IDisposable
         var currentVersion = _context.GetCurrentSchemaVersion();
         var appliedVersions = _context.GetAppliedMigrationVersions();
 
-        Assert.Equal(4, currentVersion);
-        Assert.Equal([1, 2, 3, 4], appliedVersions);
+        Assert.Equal(5, currentVersion);
+        Assert.Equal([1, 2, 3, 4, 5], appliedVersions);
     }
 
     [Fact]
@@ -43,11 +43,12 @@ public class DatabaseMigrationTests : IDisposable
         migrator.Migrate(connection);
 
         var appliedVersions = DatabaseMigrator.GetAppliedVersions(connection);
-        Assert.Equal(4, appliedVersions.Count);
+        Assert.Equal(5, appliedVersions.Count);
         Assert.Contains(1, appliedVersions);
         Assert.Contains(2, appliedVersions);
         Assert.Contains(3, appliedVersions);
         Assert.Contains(4, appliedVersions);
+        Assert.Contains(5, appliedVersions);
     }
 
     [Fact]
@@ -98,7 +99,7 @@ public class DatabaseMigrationTests : IDisposable
 
             // Now initialize via DatabaseContext
             using var legacyContext = new DatabaseContext(legacyDbPath);
-            Assert.Equal(4, legacyContext.GetCurrentSchemaVersion());
+            Assert.Equal(5, legacyContext.GetCurrentSchemaVersion());
 
             // Verify raw_xml column was added
             using var verifyConn = legacyContext.CreateConnection();
@@ -111,6 +112,18 @@ public class DatabaseMigrationTests : IDisposable
                 columns.Add(reader.GetString(1));
             }
             Assert.Contains("raw_xml", columns);
+
+            // Verify label and color_hex columns in accounts
+            using var checkAccCmd = verifyConn.CreateCommand();
+            checkAccCmd.CommandText = "PRAGMA table_info(accounts);";
+            using var accReader = checkAccCmd.ExecuteReader();
+            var accColumns = new List<string>();
+            while (accReader.Read())
+            {
+                accColumns.Add(accReader.GetString(1));
+            }
+            Assert.Contains("label", accColumns);
+            Assert.Contains("color_hex", accColumns);
         }
         finally
         {

@@ -227,5 +227,27 @@
   "Dialog_Security_Fingerprints_Title": "OMEMO-enhetsfingeravtryck",
   "Dialog_Security_Fingerprints_Subtitle": "Verifiera enhetsnycklar för att säkerställa att kommunikationen är krypterad mot avlyssning.",
   "Dialog_Security_Trust": "Växla tillit för fingeravtryck",
-  "Dialog_Security_About_Subtitle": "Decentraliserad, krypterad och modern XMPP-chattklient."
+  "Dialog_Security_About_Subtitle": "Decentraliserad, krypterad och modern XMPP-chattklient.",
+
+  "Accounts_Rail_AllAccounts": "Alla konton",
+  "Accounts_Rail_AddAccount": "Lägg till konto",
+  "Accounts_Dialog_Title": "Lägg till konto",
+  "Accounts_Dialog_Subtitle": "Anslut ytterligare ett XMPP-konto samtidigt.",
+  "Accounts_Dialog_Jid": "Jabber-ID (JID)",
+  "Accounts_Dialog_Password": "Lösenord",
+  "Accounts_Dialog_Label": "Kontoetikett (valfritt)",
+  "Accounts_Dialog_Label_Watermark": "t.ex. Arbete, Privat",
+  "Accounts_Dialog_Color": "Accentfärg",
+  "Accounts_Dialog_Add": "Lägg till konto",
+  "Settings_Tab_Accounts": "Konton",
+  "Settings_Accounts_Title": "Hanterade konton",
+  "Settings_Accounts_Subtitle": "Konfigurera flera samtidiga XMPP-konton.",
+  "Settings_Accounts_Add": "+ Lägg till konto",
+  "Settings_Accounts_Active": "Aktivt",
+  "Settings_Accounts_Remove": "Ta bort",
+  "Settings_Accounts_Connected": "Ansluten",
+  "Settings_Accounts_Connecting": "Ansluter...",
+  "Settings_Accounts_Disconnected": "Frånkopplad",
+  "Settings_Accounts_Error": "Fel",
+  "NewChat_Account": "Skicka från konto"
 }

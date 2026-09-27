@@ -36,7 +36,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Func<byte[], string, Task>? _onAvatarChanged;
     private readonly Func<Task>? _onAvatarRemoved;
     private readonly Func<Task>? _onAvatarSyncRequested;
+    private readonly AccountSessionManager? _sessionManager;
+    private readonly AccountRepository? _accountRepo;
+    private readonly Action? _onOpenAddAccountRequested;
     private bool _isInitializing;
+
+    public ObservableCollection<AccountProfileViewModel> ManagedAccounts { get; } = [];
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
     [
@@ -278,11 +283,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Func<byte[], string, Task>? onAvatarChanged = null,
         Func<Task>? onAvatarRemoved = null,
         Func<Task>? onAvatarSyncRequested = null,
-        Action<string>? onLanguageChanged = null)
+        Action<string>? onLanguageChanged = null,
+        AccountSessionManager? sessionManager = null,
+        AccountRepository? accountRepo = null,
+        Action? onOpenAddAccountRequested = null)
     {
         _settingsRepo = settingsRepo;
         _startupService = startupService ?? new StartupService();
         _accountJid = accountJid;
+        _sessionManager = sessionManager;
+        _accountRepo = accountRepo;
+        _onOpenAddAccountRequested = onOpenAddAccountRequested;
         _onBubbleMergeChanged = onBubbleMergeChanged;
         _onPopupsChanged = onPopupsChanged;
         _onFlashingChanged = onFlashingChanged;
@@ -301,6 +312,45 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onAvatarRemoved = onAvatarRemoved;
         _onAvatarSyncRequested = onAvatarSyncRequested;
         _onLanguageChanged = onLanguageChanged;
+    }
+
+    [RelayCommand]
+    public void OpenAddAccount()
+    {
+        _onOpenAddAccountRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    public async Task ToggleAccountActiveAsync(AccountProfileViewModel? accountVm)
+    {
+        if (accountVm is null || _sessionManager is null) return;
+        var newActive = !accountVm.IsActive;
+        accountVm.IsActive = newActive;
+        await _sessionManager.SetAccountActiveAsync(accountVm.Jid, newActive).ConfigureAwait(false);
+        accountVm.UpdateStatusFromSession();
+    }
+
+    [RelayCommand]
+    public async Task RemoveAccountAsync(AccountProfileViewModel? accountVm)
+    {
+        if (accountVm is null || _sessionManager is null) return;
+        await _sessionManager.RemoveAccountAsync(accountVm.Jid).ConfigureAwait(false);
+        ManagedAccounts.Remove(accountVm);
+    }
+
+    public async Task RefreshAccountsAsync()
+    {
+        if (_accountRepo is null) return;
+        var accounts = await _accountRepo.GetAccountsAsync().ConfigureAwait(false);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            ManagedAccounts.Clear();
+            foreach (var acc in accounts)
+            {
+                var session = _sessionManager?.GetSession(acc.Jid);
+                ManagedAccounts.Add(new AccountProfileViewModel(acc, session));
+            }
+        });
     }
 
     [RelayCommand]
@@ -954,6 +1004,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public void Open()
     {
         IsOpen = true;
+        _ = RefreshAccountsAsync();
         var osAutostart = _startupService.IsStartupEnabled();
         if (LaunchOnStartup != osAutostart)
         {

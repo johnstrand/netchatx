@@ -981,6 +981,35 @@ public class StorageTests : IDisposable
         Assert.True(fromList.AllowUntrustedCertificates);
     }
 
+    [Fact]
+    public async Task AccountRepository_SaveAndGetAccount_PersistsLabelAndColorHex()
+    {
+        var repo = new AccountRepository(_context);
+        var account = new AccountProfile
+        {
+            Jid = "work@example.com",
+            Password = "workpassword",
+            Resource = "Laptop",
+            Host = "xmpp.work.com",
+            Port = 5222,
+            IsActive = true,
+            Label = "Work",
+            ColorHex = "#3B82F6"
+        };
+
+        await repo.SaveAccountAsync(account);
+
+        var retrieved = await repo.GetAccountAsync("work@example.com");
+        Assert.NotNull(retrieved);
+        Assert.Equal("Work", retrieved.Label);
+        Assert.Equal("#3B82F6", retrieved.ColorHex);
+
+        var accounts = await repo.GetAccountsAsync();
+        var fromList = Assert.Single(accounts, a => a.Jid == "work@example.com");
+        Assert.Equal("Work", fromList.Label);
+        Assert.Equal("#3B82F6", fromList.ColorHex);
+    }
+
     public void Dispose()
     {
         _context.Dispose();

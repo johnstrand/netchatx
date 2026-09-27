@@ -227,5 +227,27 @@
   "Dialog_Security_Fingerprints_Title": "OMEMO Device Fingerprints",
   "Dialog_Security_Fingerprints_Subtitle": "Verify device identity keys to ensure communication is secure against eavesdropping.",
   "Dialog_Security_Trust": "Toggle Fingerprint Trust",
-  "Dialog_Security_About_Subtitle": "Decentralized, encrypted, modern XMPP chat client."
+  "Dialog_Security_About_Subtitle": "Decentralized, encrypted, modern XMPP chat client.",
+
+  "Accounts_Rail_AllAccounts": "All Accounts",
+  "Accounts_Rail_AddAccount": "Add Account",
+  "Accounts_Dialog_Title": "Add Account",
+  "Accounts_Dialog_Subtitle": "Connect an additional XMPP account to run simultaneously.",
+  "Accounts_Dialog_Jid": "Jabber ID (JID)",
+  "Accounts_Dialog_Password": "Password",
+  "Accounts_Dialog_Label": "Account Label (Optional)",
+  "Accounts_Dialog_Label_Watermark": "e.g. Work, Personal",
+  "Accounts_Dialog_Color": "Accent Color",
+  "Accounts_Dialog_Add": "Add Account",
+  "Settings_Tab_Accounts": "Accounts",
+  "Settings_Accounts_Title": "Managed Accounts",
+  "Settings_Accounts_Subtitle": "Configure multiple simultaneous XMPP accounts.",
+  "Settings_Accounts_Add": "+ Add Account",
+  "Settings_Accounts_Active": "Active",
+  "Settings_Accounts_Remove": "Remove",
+  "Settings_Accounts_Connected": "Connected",
+  "Settings_Accounts_Connecting": "Connecting...",
+  "Settings_Accounts_Disconnected": "Disconnected",
+  "Settings_Accounts_Error": "Error",
+  "NewChat_Account": "Send from Account"
 }

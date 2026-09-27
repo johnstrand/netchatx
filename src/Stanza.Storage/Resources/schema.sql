@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS accounts (
     port INTEGER NOT NULL DEFAULT 5222,
     use_direct_tls INTEGER NOT NULL DEFAULT 0,
     allow_untrusted_certificates INTEGER NOT NULL DEFAULT 0,
-    is_active INTEGER NOT NULL DEFAULT 1
+    is_active INTEGER NOT NULL DEFAULT 1,
+    label TEXT,
+    color_hex TEXT
 );
 
 CREATE TABLE IF NOT EXISTS messages (
