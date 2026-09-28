@@ -247,6 +247,21 @@ public sealed class Xep0077RegistrationTests
     }
 
     [Fact]
+    public async Task PreAuth_InBandRegistrationClient_RejectsInsecureServer()
+    {
+        var transport = new LoopbackTransport(isSecureOnConnect: false);
+        await using var server = new MockXmppServer(transport) { Domain = "mock.test" };
+        server.Start();
+
+        await using var client = new InBandRegistrationClient(transport);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync("mock.test"));
+
+        Assert.Contains("does not offer STARTTLS", exception.Message);
+        Assert.False(client.SupportsInBandRegistration);
+    }
+
+    [Fact]
     public async Task PreAuth_RegisterAccount_ConflictError_MockServer()
     {
         var transport = new LoopbackTransport();

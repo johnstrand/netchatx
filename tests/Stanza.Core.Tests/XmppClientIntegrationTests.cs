@@ -198,6 +198,24 @@ public class XmppClientIntegrationTests
     }
 
     [Fact]
+    public async Task ConnectAsync_WithoutTlsSupport_RejectsBeforeSaslAuthentication()
+    {
+        var transport = new LoopbackTransport(isSecureOnConnect: false);
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        await using var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
+
+        Assert.Contains("does not offer STARTTLS", exception.Message);
+    }
+
+    [Fact]
     public async Task RunReadLoopAsync_OnTransportError_TransitionsToDisconnectedState()
     {
         var transport = new LoopbackTransport();
