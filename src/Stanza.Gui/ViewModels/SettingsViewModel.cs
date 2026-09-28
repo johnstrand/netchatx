@@ -226,7 +226,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     // --- Profile & Avatar ---
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUserAvatar))]
-    private Avalonia.Media.Imaging.Bitmap? _userAvatar;
+    private object? _userAvatar;
 
     [ObservableProperty]
     private string? _userAvatarHash;
