@@ -82,23 +82,41 @@ public sealed class XmppClient : IAsyncDisposable
         _sessionCts?.Dispose();
         _sessionCts = new CancellationTokenSource();
         StreamFeatures = null;
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionCts.Token);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionCts.Token);
 
-        var host = _options.Host ?? _options.Jid.Domain;
-        await _transport.ConnectAsync(host, _options.Port, linkedCts.Token).ConfigureAwait(false);
-
-        State = XmppClientState.Connected;
-
-        if (_options.UseDirectTls && !_transport.IsSecure)
+        try
         {
-            await _transport.UpgradeToTlsAsync(host, linkedCts.Token).ConfigureAwait(false);
+            var host = _options.Host ?? _options.Jid.Domain;
+            await _transport.ConnectAsync(host, _options.Port, linkedCts.Token).ConfigureAwait(false);
+
+            State = XmppClientState.Connected;
+
+            if (_options.UseDirectTls && !_transport.IsSecure)
+            {
+                await _transport.UpgradeToTlsAsync(host, linkedCts.Token).ConfigureAwait(false);
+            }
+
+            // Initiate stream negotiation
+            await NegotiateStreamAsync(linkedCts.Token).ConfigureAwait(false);
+
+            // Start background reading pump
+            _readLoopTask = Task.Run(() => RunReadLoopAsync(_sessionCts.Token));
         }
+        catch
+        {
+            _sessionCts.Cancel();
+            try
+            {
+                await _transport.CloseAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                // Preserve the connection or negotiation failure.
+            }
 
-        // Initiate stream negotiation
-        await NegotiateStreamAsync(linkedCts.Token).ConfigureAwait(false);
-
-        // Start background reading pump
-        _readLoopTask = Task.Run(() => RunReadLoopAsync(_sessionCts.Token));
+            State = XmppClientState.Disconnected;
+            throw;
+        }
     }
 
     private async Task NegotiateStreamAsync(CancellationToken cancellationToken)
