@@ -116,31 +116,30 @@ public sealed class XmppClient : IAsyncDisposable
         if (!_transport.IsSecure)
         {
             var startTls = features.Element("starttls", "urn:ietf:params:xml:ns:xmpp-tls");
-            if (startTls is not null)
-            {
-                State = XmppClientState.StartingTls;
-                var startTlsElem = new XmppElement("starttls", "urn:ietf:params:xml:ns:xmpp-tls");
-                await SendElementRawAsync(startTlsElem, cancellationToken).ConfigureAwait(false);
+            if (startTls is null)
+                throw new InvalidOperationException("The server does not offer STARTTLS; refusing to authenticate over an insecure connection.");
 
-                var response = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
-                if (response.Name == "proceed")
-                {
-                    var targetHost = _options.Host ?? _options.Jid.Domain;
-                    await _transport.UpgradeToTlsAsync(targetHost, cancellationToken).ConfigureAwait(false);
+            State = XmppClientState.StartingTls;
+            var startTlsElem = new XmppElement("starttls", "urn:ietf:params:xml:ns:xmpp-tls");
+            await SendElementRawAsync(startTlsElem, cancellationToken).ConfigureAwait(false);
 
-                    // Re-open stream over TLS
-                    _parser.Reset();
-                    await SendStreamHeaderAsync(cancellationToken).ConfigureAwait(false);
-                    _ = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false); // stream header
-                    features = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
-                    StreamFeatures = features;
-                }
-                else
-                {
-                    throw new InvalidOperationException($"StartTLS failed: {response.ToXmlString()}");
-                }
-            }
+            var response = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
+            if (response.Name != "proceed")
+                throw new InvalidOperationException($"StartTLS failed: {response.ToXmlString()}");
+
+            var targetHost = _options.Host ?? _options.Jid.Domain;
+            await _transport.UpgradeToTlsAsync(targetHost, cancellationToken).ConfigureAwait(false);
+
+            // Re-open stream over TLS
+            _parser.Reset();
+            await SendStreamHeaderAsync(cancellationToken).ConfigureAwait(false);
+            _ = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false); // stream header
+            features = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
+            StreamFeatures = features;
         }
+
+        if (!_transport.IsSecure)
+            throw new InvalidOperationException("TLS is required before XMPP credentials can be sent.");
 
         // Step 3: SASL Authentication
         State = XmppClientState.Authenticating;

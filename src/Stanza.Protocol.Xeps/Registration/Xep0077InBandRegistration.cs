@@ -408,22 +408,25 @@ public sealed class InBandRegistrationClient : IAsyncDisposable
         if (!_transport.IsSecure)
         {
             var startTls = features.Element("starttls", Xep0077InBandRegistration.NsTls);
-            if (startTls is not null)
-            {
-                var startTlsElem = new XmppElement("starttls", Xep0077InBandRegistration.NsTls);
-                await SendElementRawAsync(startTlsElem, ct).ConfigureAwait(false);
-                var proceed = await _parser.ReadElementAsync(_transport.Input, ct).ConfigureAwait(false);
-                if (proceed.Name == "proceed")
-                {
-                    await _transport.UpgradeToTlsAsync(targetHost, ct).ConfigureAwait(false);
-                    _parser.Reset();
-                    await SendStreamHeaderAsync(domain, ct).ConfigureAwait(false);
-                    _ = await _parser.ReadElementAsync(_transport.Input, ct).ConfigureAwait(false); // stream header
-                    features = await _parser.ReadElementAsync(_transport.Input, ct).ConfigureAwait(false); // features
-                    StreamFeatures = features;
-                }
-            }
+            if (startTls is null)
+                throw new InvalidOperationException("The server does not offer STARTTLS; refusing registration over an insecure connection.");
+
+            var startTlsElem = new XmppElement("starttls", Xep0077InBandRegistration.NsTls);
+            await SendElementRawAsync(startTlsElem, ct).ConfigureAwait(false);
+            var proceed = await _parser.ReadElementAsync(_transport.Input, ct).ConfigureAwait(false);
+            if (proceed.Name != "proceed")
+                throw new InvalidOperationException($"StartTLS failed: {proceed.ToXmlString()}");
+
+            await _transport.UpgradeToTlsAsync(targetHost, ct).ConfigureAwait(false);
+            _parser.Reset();
+            await SendStreamHeaderAsync(domain, ct).ConfigureAwait(false);
+            _ = await _parser.ReadElementAsync(_transport.Input, ct).ConfigureAwait(false); // stream header
+            features = await _parser.ReadElementAsync(_transport.Input, ct).ConfigureAwait(false); // features
+            StreamFeatures = features;
         }
+
+        if (!_transport.IsSecure)
+            throw new InvalidOperationException("TLS is required before XMPP registration can continue.");
 
         if (StreamFeatures?.Element("register", Xep0077InBandRegistration.FeatureRegister) is not null)
         {
