@@ -9,6 +9,7 @@ public sealed class LoopbackTransport : IXmppTransport
 {
     private readonly Pipe _clientToServerPipe;
     private readonly Pipe _serverToClientPipe;
+    private readonly bool _isSecureOnConnect;
 
     public PipeReader Input => _serverToClientPipe.Reader;
     public PipeWriter Output => _clientToServerPipe.Writer;
@@ -17,14 +18,20 @@ public sealed class LoopbackTransport : IXmppTransport
     public PipeReader ServerInput => _clientToServerPipe.Reader;
     public PipeWriter ServerOutput => _serverToClientPipe.Writer;
 
-    public LoopbackTransport()
+    /// <param name="isSecureOnConnect">
+    /// Whether the in-memory channel should be treated as secure after connecting. This defaults to true
+    /// because the loopback channel never crosses an untrusted network. Set false to test plaintext flows.
+    /// </param>
+    public LoopbackTransport(bool isSecureOnConnect = true)
     {
+        _isSecureOnConnect = isSecureOnConnect;
         _clientToServerPipe = new Pipe();
         _serverToClientPipe = new Pipe();
     }
 
     public ValueTask ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
+        IsSecure = _isSecureOnConnect;
         return ValueTask.CompletedTask;
     }
 
