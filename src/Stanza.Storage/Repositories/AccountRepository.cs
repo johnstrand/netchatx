@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Stanza.Storage.Models;
+using Stanza.Storage.Security;
 
 namespace Stanza.Storage.Repositories;
 
@@ -33,7 +34,7 @@ public sealed class AccountRepository
         """;
 
         cmd.Parameters.AddWithValue("$jid", account.Jid);
-        cmd.Parameters.AddWithValue("$password", account.Password);
+        cmd.Parameters.AddWithValue("$password", SecretProtection.ProtectText(account.Password, _context.SecretProtector));
         cmd.Parameters.AddWithValue("$resource", account.Resource);
         cmd.Parameters.AddWithValue("$host", (object?)account.Host ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$port", account.Port);
@@ -60,7 +61,7 @@ public sealed class AccountRepository
             list.Add(new AccountProfile
             {
                 Jid = reader.GetString(0),
-                Password = reader.GetString(1),
+                Password = SecretProtection.UnprotectText(reader.GetString(1), _context.SecretProtector),
                 Resource = reader.GetString(2),
                 Host = reader.IsDBNull(3) ? null : reader.GetString(3),
                 Port = reader.GetInt32(4),
@@ -89,7 +90,7 @@ public sealed class AccountRepository
             return new AccountProfile
             {
                 Jid = reader.GetString(0),
-                Password = reader.GetString(1),
+                Password = SecretProtection.UnprotectText(reader.GetString(1), _context.SecretProtector),
                 Resource = reader.GetString(2),
                 Host = reader.IsDBNull(3) ? null : reader.GetString(3),
                 Port = reader.GetInt32(4),

@@ -14,7 +14,7 @@ public class StorageTests : IDisposable
     {
         _output = output;
         _dbPath = $"test_{Guid.NewGuid():N}.db";
-        _context = new DatabaseContext(_dbPath);
+        _context = new DatabaseContext(_dbPath, TestSecretProtector.Instance);
     }
 
     [Fact]

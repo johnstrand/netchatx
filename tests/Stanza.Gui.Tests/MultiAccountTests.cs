@@ -23,7 +23,7 @@ public class MultiAccountTests : IDisposable
     public MultiAccountTests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"stanza_multiacc_test_{Guid.NewGuid():N}.db");
-        _dbContext = new DatabaseContext(_dbPath);
+        _dbContext = new DatabaseContext(_dbPath, TestSecretProtector.Instance);
         _accountRepo = new AccountRepository(_dbContext);
     }
 
