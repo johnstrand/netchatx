@@ -1,23 +1,17 @@
 using Microsoft.Data.Sqlite;
+using Stanza.Storage.Security;
 
 namespace Stanza.Storage.Migrations;
 
 public sealed class DatabaseMigrator
 {
-    public static readonly IReadOnlyList<IDatabaseMigration> DefaultMigrations =
-    [
-        new Migration001_InitialSchema(),
-        new Migration002_AddRawXmlColumn(),
-        new Migration003_AddAllowUntrustedCertificatesColumn(),
-        new Migration004_DeduplicateMessages(),
-        new Migration005_AddAccountLabelAndColorHexColumns()
-    ];
+    public static IReadOnlyList<IDatabaseMigration> DefaultMigrations { get; } = CreateDefaultMigrations(new OsSecretProtector());
 
     private readonly IReadOnlyList<IDatabaseMigration> _migrations;
 
-    public DatabaseMigrator(IEnumerable<IDatabaseMigration>? migrations = null)
+    public DatabaseMigrator(IEnumerable<IDatabaseMigration>? migrations = null, ISecretProtector? secretProtector = null)
     {
-        _migrations = (migrations ?? DefaultMigrations)
+        _migrations = (migrations ?? CreateDefaultMigrations(secretProtector ?? new OsSecretProtector()))
             .OrderBy(m => m.Version)
             .ToList();
     }
@@ -44,6 +38,7 @@ public sealed class DatabaseMigrator
 
         var appliedVersions = GetAppliedVersions(connection);
 
+        var protectedSecretsMigrated = false;
         foreach (var migration in _migrations)
         {
             if (appliedVersions.Contains(migration.Version))
@@ -55,6 +50,7 @@ public sealed class DatabaseMigrator
             try
             {
                 migration.Apply(connection, transaction);
+                protectedSecretsMigrated |= migration is Migration006_ProtectSecrets;
 
                 using var recordCmd = connection.CreateCommand();
                 recordCmd.Transaction = transaction;
@@ -75,7 +71,32 @@ public sealed class DatabaseMigrator
                 throw;
             }
         }
+
+        if (protectedSecretsMigrated)
+        {
+            using var checkpointCmd = connection.CreateCommand();
+            checkpointCmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            checkpointCmd.ExecuteNonQuery();
+
+            using var vacuumCmd = connection.CreateCommand();
+            vacuumCmd.CommandText = "VACUUM;";
+            vacuumCmd.ExecuteNonQuery();
+
+            using var finalCheckpointCmd = connection.CreateCommand();
+            finalCheckpointCmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            finalCheckpointCmd.ExecuteNonQuery();
+        }
     }
+
+    private static IReadOnlyList<IDatabaseMigration> CreateDefaultMigrations(ISecretProtector secretProtector) =>
+    [
+        new Migration001_InitialSchema(),
+        new Migration002_AddRawXmlColumn(),
+        new Migration003_AddAllowUntrustedCertificatesColumn(),
+        new Migration004_DeduplicateMessages(),
+        new Migration005_AddAccountLabelAndColorHexColumns(),
+        new Migration006_ProtectSecrets(secretProtector)
+    ];
 
     public static HashSet<int> GetAppliedVersions(SqliteConnection connection)
     {
