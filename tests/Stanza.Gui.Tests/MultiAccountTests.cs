@@ -5,8 +5,11 @@ using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Stanza.Core;
 using Stanza.Core.Client;
+using Stanza.Core.Transport;
 using Stanza.Gui.Services;
 using Stanza.Gui.ViewModels;
+using Stanza.MockServer;
+using Stanza.Protocol.Xeps.Registration;
 using Stanza.Storage;
 using Stanza.Storage.Models;
 using Stanza.Storage.Repositories;
@@ -140,6 +143,70 @@ public class MultiAccountTests : IDisposable
 
         var dbAccounts = await _accountRepo.GetAccountsAsync();
         Assert.DoesNotContain(dbAccounts, a => a.Jid == "work@example.com");
+    }
+
+    [Fact]
+    public async Task AccountSessionManager_ChangePassword_PersistsOnlyAfterServerSuccess()
+    {
+        var transport = new LoopbackTransport();
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        var profile = new AccountProfile
+        {
+            Jid = "alice@mock.example.com",
+            Password = "old-password",
+            IsActive = true
+        };
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(profile.Jid),
+            Password = profile.Password
+        }, transport);
+        var manager = new AccountSessionManager(_dbContext, _accountRepo);
+        var session = await manager.AddAccountAsync(profile, client, autoConnect: false);
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ChangePasswordAsync(profile.Jid, "new-password"));
+            Assert.Equal("old-password", (await _accountRepo.GetAccountAsync(profile.Jid))?.Password);
+
+            Assert.True(await session.ConnectAsync());
+            var settings = new SettingsViewModel(
+                new SettingsRepository(_dbContext),
+                profile.Jid,
+                sessionManager: manager,
+                accountRepo: _accountRepo);
+            settings.OpenChangePasswordDialog(new AccountProfileViewModel(profile, session));
+            settings.NewAccountPassword = "new-password";
+            settings.ConfirmAccountPassword = "different-password";
+            await settings.ChangeAccountPasswordAsync();
+
+            Assert.True(settings.IsAccountPasswordStatusError);
+            Assert.Equal("old-password", (await _accountRepo.GetAccountAsync(profile.Jid))?.Password);
+
+            settings.ConfirmAccountPassword = "new-password";
+            string? serverAcceptedPassword = null;
+            server.OnIqReceived += iq =>
+            {
+                if (iq.RawElement.Element("query", Xep0077InBandRegistration.NsRegister) is { } query)
+                {
+                    serverAcceptedPassword = query.Element("password")?.Value;
+                }
+            };
+
+            await settings.ChangeAccountPasswordAsync();
+
+            Assert.False(settings.IsAccountPasswordStatusError);
+            Assert.Equal("new-password", serverAcceptedPassword);
+            Assert.Equal("new-password", (await _accountRepo.GetAccountAsync(profile.Jid))?.Password);
+            Assert.Equal("new-password", session.Profile.Password);
+            Assert.Equal("new-password", client.Options.Password);
+        }
+        finally
+        {
+            await manager.DisposeAsync();
+        }
     }
 
     [Fact]
