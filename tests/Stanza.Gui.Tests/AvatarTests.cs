@@ -333,7 +333,8 @@ public class AvatarTests : IDisposable
     {
         var view = new Stanza.Gui.Views.SettingsView();
         Assert.NotNull(view);
-        var border = Assert.IsType<Avalonia.Controls.Border>(view.Content);
+        var root = Assert.IsType<Avalonia.Controls.Grid>(view.Content);
+        var border = Assert.IsType<Avalonia.Controls.Border>(root.Children[0]);
         Assert.Equal(560.0, border.Width);
         Assert.Equal(580.0, border.Height);
 

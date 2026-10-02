@@ -1,3 +1,5 @@
+using System.IO.Pipelines;
+using System.Text;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Transport;
@@ -9,6 +11,125 @@ namespace Stanza.Core.Tests;
 
 public class XmppClientIntegrationTests
 {
+    private sealed class ReconnectableLoopbackTransport(
+        Func<LoopbackTransport, int, Task> onConnect,
+        int failedConnectAttempts = 0) : IXmppTransport
+    {
+        private LoopbackTransport _current = new();
+        private int _connectAttempts;
+
+        public PipeReader Input => _current.Input;
+        public PipeWriter Output => _current.Output;
+        public bool IsSecure => _current.IsSecure;
+
+        public async ValueTask ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+        {
+            var attempt = Interlocked.Increment(ref _connectAttempts);
+            _current = new LoopbackTransport();
+
+            if (attempt <= failedConnectAttempts)
+            {
+                throw new IOException("Simulated connection failure.");
+            }
+
+            await _current.ConnectAsync(host, port, cancellationToken);
+            await onConnect(_current, attempt);
+        }
+
+        public ValueTask UpgradeToTlsAsync(string targetHost, CancellationToken cancellationToken = default)
+            => _current.UpgradeToTlsAsync(targetHost, cancellationToken);
+
+        public ValueTask CloseAsync() => _current.CloseAsync();
+
+        public ValueTask DisposeAsync() => _current.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WhenTransportConnectionFails_CanRetryWithSameClient()
+    {
+        var servers = new List<MockXmppServer>();
+        var transport = new ReconnectableLoopbackTransport((loopback, _) =>
+        {
+            var server = new MockXmppServer(loopback);
+            servers.Add(server);
+            server.Start();
+            return Task.CompletedTask;
+        }, failedConnectAttempts: 1);
+        await using var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => client.ConnectAsync());
+            Assert.Equal(XmppClientState.Disconnected, client.State);
+
+            await client.ConnectAsync();
+
+            Assert.Equal(XmppClientState.Ready, client.State);
+        }
+        finally
+        {
+            await client.DisconnectAsync();
+            foreach (var server in servers)
+            {
+                await server.DisposeAsync();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WhenStreamNegotiationFails_CanRetryWithSameClient()
+    {
+        var servers = new List<MockXmppServer>();
+        var transport = new ReconnectableLoopbackTransport(async (loopback, attempt) =>
+        {
+            if (attempt == 1)
+            {
+                _ = Task.Run(async () =>
+                {
+                    var parser = new XmppStreamParser();
+                    _ = await parser.ReadElementAsync(loopback.ServerInput);
+                    var invalidFeatures = "<stream:stream from='mock.example.com' id='s-1' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features/>";
+                    await loopback.ServerOutput.WriteAsync(Encoding.UTF8.GetBytes(invalidFeatures));
+                    await loopback.ServerOutput.FlushAsync();
+                });
+                return;
+            }
+
+            var server = new MockXmppServer(loopback);
+            servers.Add(server);
+            server.Start();
+            await Task.CompletedTask;
+        });
+        await using var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        try
+        {
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
+            Assert.Contains("No SASL mechanisms offered", exception.Message);
+            Assert.Equal(XmppClientState.Disconnected, client.State);
+
+            await client.ConnectAsync();
+
+            Assert.Equal(XmppClientState.Ready, client.State);
+        }
+        finally
+        {
+            await client.DisconnectAsync();
+            foreach (var server in servers)
+            {
+                await server.DisposeAsync();
+            }
+        }
+    }
+
     [Fact]
     public async Task ConnectAndExchangeMessages_ViaLoopback_Succeeds()
     {
@@ -74,6 +195,24 @@ public class XmppClientIntegrationTests
 
         Assert.True(pingResult.IsResult);
         Assert.Equal(pingIq.Id, pingResult.Id);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WithoutTlsSupport_RejectsBeforeSaslAuthentication()
+    {
+        var transport = new LoopbackTransport(isSecureOnConnect: false);
+        await using var server = new MockXmppServer(transport);
+        server.Start();
+
+        await using var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("alice@mock.example.com"),
+            Password = "password123"
+        }, transport);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
+
+        Assert.Contains("does not offer STARTTLS", exception.Message);
     }
 
     [Fact]

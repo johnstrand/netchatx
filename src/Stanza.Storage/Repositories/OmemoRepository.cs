@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Stanza.Storage.Security;
 
 namespace Stanza.Storage.Repositories;
 
@@ -44,7 +45,7 @@ public sealed class OmemoRepository
 
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$device_id", deviceId);
-        cmd.Parameters.AddWithValue("$private", privateKey);
+        cmd.Parameters.AddWithValue("$private", SecretProtection.ProtectText(privateKey, _context.SecretProtector));
         cmd.Parameters.AddWithValue("$public", publicKey);
 
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -61,7 +62,10 @@ public sealed class OmemoRepository
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            return (reader.GetInt32(0), reader.GetString(1), reader.GetString(2));
+            return (
+                reader.GetInt32(0),
+                SecretProtection.UnprotectText(reader.GetString(1), _context.SecretProtector),
+                reader.GetString(2));
         }
 
         return null;
@@ -84,7 +88,7 @@ public sealed class OmemoRepository
         cmd.Parameters.AddWithValue("$account_jid", session.AccountJid);
         cmd.Parameters.AddWithValue("$remote_jid", session.RemoteJid);
         cmd.Parameters.AddWithValue("$device_id", session.DeviceId);
-        cmd.Parameters.AddWithValue("$session_data", session.SessionData);
+        cmd.Parameters.AddWithValue("$session_data", SecretProtection.ProtectBytes(session.SessionData, _context.SecretProtector));
         cmd.Parameters.AddWithValue("$last_active", session.LastActive.ToString("O"));
         cmd.Parameters.AddWithValue("$trust_state", (int)session.TrustState);
 
@@ -114,7 +118,7 @@ public sealed class OmemoRepository
                 AccountJid = accountJid,
                 RemoteJid = remoteJid,
                 DeviceId = deviceId,
-                SessionData = (byte[])reader[0],
+                SessionData = SecretProtection.UnprotectBytes((byte[])reader[0], _context.SecretProtector),
                 LastActive = DateTimeOffset.Parse(reader.GetString(1)),
                 TrustState = (OmemoTrustState)reader.GetInt32(2)
             };
@@ -146,7 +150,7 @@ public sealed class OmemoRepository
                 AccountJid = accountJid,
                 RemoteJid = remoteJid,
                 DeviceId = reader.GetInt32(0),
-                SessionData = (byte[])reader[1],
+                SessionData = SecretProtection.UnprotectBytes((byte[])reader[1], _context.SecretProtector),
                 LastActive = DateTimeOffset.Parse(reader.GetString(2)),
                 TrustState = (OmemoTrustState)reader.GetInt32(3)
             });

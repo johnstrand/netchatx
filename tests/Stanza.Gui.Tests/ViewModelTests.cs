@@ -29,7 +29,7 @@ public class ViewModelTests : IDisposable
     public ViewModelTests()
     {
         _dbPath = $"testgui_{Guid.NewGuid():N}.db";
-        _dbContext = new DatabaseContext(_dbPath);
+        _dbContext = new DatabaseContext(_dbPath, TestSecretProtector.Instance);
         _messageRepo = new MessageRepository(_dbContext);
         _accountRepo = new AccountRepository(_dbContext);
         _omemoRepo = new OmemoRepository(_dbContext);

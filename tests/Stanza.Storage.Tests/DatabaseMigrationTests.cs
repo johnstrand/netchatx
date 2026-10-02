@@ -29,8 +29,8 @@ public class DatabaseMigrationTests : IDisposable
         var currentVersion = _context.GetCurrentSchemaVersion();
         var appliedVersions = _context.GetAppliedMigrationVersions();
 
-        Assert.Equal(5, currentVersion);
-        Assert.Equal([1, 2, 3, 4, 5], appliedVersions);
+        Assert.Equal(6, currentVersion);
+        Assert.Equal([1, 2, 3, 4, 5, 6], appliedVersions);
     }
 
     [Fact]
@@ -43,12 +43,13 @@ public class DatabaseMigrationTests : IDisposable
         migrator.Migrate(connection);
 
         var appliedVersions = DatabaseMigrator.GetAppliedVersions(connection);
-        Assert.Equal(5, appliedVersions.Count);
+        Assert.Equal(6, appliedVersions.Count);
         Assert.Contains(1, appliedVersions);
         Assert.Contains(2, appliedVersions);
         Assert.Contains(3, appliedVersions);
         Assert.Contains(4, appliedVersions);
         Assert.Contains(5, appliedVersions);
+        Assert.Contains(6, appliedVersions);
     }
 
     [Fact]
@@ -98,8 +99,8 @@ public class DatabaseMigrationTests : IDisposable
             }
 
             // Now initialize via DatabaseContext
-            using var legacyContext = new DatabaseContext(legacyDbPath);
-            Assert.Equal(5, legacyContext.GetCurrentSchemaVersion());
+            using var legacyContext = new DatabaseContext(legacyDbPath, TestSecretProtector.Instance);
+            Assert.Equal(6, legacyContext.GetCurrentSchemaVersion());
 
             // Verify raw_xml column was added
             using var verifyConn = legacyContext.CreateConnection();
