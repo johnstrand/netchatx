@@ -131,6 +131,18 @@ public sealed class SettingsRepository
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public Task<string?> GetMamArchiveCursorAsync(string accountJid, string remoteJid, CancellationToken cancellationToken = default)
+        => GetSettingAsync(accountJid, GetMamArchiveCursorKey(remoteJid), cancellationToken);
+
+    public Task SetMamArchiveCursorAsync(string accountJid, string remoteJid, string archiveId, CancellationToken cancellationToken = default)
+        => SetSettingAsync(accountJid, GetMamArchiveCursorKey(remoteJid), archiveId, cancellationToken);
+
+    private static string GetMamArchiveCursorKey(string remoteJid)
+    {
+        var normalized = remoteJid.Trim().ToLowerInvariant();
+        return $"mam_archive_cursor::{normalized}";
+    }
+
     public async Task<List<string>> GetQuickEmojisAsync(string accountJid, CancellationToken cancellationToken = default)
     {
         var json = await GetSettingAsync(accountJid, KeyQuickEmojis, cancellationToken).ConfigureAwait(false);

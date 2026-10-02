@@ -3,7 +3,7 @@ namespace Stanza.Core.Client;
 public sealed class XmppClientOptions
 {
     public required Jid Jid { get; init; }
-    public required string Password { get; init; }
+    public required string Password { get; set; }
     public string? Host { get; init; }
     public int Port { get; init; } = 5222;
     public bool UseDirectTls { get; init; } = false;

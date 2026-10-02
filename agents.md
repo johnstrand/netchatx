@@ -13,12 +13,15 @@ To keep the primary repository tree pristine and avoid interference across paral
 Before starting work on a feature, bugfix, or refactor, verify if the `.worktree` directory exists at the root of the repository. If it does not exist, create it:
 
 - **PowerShell**:
+
   ```powershell
   if (!(Test-Path -Path ".worktree")) {
       New-Item -ItemType Directory -Path ".worktree" | Out-Null
   }
   ```
+
 - **Bash**:
+
   ```bash
   mkdir -p .worktree
   ```
@@ -30,10 +33,13 @@ _(Note: `.worktree/` is ignored by Git in `.gitignore`.)_
 Always create an isolated branch and worktree under `.worktree/<branch-name>`:
 
 - **New branch from current `HEAD` (or `main`)**:
+
   ```bash
   git worktree add .worktree/<branch-name> -b <branch-name>
   ```
+
 - **Existing branch**:
+
   ```bash
   git worktree add .worktree/<branch-name> <branch-name>
   ```
@@ -48,6 +54,8 @@ cd .worktree/<branch-name>
 
 Perform all code modifications, builds, tests, and Git operations (stage, commit, push) **exclusively within that directory**.
 
+Create atomic commits for each logical change, and ensure all tests pass before committing.
+
 ### 1.4 Before committing
 
 Ensure that all changes are tested and verified. Ensure that `dotnet format` is run to maintain code style consistency. Run the test suite to confirm that no regressions are introduced.
@@ -59,14 +67,19 @@ When your task is complete, committed, and ready:
 1. Push your branch and open a Pull Request (PR) on GitHub. **Pull Requests via GitHub are mandatory for merging code into `main`**; direct pushes or merges to `main` are strictly prohibited.
 2. Once the PR is merged, navigate back to the repository root.
 3. Remove the worktree when it is no longer needed:
+
    ```bash
    git worktree remove .worktree/<branch-name>
    ```
+
 4. Prune dead worktree references if necessary:
+
    ```bash
    git worktree prune
    ```
+
 5. Or run the workspace cleanup script to automatically remove worktrees whose remote branch was deleted:
+
    ```powershell
    pwsh ./scripts/cleanup-workspaces.ps1
    ```
@@ -111,15 +124,18 @@ dotnet build Stanza.slnx
 dotnet test Stanza.slnx
 ```
 
-_(Tests utilize `Stanza.MockServer`, an in-memory loopback server, requiring no external network dependencies.)_
+*(Tests utilize `Stanza.MockServer`, an in-memory loopback server, requiring no external network dependencies.)*
 
 ### 3.3 Run Code Coverage (Optional / Verification)
 
 - **PowerShell**:
+
   ```powershell
   pwsh ./scripts/coverage.ps1
   ```
+
 - **Bash**:
+
   ```bash
   ./scripts/coverage.sh
   ```

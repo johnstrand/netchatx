@@ -34,6 +34,8 @@ public sealed partial class AccountProfileViewModel : ObservableObject
 
     public string DisplayName => !string.IsNullOrWhiteSpace(Label) ? Label : Jid;
 
+    public bool CanChangePassword => Session?.ConnectionState == AccountConnectionState.Connected;
+
     public string Initials => AvatarHelper.GetInitials(DisplayName);
 
     public IBrush AvatarBackgroundBrush => AvatarHelper.GetAvatarColorBrush(DisplayName);
@@ -75,6 +77,8 @@ public sealed partial class AccountProfileViewModel : ObservableObject
 
     public void UpdateStatusFromSession()
     {
+        OnPropertyChanged(nameof(CanChangePassword));
+
         if (!IsActive)
         {
             StatusDisplay = LocalizationManager.Instance.GetString("Settings_Accounts_Disconnected");

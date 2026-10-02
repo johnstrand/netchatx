@@ -15,6 +15,7 @@
         </Style>
     </UserControl.Styles>
 
+    <Grid>
     <Border HorizontalAlignment="Center" VerticalAlignment="Center"
             Width="560" Height="580" Padding="18" CornerRadius="16"
             Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1"
@@ -1053,7 +1054,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:AccountProfileViewModel}">
                                                 <Border Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
-                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                     <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                                                         <!-- Avatar / Initials with color indicator -->
                                                         <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
                                                                 Background="{Binding AvatarBackgroundBrush}"
@@ -1085,9 +1086,18 @@
                                                         </StackPanel>
 
                                                         <!-- Remove Button -->
-                                                        <Button Grid.Column="3" Content="🗑"
-                                                                Command="{Binding ((vm:SettingsViewModel)DataContext).RemoveAccountCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                CommandParameter="{Binding}"
+                                                         <Button Grid.Column="3" Content="🔑"
+                                                                 Command="{Binding ((vm:SettingsViewModel)DataContext).OpenChangePasswordDialogCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                 CommandParameter="{Binding}"
+                                                                 IsEnabled="{Binding CanChangePassword}"
+                                                                 Classes="icon-btn subtle"
+                                                                 ToolTip.Tip="{DynamicResource Settings_Accounts_ChangePassword}"
+                                                                 VerticalAlignment="Center"
+                                                                 AutomationProperties.Name="Change account password" />
+
+                                                         <Button Grid.Column="4" Content="🗑"
+                                                                 Command="{Binding ((vm:SettingsViewModel)DataContext).RemoveAccountCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                 CommandParameter="{Binding}"
                                                                 Classes="icon-btn subtle"
                                                                 Foreground="#F43F5E"
                                                                 ToolTip.Tip="{DynamicResource Settings_Accounts_Remove}"
@@ -1193,4 +1203,51 @@
             </Grid>
         </Grid>
     </Border>
+
+    <!-- Change account password dialog -->
+    <Border Background="#B9000000"
+            IsVisible="{Binding IsChangePasswordDialogOpen}"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <Border Width="400" Padding="22" CornerRadius="14"
+                Background="#0F172A" BorderBrush="#334155" BorderThickness="1"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="{DynamicResource Settings_Accounts_PasswordChange_Title}"
+                               Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" />
+                    <TextBlock Text="{Binding PasswordChangeAccount.Jid}"
+                               Foreground="#64748B" FontSize="11" />
+                </StackPanel>
+
+                <TextBox Text="{Binding NewAccountPassword, Mode=TwoWay}"
+                         PasswordChar="●"
+                         Watermark="{DynamicResource Settings_Accounts_PasswordChange_New}"
+                         IsEnabled="{Binding !IsChangingAccountPassword}"
+                         AutomationProperties.Name="New account password" />
+                <TextBox Text="{Binding ConfirmAccountPassword, Mode=TwoWay}"
+                         PasswordChar="●"
+                         Watermark="{DynamicResource Settings_Accounts_PasswordChange_Confirm}"
+                         IsEnabled="{Binding !IsChangingAccountPassword}"
+                         AutomationProperties.Name="Confirm new account password" />
+
+                <TextBlock Text="{Binding AccountPasswordStatusMessage}"
+                           Foreground="{Binding AccountPasswordStatusBrush}" FontSize="11" TextWrapping="Wrap"
+                           IsVisible="{Binding HasAccountPasswordStatusMessage}" />
+
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4,0,0">
+                    <Button Grid.Column="1" Content="{DynamicResource Common_Cancel}"
+                            Command="{Binding CloseChangePasswordDialogCommand}"
+                            IsEnabled="{Binding !IsChangingAccountPassword}"
+                            Background="#1E293B" Foreground="#94A3B8"
+                            BorderBrush="#334155" BorderThickness="1"
+                            CornerRadius="8" Padding="14,6" Margin="0,0,8,0" />
+                    <Button Grid.Column="2" Content="{DynamicResource Settings_Accounts_PasswordChange_Submit}"
+                            Command="{Binding ChangeAccountPasswordCommand}"
+                            IsEnabled="{Binding !IsChangingAccountPassword}"
+                            Classes="accent" Padding="14,6" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Border>
+    </Grid>
 </UserControl>
