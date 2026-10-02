@@ -1,4 +1,5 @@
-﻿using System.IO;
+using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using Stanza.Core;
@@ -20,10 +21,26 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
 {
     public const string NsHttpUpload = "urn:xmpp:http:upload:0";
 
+    public static readonly IReadOnlyList<TimeSpan> DefaultRetryDelays =
+    [
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromMilliseconds(1000),
+        TimeSpan.FromMilliseconds(2000),
+    ];
+
     public override string Name => "XEP-0363: HTTP File Upload";
     public override string FeatureUri => NsHttpUpload;
 
-    private readonly HttpClient _httpClient = new();
+    public IReadOnlyList<TimeSpan> RetryDelays => _retryDelays;
+
+    private readonly HttpClient _httpClient;
+    private readonly IReadOnlyList<TimeSpan> _retryDelays;
+
+    public Xep0363HttpFileUpload(HttpClient? httpClient = null, IReadOnlyList<TimeSpan>? retryDelays = null)
+    {
+        _httpClient = httpClient ?? new HttpClient();
+        _retryDelays = retryDelays ?? DefaultRetryDelays;
+    }
 
     public async Task<HttpUploadSlot> RequestSlotAsync(
         Jid uploadServiceJid,
@@ -42,7 +59,7 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
 
         iq.RawElement.Child(req);
 
-        var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct);
+        var resultIq = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
         if (resultIq.IsError)
         {
             throw new InvalidOperationException($"Failed to request upload slot: {resultIq.ToXmlString()}");
@@ -99,28 +116,26 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
             throw new FileNotFoundException("File to upload not found.", filePath);
 
         contentType ??= "application/octet-stream";
-        var slot = await RequestSlotAsync(uploadServiceJid, fileInfo.Name, fileInfo.Length, contentType, ct);
+        var slot = await RequestSlotAsync(uploadServiceJid, fileInfo.Name, fileInfo.Length, contentType, ct).ConfigureAwait(false);
 
-        using var fileStream = fileInfo.OpenRead();
-        using var content = new StreamContent(fileStream);
-        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
-
-        using var request = new HttpRequestMessage(HttpMethod.Put, slot.PutUrl)
-        {
-            Content = content
-        };
-
-        foreach (var kv in slot.Headers)
-        {
-            request.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
-        }
-
-        progress?.Report(0.1);
-        var response = await _httpClient.SendAsync(request, ct);
-        response.EnsureSuccessStatusCode();
-        progress?.Report(1.0);
-
-        return slot.GetUrl;
+        return await UploadWithRetryAsync(
+            slot,
+            () =>
+            {
+                var fileStream = fileInfo.OpenRead();
+                var content = new StreamContent(fileStream);
+                if (MediaTypeHeaderValue.TryParse(contentType, out var mediaType))
+                {
+                    content.Headers.ContentType = mediaType;
+                }
+                else
+                {
+                    content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+                }
+                return content;
+            },
+            progress,
+            ct).ConfigureAwait(false);
     }
 
     public async Task<string> UploadBytesAsync(
@@ -131,28 +146,105 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
         IProgress<double>? progress = null,
         CancellationToken ct = default)
     {
-        var slot = await RequestSlotAsync(uploadServiceJid, filename, data.Length, contentType, ct);
+        var slot = await RequestSlotAsync(uploadServiceJid, filename, data.Length, contentType, ct).ConfigureAwait(false);
 
-        using var ms = new MemoryStream(data);
-        using var content = new StreamContent(ms);
-        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        return await UploadWithRetryAsync(
+            slot,
+            () =>
+            {
+                var ms = new MemoryStream(data, writable: false);
+                var content = new StreamContent(ms);
+                if (MediaTypeHeaderValue.TryParse(contentType, out var mediaType))
+                {
+                    content.Headers.ContentType = mediaType;
+                }
+                else
+                {
+                    content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+                }
+                return content;
+            },
+            progress,
+            ct).ConfigureAwait(false);
+    }
 
-        using var request = new HttpRequestMessage(HttpMethod.Put, slot.PutUrl)
+    private async Task<string> UploadWithRetryAsync(
+        HttpUploadSlot slot,
+        Func<HttpContent> createContent,
+        IProgress<double>? progress,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
         {
-            Content = content
-        };
+            ct.ThrowIfCancellationRequested();
+            progress?.Report(0.1);
 
-        foreach (var kv in slot.Headers)
+            var isLastAttempt = attempt >= _retryDelays.Count;
+            try
+            {
+                using var content = createContent();
+                using var request = new HttpRequestMessage(HttpMethod.Put, slot.PutUrl)
+                {
+                    Content = content
+                };
+
+                foreach (var kv in slot.Headers)
+                {
+                    if (!request.Headers.TryAddWithoutValidation(kv.Key, kv.Value))
+                    {
+                        request.Content?.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+                    }
+                }
+
+                using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    progress?.Report(1.0);
+                    return slot.GetUrl;
+                }
+
+                if (isLastAttempt || !IsTransientStatusCode(response.StatusCode))
+                {
+                    response.EnsureSuccessStatusCode();
+                }
+            }
+            catch (Exception ex) when (!isLastAttempt && IsTransientException(ex, ct))
+            {
+                // Transient failure; proceed to delay and retry
+            }
+
+            var delay = _retryDelays[attempt];
+            await Task.Delay(delay, ct).ConfigureAwait(false);
+        }
+    }
+
+    private static bool IsTransientException(Exception ex, CancellationToken ct)
+    {
+        if (ct.IsCancellationRequested)
+            return false;
+
+        if (ex is FileNotFoundException or DirectoryNotFoundException)
+            return false;
+
+        if (ex is OperationCanceledException or TimeoutException)
+            return true;
+
+        if (ex is HttpRequestException httpEx)
         {
-            request.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+            return httpEx.StatusCode is null || IsTransientStatusCode(httpEx.StatusCode.Value);
         }
 
-        progress?.Report(0.1);
-        var response = await _httpClient.SendAsync(request, ct);
-        response.EnsureSuccessStatusCode();
-        progress?.Report(1.0);
+        if (ex is IOException)
+            return true;
 
-        return slot.GetUrl;
+        return false;
+    }
+
+    private static bool IsTransientStatusCode(HttpStatusCode statusCode)
+    {
+        var code = (int)statusCode;
+        return (code >= 500 && code <= 599) || code == 408 || code == 429;
     }
 
     public async Task<Jid?> DiscoverUploadServiceAsync(Jid domainJid, CancellationToken ct = default)
@@ -164,7 +256,7 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
             // 1. Check if domain itself supports HTTP upload
             var infoIq = IqStanza.CreateGet(domainJid);
             infoIq.RawElement.Child(new XmppElement("query", "http://jabber.org/protocol/disco#info"));
-            var infoResult = await Client.SendIqAsync(infoIq, cancellationToken: ct);
+            var infoResult = await Client.SendIqAsync(infoIq, cancellationToken: ct).ConfigureAwait(false);
             var queryInfo = infoResult.RawElement.Element("query", "http://jabber.org/protocol/disco#info");
             if (queryInfo is not null)
             {
@@ -177,7 +269,7 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
             // 2. Query disco#items of the domain
             var itemsIq = IqStanza.CreateGet(domainJid);
             itemsIq.RawElement.Child(new XmppElement("query", "http://jabber.org/protocol/disco#items"));
-            var itemsResult = await Client.SendIqAsync(itemsIq, cancellationToken: ct);
+            var itemsResult = await Client.SendIqAsync(itemsIq, cancellationToken: ct).ConfigureAwait(false);
             var queryItems = itemsResult.RawElement.Element("query", "http://jabber.org/protocol/disco#items");
             if (queryItems is not null)
             {
@@ -188,7 +280,7 @@ public sealed class Xep0363HttpFileUpload : XepFeatureBase
                     {
                         var subInfoIq = IqStanza.CreateGet(itemJid);
                         subInfoIq.RawElement.Child(new XmppElement("query", "http://jabber.org/protocol/disco#info"));
-                        var subInfoResult = await Client.SendIqAsync(subInfoIq, cancellationToken: ct);
+                        var subInfoResult = await Client.SendIqAsync(subInfoIq, cancellationToken: ct).ConfigureAwait(false);
                         var subQueryInfo = subInfoResult.RawElement.Element("query", "http://jabber.org/protocol/disco#info");
                         if (subQueryInfo is not null)
                         {

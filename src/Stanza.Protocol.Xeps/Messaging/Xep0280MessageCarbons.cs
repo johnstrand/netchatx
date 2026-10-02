@@ -1,4 +1,4 @@
-﻿using Stanza.Core.Client;
+using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Xml;
 using Stanza.Protocol.Xeps.Common;
@@ -24,7 +24,7 @@ public sealed class Xep0280MessageCarbons : XepFeatureBase
         var iq = IqStanza.CreateSet();
         iq.RawElement.Child(new XmppElement("enable", NsCarbons));
 
-        var res = await Client.SendIqAsync(iq, cancellationToken: ct);
+        var res = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
         if (res.IsResult)
         {
             IsEnabled = true;
@@ -38,7 +38,7 @@ public sealed class Xep0280MessageCarbons : XepFeatureBase
         var iq = IqStanza.CreateSet();
         iq.RawElement.Child(new XmppElement("disable", NsCarbons));
 
-        var res = await Client.SendIqAsync(iq, cancellationToken: ct);
+        var res = await Client.SendIqAsync(iq, cancellationToken: ct).ConfigureAwait(false);
         if (res.IsResult)
         {
             IsEnabled = false;

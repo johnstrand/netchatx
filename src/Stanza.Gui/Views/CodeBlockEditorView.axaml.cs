@@ -31,7 +31,7 @@ public partial class CodeBlockEditorView : UserControl
         if (_codeEditorTextBox is not null)
         {
             _codeEditorTextBox.AddHandler(InputElement.KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
-            
+
             // Sync line numbers scroll with text box scroll
             Dispatcher.UIThread.Post(() =>
             {

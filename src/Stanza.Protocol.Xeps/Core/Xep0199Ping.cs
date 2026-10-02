@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
@@ -22,7 +22,7 @@ public sealed class Xep0199Ping : XepFeatureBase
         iq.RawElement.Child(new XmppElement("ping", NsPing));
 
         var sw = Stopwatch.StartNew();
-        var result = await Client.SendIqAsync(iq, timeout, ct);
+        var result = await Client.SendIqAsync(iq, timeout, ct).ConfigureAwait(false);
         sw.Stop();
 
         if (result.IsError)
@@ -42,7 +42,7 @@ public sealed class Xep0199Ping : XepFeatureBase
             {
                 var iq = new IqStanza(element);
                 var pong = iq.CreateResult();
-                await client.SendStanzaAsync(pong, cancellationToken);
+                await client.SendStanzaAsync(pong, cancellationToken).ConfigureAwait(false);
                 return false; // Handled
             }
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -9,8 +10,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Stanza.Gui.Helpers;
 using Stanza.Gui.ViewModels;
+using Stanza.Storage.Export;
 
 namespace Stanza.Gui.Views;
 
@@ -20,6 +23,7 @@ public partial class MainChatView : UserControl
     private ScrollViewer? _messagesScrollViewer;
     private TextBox? _messageInputBox;
     private TextBox? _searchInputBox;
+    private TextBox? _conversationSearchInputBox;
     private Button? _attachFileButton;
     private Button? _insertCodeBlockButton;
     private GridSplitter? _sidebarSplitter;
@@ -39,6 +43,7 @@ public partial class MainChatView : UserControl
         _messagesScrollViewer = this.FindControl<ScrollViewer>("MessagesScrollViewer");
         _messageInputBox = this.FindControl<TextBox>("MessageInputBox");
         _searchInputBox = this.FindControl<TextBox>("SearchInputBox");
+        _conversationSearchInputBox = this.FindControl<TextBox>("ConversationSearchInputBox");
         _attachFileButton = this.FindControl<Button>("AttachFileButton");
         _insertCodeBlockButton = this.FindControl<Button>("InsertCodeBlockButton");
         _sidebarSplitter = this.FindControl<GridSplitter>("SidebarSplitter");
@@ -53,6 +58,11 @@ public partial class MainChatView : UserControl
         if (_searchInputBox is not null)
         {
             _searchInputBox.AddHandler(InputElement.KeyDownEvent, OnSearchInputKeyDown, RoutingStrategies.Tunnel);
+        }
+
+        if (_conversationSearchInputBox is not null)
+        {
+            _conversationSearchInputBox.AddHandler(InputElement.KeyDownEvent, OnConversationSearchInputKeyDown, RoutingStrategies.Tunnel);
         }
 
         AddHandler(InputElement.KeyDownEvent, OnGlobalKeyDown, RoutingStrategies.Tunnel);
@@ -111,6 +121,11 @@ public partial class MainChatView : UserControl
             _searchInputBox.RemoveHandler(InputElement.KeyDownEvent, OnSearchInputKeyDown);
         }
 
+        if (_conversationSearchInputBox is not null)
+        {
+            _conversationSearchInputBox.RemoveHandler(InputElement.KeyDownEvent, OnConversationSearchInputKeyDown);
+        }
+
         RemoveHandler(InputElement.KeyDownEvent, OnGlobalKeyDown);
         RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
         RemoveHandler(DragDrop.DropEvent, OnDrop);
@@ -162,6 +177,21 @@ public partial class MainChatView : UserControl
         else if (e.PropertyName == nameof(MainChatViewModel.IsSidebarOpen))
         {
             ApplySidebarState(vm.IsSidebarOpen);
+        }
+        else if (e.PropertyName == nameof(MainChatViewModel.IsNewChatDialogOpen) && vm.IsNewChatDialogOpen)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                var input = this.FindControl<TextBox>("NewChatJidInput");
+                input?.Focus();
+            }, DispatcherPriority.Input);
+        }
+        else if (e.PropertyName == nameof(MainChatViewModel.IsSearching) && !vm.IsSearching)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                _messageInputBox?.Focus();
+            }, DispatcherPriority.Input);
         }
     }
 
@@ -230,6 +260,8 @@ public partial class MainChatView : UserControl
             _currentConversation.EditStarted -= OnConversationEditStarted;
             _currentConversation.OlderHistoryLoading -= OnOlderHistoryLoading;
             _currentConversation.OlderHistoryLoaded -= OnOlderHistoryLoaded;
+            _currentConversation.ConversationSearchNavigationRequested -= OnConversationSearchNavigationRequested;
+            _currentConversation.RequestExportChatCallback = null;
         }
 
         _currentConversation = newConversation;
@@ -241,9 +273,73 @@ public partial class MainChatView : UserControl
             _currentConversation.EditStarted += OnConversationEditStarted;
             _currentConversation.OlderHistoryLoading += OnOlderHistoryLoading;
             _currentConversation.OlderHistoryLoaded += OnOlderHistoryLoaded;
+            _currentConversation.ConversationSearchNavigationRequested += OnConversationSearchNavigationRequested;
+            _currentConversation.RequestExportChatCallback = HandleExportActiveChatAsync;
             ScrollToLatestMessage();
             _messageInputBox?.Focus();
         }
+    }
+
+    private void OnConversationSearchNavigationRequested(MessageBubbleViewModel bubble)
+    {
+        Dispatcher.UIThread.Post(() => BringMessageBubbleIntoView(bubble), DispatcherPriority.Loaded);
+    }
+
+    private void BringMessageBubbleIntoView(MessageBubbleViewModel bubble)
+    {
+        var target = this.GetVisualDescendants()
+            .OfType<Control>()
+            .FirstOrDefault(c => ReferenceEquals(c.DataContext, bubble));
+
+        target?.BringIntoView();
+    }
+
+    private async Task HandleExportActiveChatAsync()
+    {
+        try
+        {
+            if (_currentConversation is null) return;
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.StorageProvider is null) return;
+
+            var safeName = SanitizeFileName(_currentConversation.RemoteJid);
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = $"Export Chat - {_currentConversation.Title}",
+                DefaultExtension = "json",
+                SuggestedFileName = $"stanza-chat-{safeName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("JSON Backup (*.json)") { Patterns = ["*.json"] },
+                    new FilePickerFileType("HTML Document (*.html)") { Patterns = ["*.html"] },
+                    new FilePickerFileType("Plain Text (*.txt)") { Patterns = ["*.txt"] }
+                ]
+            });
+
+            if (file is null) return;
+
+            var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+            var format = extension switch
+            {
+                ".html" or ".htm" => MessageExportFormat.Html,
+                ".txt" => MessageExportFormat.PlainText,
+                _ => MessageExportFormat.Json
+            };
+
+            await using var stream = await file.OpenWriteAsync();
+            await _currentConversation.ExportChatAsync(stream, format);
+        }
+        catch
+        {
+            // Soft fail / prevent unhandled exception
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var chars = name.Select(c => invalid.Contains(c) || c == '@' ? '_' : c).ToArray();
+        return new string(chars);
     }
 
     private void OnOlderHistoryLoading()
@@ -677,34 +773,120 @@ public partial class MainChatView : UserControl
 
     private async void OnSearchInputKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key is Key.Enter or Key.Return && DataContext is MainChatViewModel vm)
+        try
         {
-            await vm.ExecuteSearchAsync();
-            e.Handled = true;
+            if (e.Key is Key.Enter or Key.Return && DataContext is MainChatViewModel vm)
+            {
+                await vm.ExecuteSearchAsync();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape && DataContext is MainChatViewModel mainVm)
+            {
+                mainVm.CloseSearch();
+                e.Handled = true;
+            }
         }
-        else if (e.Key == Key.Escape && DataContext is MainChatViewModel mainVm)
+        catch
         {
-            mainVm.CloseSearch();
-            e.Handled = true;
+            // Soft failure / prevent unhandled exception in async void event handler
+        }
+    }
+
+    private void OnConversationSearchInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        try
+        {
+            if (DataContext is not MainChatViewModel vm || vm.ActiveConversation is not { } conv)
+            {
+                return;
+            }
+
+            if (e.Key is Key.Enter or Key.Return)
+            {
+                conv.ExecuteConversationSearch();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Down)
+            {
+                conv.NextConversationSearchResult();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Up)
+            {
+                conv.PreviousConversationSearchResult();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                conv.ClearConversationSearch();
+                _messageInputBox?.Focus();
+                e.Handled = true;
+            }
+        }
+        catch
+        {
+            // Soft failure / prevent unhandled exception in event handler
         }
     }
 
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.F1 && DataContext is MainChatViewModel vmF1)
+        if (DataContext is not MainChatViewModel vm) return;
+
+        if (e.Key == Key.F1)
         {
-            vmF1.OpenHelp();
+            vm.OpenHelp();
             e.Handled = true;
         }
-        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && (e.Key == Key.F || e.Key == Key.K))
         {
-            _searchInputBox?.Focus();
-            _searchInputBox?.SelectAll();
+            if (vm.ActiveConversation is not null && _conversationSearchInputBox is not null && _conversationSearchInputBox.IsVisible)
+            {
+                _conversationSearchInputBox.Focus();
+                _conversationSearchInputBox.SelectAll();
+            }
+            else
+            {
+                _searchInputBox?.Focus();
+                _searchInputBox?.SelectAll();
+            }
             e.Handled = true;
         }
-        else if (e.Key == Key.Escape && DataContext is MainChatViewModel vm)
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && (e.Key == Key.OemComma || e.Key == Key.OemPeriod))
         {
-            if (vm.Settings.IsOpen)
+            vm.OpenChatSettingsCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F6)
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            var focused = topLevel?.FocusManager?.GetFocusedElement();
+            if (focused == _messageInputBox)
+            {
+                if (_searchInputBox is not null && _searchInputBox.IsVisible)
+                {
+                    _searchInputBox.Focus();
+                }
+            }
+            else
+            {
+                _messageInputBox?.Focus();
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            if (vm.IsClosePromptOpen)
+            {
+                vm.CancelClosePrompt();
+                e.Handled = true;
+            }
+            else if (vm.IsNewChatDialogOpen)
+            {
+                vm.CancelNewChatDialog();
+                e.Handled = true;
+            }
+            else if (vm.Settings.IsOpen)
             {
                 vm.Settings.Close();
                 e.Handled = true;
@@ -717,6 +899,21 @@ public partial class MainChatView : UserControl
             else if (vm.About.IsOpen)
             {
                 vm.CloseAbout();
+                e.Handled = true;
+            }
+            else if (vm.CodeBlockEditor.IsOpen)
+            {
+                vm.CodeBlockEditor.CancelCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (vm.IsSearching)
+            {
+                vm.CloseSearch();
+                e.Handled = true;
+            }
+            else if (vm.IsDetailsOpen)
+            {
+                vm.IsDetailsOpen = false;
                 e.Handled = true;
             }
         }

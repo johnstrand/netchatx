@@ -16,6 +16,7 @@ using Stanza.Gui.Helpers;
 using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Omemo;
 using Stanza.Protocol.Xeps.Sharing;
+using Stanza.Storage.Export;
 using Stanza.Storage.Models;
 using Stanza.Storage.Repositories;
 
@@ -28,12 +29,38 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private readonly Xep0313MessageArchiveManagement? _mamManager;
     private readonly Xep0384OmemoManager? _omemoManager;
     private readonly Xep0363HttpFileUpload? _httpUploadManager;
+    private readonly Xep0234JingleFileTransfer? _jingleFileTransfer;
     private readonly Xep0444Reactions? _reactionsManager;
     private readonly Xep0333ChatMarkers? _chatMarkers;
     private readonly Xep0085ChatStates? _chatStates;
     private readonly SettingsRepository? _settingsRepo;
     private readonly Func<Task<bool>>? _ensureConnected;
     private readonly string _accountJid;
+    public string AccountJid => _accountJid;
+
+    [ObservableProperty]
+    private string? _accountLabel;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccountBrush))]
+    private string? _accountColorHex;
+
+    [ObservableProperty]
+    private bool _showAccountBadge;
+
+    public Avalonia.Media.IBrush AccountBrush
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(AccountColorHex) && Avalonia.Media.Color.TryParse(AccountColorHex, out var c))
+            {
+                return new Avalonia.Media.SolidColorBrush(c);
+            }
+            return new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#00F0FF"));
+        }
+    }
+
+    public string AccountBadgeText => !string.IsNullOrWhiteSpace(AccountLabel) ? AccountLabel : AccountJid;
 
     private List<string> _quickEmojis = [.. EmojiData.DefaultQuickEmojis];
     public IReadOnlyList<string> QuickEmojis => _quickEmojis;
@@ -45,6 +72,249 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showEmoticonBanner;
+
+    [ObservableProperty]
+    private string? _fileTransferStatusMessage;
+
+    [ObservableProperty]
+    private string? _exportStatusMessage;
+
+    public Func<Task>? RequestExportChatCallback { get; set; }
+
+    [RelayCommand]
+    public async Task RequestExportChat()
+    {
+        if (RequestExportChatCallback is not null)
+        {
+            await RequestExportChatCallback.Invoke();
+        }
+    }
+
+    public async Task ExportChatAsync(Stream destinationStream, MessageExportFormat format, bool includeMedia = true)
+    {
+        var service = new MessageExportService(_messageRepo);
+        var options = new MessageExportOptions
+        {
+            Format = format,
+            IncludeMedia = includeMedia,
+            IncludeMetadata = true,
+            AccountJid = _accountJid,
+            RemoteJid = RemoteJid
+        };
+        await service.ExportConversationAsync(_accountJid, RemoteJid, options, destinationStream);
+    }
+
+    [ObservableProperty]
+    private bool _isBlocked;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotificationsMuted))]
+    [NotifyPropertyChangedFor(nameof(NotificationMuteStatusText))]
+    private DateTimeOffset? _notificationsMutedUntilUtc;
+
+    public bool IsNotificationsMuted => NotificationsMutedUntilUtc.HasValue &&
+                                        (NotificationsMutedUntilUtc == DateTimeOffset.MaxValue || NotificationsMutedUntilUtc.Value > DateTimeOffset.UtcNow);
+
+    public string NotificationMuteStatusText => NotificationsMutedUntilUtc switch
+    {
+        null => "Notifications enabled",
+        var v when v == DateTimeOffset.MaxValue => "Muted until manually unmuted",
+        var v when v > DateTimeOffset.UtcNow => $"Muted until {v.Value.ToLocalTime():g}",
+        _ => "Notifications enabled"
+    };
+
+    public Func<ChatConversationViewModel, DateTimeOffset?, Task>? SaveNotificationMuteAsync { get; set; }
+
+    [RelayCommand]
+    public async Task MuteNotificationsOneHourAsync()
+    {
+        await SetNotificationsMutedUntilAsync(DateTimeOffset.UtcNow.AddHours(1));
+    }
+
+    [RelayCommand]
+    public async Task MuteNotificationsEightHoursAsync()
+    {
+        await SetNotificationsMutedUntilAsync(DateTimeOffset.UtcNow.AddHours(8));
+    }
+
+    [RelayCommand]
+    public async Task MuteNotificationsUntilUnmutedAsync()
+    {
+        await SetNotificationsMutedUntilAsync(DateTimeOffset.MaxValue);
+    }
+
+    [RelayCommand]
+    public async Task UnmuteNotificationsAsync()
+    {
+        await SetNotificationsMutedUntilAsync(null);
+    }
+
+    public async Task SetNotificationsMutedUntilAsync(DateTimeOffset? mutedUntilUtc)
+    {
+        NotificationsMutedUntilUtc = mutedUntilUtc;
+        if (SaveNotificationMuteAsync is not null)
+        {
+            await SaveNotificationMuteAsync(this, mutedUntilUtc).ConfigureAwait(false);
+        }
+    }
+
+    [ObservableProperty]
+    private string _conversationSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasConversationSearchResults))]
+    [NotifyPropertyChangedFor(nameof(ConversationSearchSummary))]
+    private int _conversationSearchResultCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasConversationSearchResults))]
+    [NotifyPropertyChangedFor(nameof(ConversationSearchSummary))]
+    private int _activeConversationSearchResultIndex = -1;
+
+    private readonly List<MessageBubbleViewModel> _conversationSearchMatches = [];
+
+    public bool HasConversationSearchResults => ConversationSearchResultCount > 0;
+
+    public string ConversationSearchSummary => ConversationSearchResultCount == 0
+        ? "No matches"
+        : $"{ActiveConversationSearchResultIndex + 1} / {ConversationSearchResultCount}";
+
+    public event Action<MessageBubbleViewModel>? ConversationSearchNavigationRequested;
+
+    partial void OnConversationSearchQueryChanged(string value)
+    {
+        ApplyConversationSearch(value);
+    }
+
+    [RelayCommand]
+    public void ExecuteConversationSearch()
+    {
+        ApplyConversationSearch(ConversationSearchQuery);
+    }
+
+    [RelayCommand]
+    public void ClearConversationSearch()
+    {
+        ConversationSearchQuery = string.Empty;
+    }
+
+    [RelayCommand]
+    public void NextConversationSearchResult()
+    {
+        if (_conversationSearchMatches.Count == 0)
+        {
+            return;
+        }
+
+        SetActiveConversationSearchResult(ActiveConversationSearchResultIndex + 1);
+    }
+
+    [RelayCommand]
+    public void PreviousConversationSearchResult()
+    {
+        if (_conversationSearchMatches.Count == 0)
+        {
+            return;
+        }
+
+        SetActiveConversationSearchResult(ActiveConversationSearchResultIndex - 1);
+    }
+
+    private void ApplyConversationSearch(string? rawQuery)
+    {
+        var query = rawQuery?.Trim();
+        if (string.IsNullOrEmpty(query))
+        {
+            ClearConversationSearchHighlights();
+            return;
+        }
+
+        _conversationSearchMatches.Clear();
+        foreach (var bubble in Messages)
+        {
+            var isMatch = MessageMatchesSearchQuery(bubble, query);
+            bubble.IsSearchMatch = isMatch;
+            bubble.IsActiveSearchMatch = false;
+            if (isMatch)
+            {
+                _conversationSearchMatches.Add(bubble);
+            }
+        }
+
+        ConversationSearchResultCount = _conversationSearchMatches.Count;
+        ActiveConversationSearchResultIndex = ConversationSearchResultCount == 0 ? -1 : 0;
+
+        if (ConversationSearchResultCount > 0)
+        {
+            SetActiveConversationSearchResult(ActiveConversationSearchResultIndex);
+        }
+    }
+
+    private static bool MessageMatchesSearchQuery(MessageBubbleViewModel bubble, string query)
+    {
+        if (!string.IsNullOrWhiteSpace(bubble.DisplayText) && bubble.DisplayText.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(bubble.Body) && bubble.Body.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return bubble.MergedMessages.Any(m => !string.IsNullOrWhiteSpace(m.Body) && m.Body.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void SetActiveConversationSearchResult(int candidateIndex)
+    {
+        if (_conversationSearchMatches.Count == 0)
+        {
+            ActiveConversationSearchResultIndex = -1;
+            return;
+        }
+
+        if (candidateIndex < 0)
+        {
+            candidateIndex = _conversationSearchMatches.Count - 1;
+        }
+        else if (candidateIndex >= _conversationSearchMatches.Count)
+        {
+            candidateIndex = 0;
+        }
+
+        foreach (var bubble in _conversationSearchMatches)
+        {
+            bubble.IsActiveSearchMatch = false;
+        }
+
+        var target = _conversationSearchMatches[candidateIndex];
+        target.IsActiveSearchMatch = true;
+        ActiveConversationSearchResultIndex = candidateIndex;
+        ConversationSearchNavigationRequested?.Invoke(target);
+    }
+
+    private void ClearConversationSearchHighlights()
+    {
+        foreach (var bubble in Messages)
+        {
+            bubble.IsSearchMatch = false;
+            bubble.IsActiveSearchMatch = false;
+        }
+
+        _conversationSearchMatches.Clear();
+        ConversationSearchResultCount = 0;
+        ActiveConversationSearchResultIndex = -1;
+    }
+
+    private void ReapplyConversationSearchIfNeeded()
+    {
+        if (string.IsNullOrWhiteSpace(ConversationSearchQuery))
+        {
+            return;
+        }
+
+        ApplyConversationSearch(ConversationSearchQuery);
+    }
 
     public Action? OpenSettingsToChatRequested { get; set; }
 
@@ -434,6 +704,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 index++;
             }
             Messages.Insert(index, bubble);
+            ReapplyConversationSearchIfNeeded();
             UpdateDateHeaders();
             RequestScrollToBottom();
         });
@@ -444,6 +715,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         PostToUi(() =>
         {
             Messages.Clear();
+            ClearConversationSearchHighlights();
             UpdateDateHeaders();
         });
     }
@@ -463,7 +735,8 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         Xep0333ChatMarkers? chatMarkers = null,
         Xep0085ChatStates? chatStates = null,
         SettingsRepository? settingsRepo = null,
-        Func<Task<bool>>? ensureConnected = null)
+        Func<Task<bool>>? ensureConnected = null,
+        Xep0234JingleFileTransfer? jingleFileTransfer = null)
     {
         _accountJid = accountJid;
         _id = id;
@@ -475,6 +748,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _mamManager = mamManager;
         _omemoManager = omemoManager;
         _httpUploadManager = httpUploadManager;
+        _jingleFileTransfer = jingleFileTransfer;
         _reactionsManager = reactionsManager;
         _chatMarkers = chatMarkers;
         _chatStates = chatStates;
@@ -1431,6 +1705,28 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         // 2. Fallback: Save to local media cache directory and send file URI
         if (string.IsNullOrEmpty(imageUrl))
         {
+            if (!IsGroupChat && _jingleFileTransfer is not null)
+            {
+                try
+                {
+                    var offer = new JingleFileTransferOffer(
+                        SessionId: Guid.NewGuid().ToString("N"),
+                        Name: fileName,
+                        Size: imageBytes.LongLength,
+                        MediaType: contentType,
+                        To: RemoteJid,
+                        CreatedAtUtc: DateTimeOffset.UtcNow);
+                    await _jingleFileTransfer.SendOfferAsync(offer).ConfigureAwait(false);
+                    FileTransferStatusMessage = $"Peer-to-peer transfer offer sent for {fileName}.";
+                    AddSystemMessage(FileTransferStatusMessage);
+                    return null;
+                }
+                catch
+                {
+                    // Soft fallback to local media file
+                }
+            }
+
             try
             {
                 var mediaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Stanza", "media");
@@ -2074,6 +2370,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (existing is not null)
         {
             existing.UpdateMessageRecord(msg);
+            ReapplyConversationSearchIfNeeded();
             if (Messages.LastOrDefault() == existing)
             {
                 UpdateLastMessageSnippetAndTime(msg);
@@ -2097,6 +2394,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     prevBubble.ImageLoaded -= OnBubbleImageLoaded;
                     prevBubble.ImageLoaded += OnBubbleImageLoaded;
                     prevBubble.MergeMessage(msg);
+                    ReapplyConversationSearchIfNeeded();
                     if (Messages.LastOrDefault() == prevBubble)
                     {
                         UpdateLastMessageSnippetAndTime(msg);
@@ -2123,6 +2421,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             index++;
         }
         Messages.Insert(index, bubble);
+        ReapplyConversationSearchIfNeeded();
 
         if (!OldestMessageTimestamp.HasValue || bubble.Timestamp < OldestMessageTimestamp.Value)
         {
@@ -2297,6 +2596,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             {
                 AddOrUpdateMessage(msg);
             }
+            ReapplyConversationSearchIfNeeded();
             UpdateDateHeaders();
             _ = LoadReactionsForCurrentMessagesAsync();
         }

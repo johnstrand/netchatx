@@ -26,7 +26,7 @@ Before starting work on a feature, bugfix, or refactor, verify if the `.worktree
   mkdir -p .worktree
   ```
 
-*(Note: `.worktree/` is ignored by Git in `.gitignore`.)*
+_(Note: `.worktree/` is ignored by Git in `.gitignore`.)_
 
 ### 1.2 Creating a Worktree
 
@@ -56,7 +56,11 @@ Perform all code modifications, builds, tests, and Git operations (stage, commit
 
 Create atomic commits for each logical change, and ensure all tests pass before committing.
 
-### 1.4 Pull Requests & Post-Task Cleanup
+### 1.4 Before committing
+
+Ensure that all changes are tested and verified. Ensure that `dotnet format` is run to maintain code style consistency. Run the test suite to confirm that no regressions are introduced.
+
+### 1.5 Pull Requests & Post-Task Cleanup
 
 When your task is complete, committed, and ready:
 

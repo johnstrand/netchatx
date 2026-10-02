@@ -43,6 +43,7 @@ public sealed class SettingsRepository
     public const string KeyMergeMessagesEnabled = "merge_messages_enabled";
     public const string KeyMergeMessagesThresholdSeconds = "merge_messages_threshold_seconds";
     public const string KeyNotificationPopupsEnabled = "notification_popups_enabled";
+    public const string KeyDoNotDisturbMode = "notification_do_not_disturb_mode";
     public const string KeyIconFlashingEnabled = "icon_flashing_enabled";
     public const string KeyLaunchOnStartup = "launch_on_startup";
     public const string KeyFontFamily = "font_family";
@@ -62,7 +63,9 @@ public sealed class SettingsRepository
     public const string KeyLastActiveChat = "last_active_chat";
     public const string KeyLastPresenceMode = "last_presence_mode";
     public const string KeyLastStatusMessage = "last_status_message";
+    public const string KeyMucAutoJoinRooms = "muc_autojoin_rooms";
     public const string KeyCloseAction = "close_action";
+    public const string KeyLanguage = "app_language";
 
     public const bool DefaultMergeMessagesEnabled = true;
     public const int DefaultMergeMessagesThresholdSeconds = 10;
@@ -70,6 +73,7 @@ public sealed class SettingsRepository
     public const bool DefaultEvaluateExpressions = true;
     public const bool DefaultEmoticonBannerDismissed = false;
     public const bool DefaultNotificationPopupsEnabled = true;
+    public const bool DefaultDoNotDisturbMode = false;
     public const bool DefaultIconFlashingEnabled = true;
     public const bool DefaultLaunchOnStartup = false;
     public const string DefaultFontFamily = "Inter";
@@ -88,6 +92,7 @@ public sealed class SettingsRepository
     public const string DefaultPresenceMode = "available";
     public const string DefaultStatusMessage = "Online with Stanza";
     public const string DefaultCloseAction = "Ask";
+    public const string DefaultLanguage = "en";
 
     public SettingsRepository(DatabaseContext context)
     {
@@ -103,7 +108,7 @@ public sealed class SettingsRepository
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$key", key);
 
-        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return result as string;
     }
 
@@ -123,12 +128,12 @@ public sealed class SettingsRepository
         cmd.Parameters.AddWithValue("$key", key);
         cmd.Parameters.AddWithValue("$value", value);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<string>> GetQuickEmojisAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var json = await GetSettingAsync(accountJid, KeyQuickEmojis, cancellationToken);
+        var json = await GetSettingAsync(accountJid, KeyQuickEmojis, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(json))
         {
             return [.. DefaultQuickEmojis];
@@ -154,34 +159,34 @@ public sealed class SettingsRepository
     {
         var cleanList = emojis.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct().ToList();
         var json = JsonSerializer.Serialize(cleanList, SettingsJsonContext.Default.ListString);
-        await SetSettingAsync(accountJid, KeyQuickEmojis, json, cancellationToken);
+        await SetSettingAsync(accountJid, KeyQuickEmojis, json, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetAutoReplaceEmoticonsAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyAutoReplaceEmoticons, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyAutoReplaceEmoticons, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultAutoReplaceEmoticons;
     }
 
     public async Task SetAutoReplaceEmoticonsAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyAutoReplaceEmoticons, enabled.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyAutoReplaceEmoticons, enabled.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetEmoticonBannerDismissedAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyEmoticonBannerDismissed, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyEmoticonBannerDismissed, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultEmoticonBannerDismissed;
     }
 
     public async Task SetEmoticonBannerDismissedAsync(string accountJid, bool dismissed, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyEmoticonBannerDismissed, dismissed.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyEmoticonBannerDismissed, dismissed.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<EmoticonMapping>> GetEmoticonMappingsAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var json = await GetSettingAsync(accountJid, KeyEmoticonMappings, cancellationToken);
+        var json = await GetSettingAsync(accountJid, KeyEmoticonMappings, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(json))
         {
             return [.. DefaultEmoticonMappings];
@@ -207,78 +212,125 @@ public sealed class SettingsRepository
     {
         var cleanList = mappings.Where(m => !string.IsNullOrWhiteSpace(m.Shortcut) && !string.IsNullOrWhiteSpace(m.Emoji)).ToList();
         var json = JsonSerializer.Serialize(cleanList, SettingsJsonContext.Default.ListEmoticonMapping);
-        await SetSettingAsync(accountJid, KeyEmoticonMappings, json, cancellationToken);
+        await SetSettingAsync(accountJid, KeyEmoticonMappings, json, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetMergeMessagesEnabledAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyMergeMessagesEnabled, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyMergeMessagesEnabled, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultMergeMessagesEnabled;
     }
 
     public async Task SetMergeMessagesEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyMergeMessagesEnabled, enabled.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyMergeMessagesEnabled, enabled.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<int> GetMergeMessagesThresholdSecondsAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, cancellationToken).ConfigureAwait(false);
         return int.TryParse(val, out var result) ? result : DefaultMergeMessagesThresholdSeconds;
     }
 
     public async Task SetMergeMessagesThresholdSecondsAsync(string accountJid, int seconds, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, seconds.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyMergeMessagesThresholdSeconds, seconds.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetNotificationPopupsEnabledAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyNotificationPopupsEnabled, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyNotificationPopupsEnabled, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultNotificationPopupsEnabled;
     }
 
     public async Task SetNotificationPopupsEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyNotificationPopupsEnabled, enabled.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyNotificationPopupsEnabled, enabled.ToString(), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> GetDoNotDisturbModeAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyDoNotDisturbMode, cancellationToken).ConfigureAwait(false);
+        return bool.TryParse(val, out var result) ? result : DefaultDoNotDisturbMode;
+    }
+
+    public async Task SetDoNotDisturbModeAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyDoNotDisturbMode, enabled.ToString(), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DateTimeOffset?> GetConversationNotificationMuteUntilAsync(string accountJid, string remoteJid, CancellationToken cancellationToken = default)
+    {
+        var key = GetConversationMuteKey(remoteJid);
+        var val = await GetSettingAsync(accountJid, key, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(val))
+        {
+            return null;
+        }
+
+        if (string.Equals(val, "forever", StringComparison.OrdinalIgnoreCase))
+        {
+            return DateTimeOffset.MaxValue;
+        }
+
+        return DateTimeOffset.TryParse(val, out var until) ? until : null;
+    }
+
+    public async Task SetConversationNotificationMuteUntilAsync(string accountJid, string remoteJid, DateTimeOffset? mutedUntil, CancellationToken cancellationToken = default)
+    {
+        var key = GetConversationMuteKey(remoteJid);
+        if (mutedUntil is null)
+        {
+            await SetSettingAsync(accountJid, key, string.Empty, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var value = mutedUntil == DateTimeOffset.MaxValue ? "forever" : mutedUntil.Value.ToString("O");
+        await SetSettingAsync(accountJid, key, value, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string GetConversationMuteKey(string remoteJid)
+    {
+        var normalized = remoteJid?.Trim().ToLowerInvariant() ?? string.Empty;
+        return $"conversation_notification_mute_until::{normalized}";
     }
 
     public async Task<bool> GetIconFlashingEnabledAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyIconFlashingEnabled, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyIconFlashingEnabled, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultIconFlashingEnabled;
     }
 
     public async Task SetIconFlashingEnabledAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyIconFlashingEnabled, enabled.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyIconFlashingEnabled, enabled.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetLaunchOnStartupAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyLaunchOnStartup, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyLaunchOnStartup, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultLaunchOnStartup;
     }
 
     public async Task SetLaunchOnStartupAsync(string accountJid, bool enabled, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyLaunchOnStartup, enabled.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyLaunchOnStartup, enabled.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetFontFamilyAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyFontFamily, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyFontFamily, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultFontFamily;
     }
 
     public async Task SetFontFamilyAsync(string accountJid, string fontFamily, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyFontFamily, fontFamily ?? DefaultFontFamily, cancellationToken);
+        await SetSettingAsync(accountJid, KeyFontFamily, fontFamily ?? DefaultFontFamily, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<double> GetFontSizeAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyFontSize, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyFontSize, cancellationToken).ConfigureAwait(false);
         return double.TryParse(val, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result
             : DefaultFontSize;
@@ -286,133 +338,133 @@ public sealed class SettingsRepository
 
     public async Task SetFontSizeAsync(string accountJid, double fontSize, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyFontSize, fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
+        await SetSettingAsync(accountJid, KeyFontSize, fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetSendOnEnterAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeySendOnEnter, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeySendOnEnter, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultSendOnEnter;
     }
 
     public async Task SetSendOnEnterAsync(string accountJid, bool sendOnEnter, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeySendOnEnter, sendOnEnter.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeySendOnEnter, sendOnEnter.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetUse24HourClockAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyUse24HourClock, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyUse24HourClock, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultUse24HourClock;
     }
 
     public async Task SetUse24HourClockAsync(string accountJid, bool use24H, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyUse24HourClock, use24H.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyUse24HourClock, use24H.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetShowInlinePreviewsAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyShowInlinePreviews, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyShowInlinePreviews, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultShowInlinePreviews;
     }
 
     public async Task SetShowInlinePreviewsAsync(string accountJid, bool show, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyShowInlinePreviews, show.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyShowInlinePreviews, show.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetAutoDownloadMediaAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyAutoDownloadMedia, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyAutoDownloadMedia, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultAutoDownloadMedia;
     }
 
     public async Task SetAutoDownloadMediaAsync(string accountJid, bool autoDownload, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyAutoDownloadMedia, autoDownload.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyAutoDownloadMedia, autoDownload.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> GetEvaluateExpressionsAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyEvaluateExpressions, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyEvaluateExpressions, cancellationToken).ConfigureAwait(false);
         return bool.TryParse(val, out var result) ? result : DefaultEvaluateExpressions;
     }
 
     public async Task SetEvaluateExpressionsAsync(string accountJid, bool evaluateExpressions, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyEvaluateExpressions, evaluateExpressions.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyEvaluateExpressions, evaluateExpressions.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetThemeModeAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyThemeMode, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyThemeMode, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultThemeMode;
     }
 
     public async Task SetThemeModeAsync(string accountJid, string themeMode, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyThemeMode, themeMode ?? DefaultThemeMode, cancellationToken);
+        await SetSettingAsync(accountJid, KeyThemeMode, themeMode ?? DefaultThemeMode, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetAccentColorAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyAccentColor, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyAccentColor, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultAccentColor;
     }
 
     public async Task SetAccentColorAsync(string accountJid, string accentColor, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyAccentColor, accentColor ?? DefaultAccentColor, cancellationToken);
+        await SetSettingAsync(accountJid, KeyAccentColor, accentColor ?? DefaultAccentColor, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetOutboundBubbleColorAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyOutboundBubbleColor, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyOutboundBubbleColor, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultOutboundBubbleColor;
     }
 
     public async Task SetOutboundBubbleColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyOutboundBubbleColor, colorHex ?? DefaultOutboundBubbleColor, cancellationToken);
+        await SetSettingAsync(accountJid, KeyOutboundBubbleColor, colorHex ?? DefaultOutboundBubbleColor, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetInboundBubbleColorAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyInboundBubbleColor, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyInboundBubbleColor, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultInboundBubbleColor;
     }
 
     public async Task SetInboundBubbleColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyInboundBubbleColor, colorHex ?? DefaultInboundBubbleColor, cancellationToken);
+        await SetSettingAsync(accountJid, KeyInboundBubbleColor, colorHex ?? DefaultInboundBubbleColor, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetOutboundBubbleTextColorAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyOutboundBubbleTextColor, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyOutboundBubbleTextColor, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultOutboundBubbleTextColor;
     }
 
     public async Task SetOutboundBubbleTextColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyOutboundBubbleTextColor, colorHex ?? DefaultOutboundBubbleTextColor, cancellationToken);
+        await SetSettingAsync(accountJid, KeyOutboundBubbleTextColor, colorHex ?? DefaultOutboundBubbleTextColor, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetInboundBubbleTextColorAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyInboundBubbleTextColor, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyInboundBubbleTextColor, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultInboundBubbleTextColor;
     }
 
     public async Task SetInboundBubbleTextColorAsync(string accountJid, string colorHex, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyInboundBubbleTextColor, colorHex ?? DefaultInboundBubbleTextColor, cancellationToken);
+        await SetSettingAsync(accountJid, KeyInboundBubbleTextColor, colorHex ?? DefaultInboundBubbleTextColor, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<int> GetChatInputMaxLinesAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyChatInputMaxLines, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyChatInputMaxLines, cancellationToken).ConfigureAwait(false);
         if (int.TryParse(val, out int parsed))
         {
             return Math.Clamp(parsed, 1, 20);
@@ -423,49 +475,115 @@ public sealed class SettingsRepository
     public async Task SetChatInputMaxLinesAsync(string accountJid, int maxLines, CancellationToken cancellationToken = default)
     {
         var clamped = Math.Clamp(maxLines, 1, 20);
-        await SetSettingAsync(accountJid, KeyChatInputMaxLines, clamped.ToString(), cancellationToken);
+        await SetSettingAsync(accountJid, KeyChatInputMaxLines, clamped.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string?> GetLastActiveChatAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        return await GetSettingAsync(accountJid, KeyLastActiveChat, cancellationToken);
+        return await GetSettingAsync(accountJid, KeyLastActiveChat, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task SetLastActiveChatAsync(string accountJid, string? chatJid, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyLastActiveChat, chatJid ?? string.Empty, cancellationToken);
+        await SetSettingAsync(accountJid, KeyLastActiveChat, chatJid ?? string.Empty, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetLastPresenceModeAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyLastPresenceMode, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyLastPresenceMode, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultPresenceMode;
     }
 
     public async Task SetLastPresenceModeAsync(string accountJid, string presenceMode, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyLastPresenceMode, !string.IsNullOrWhiteSpace(presenceMode) ? presenceMode : DefaultPresenceMode, cancellationToken);
+        await SetSettingAsync(accountJid, KeyLastPresenceMode, !string.IsNullOrWhiteSpace(presenceMode) ? presenceMode : DefaultPresenceMode, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> GetLastStatusMessageAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyLastStatusMessage, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyLastStatusMessage, cancellationToken).ConfigureAwait(false);
         return val is not null ? val : DefaultStatusMessage;
     }
 
     public async Task SetLastStatusMessageAsync(string accountJid, string statusMessage, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyLastStatusMessage, statusMessage ?? DefaultStatusMessage, cancellationToken);
+        await SetSettingAsync(accountJid, KeyLastStatusMessage, statusMessage ?? DefaultStatusMessage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<List<string>> GetMucAutoJoinRoomsAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var json = await GetSettingAsync(accountJid, KeyMucAutoJoinRooms, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.ListString);
+            if (list is not null)
+            {
+                return list.Where(j => !string.IsNullOrWhiteSpace(j))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+        catch
+        {
+            // Fallback to empty on JSON parse failure
+        }
+
+        return [];
+    }
+
+    public async Task SetMucAutoJoinRoomsAsync(string accountJid, IEnumerable<string> roomJids, CancellationToken cancellationToken = default)
+    {
+        var normalized = roomJids.Where(j => !string.IsNullOrWhiteSpace(j))
+            .Select(j => j.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var json = JsonSerializer.Serialize(normalized, SettingsJsonContext.Default.ListString);
+        await SetSettingAsync(accountJid, KeyMucAutoJoinRooms, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task AddMucAutoJoinRoomAsync(string accountJid, string roomJid, CancellationToken cancellationToken = default)
+    {
+        var rooms = await GetMucAutoJoinRoomsAsync(accountJid, cancellationToken).ConfigureAwait(false);
+        if (!rooms.Contains(roomJid, StringComparer.OrdinalIgnoreCase))
+        {
+            rooms.Add(roomJid.Trim());
+            await SetMucAutoJoinRoomsAsync(accountJid, rooms, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async Task RemoveMucAutoJoinRoomAsync(string accountJid, string roomJid, CancellationToken cancellationToken = default)
+    {
+        var rooms = await GetMucAutoJoinRoomsAsync(accountJid, cancellationToken).ConfigureAwait(false);
+        if (rooms.RemoveAll(r => r.Equals(roomJid, StringComparison.OrdinalIgnoreCase)) > 0)
+        {
+            await SetMucAutoJoinRoomsAsync(accountJid, rooms, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task<string> GetCloseActionAsync(string accountJid, CancellationToken cancellationToken = default)
     {
-        var val = await GetSettingAsync(accountJid, KeyCloseAction, cancellationToken);
+        var val = await GetSettingAsync(accountJid, KeyCloseAction, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(val) ? val : DefaultCloseAction;
     }
 
     public async Task SetCloseActionAsync(string accountJid, string closeAction, CancellationToken cancellationToken = default)
     {
-        await SetSettingAsync(accountJid, KeyCloseAction, !string.IsNullOrWhiteSpace(closeAction) ? closeAction : DefaultCloseAction, cancellationToken);
+        await SetSettingAsync(accountJid, KeyCloseAction, !string.IsNullOrWhiteSpace(closeAction) ? closeAction : DefaultCloseAction, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<string> GetLanguageAsync(string accountJid, CancellationToken cancellationToken = default)
+    {
+        var val = await GetSettingAsync(accountJid, KeyLanguage, cancellationToken).ConfigureAwait(false);
+        return !string.IsNullOrWhiteSpace(val) ? val : DefaultLanguage;
+    }
+
+    public async Task SetLanguageAsync(string accountJid, string language, CancellationToken cancellationToken = default)
+    {
+        await SetSettingAsync(accountJid, KeyLanguage, !string.IsNullOrWhiteSpace(language) ? language : DefaultLanguage, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -110,7 +109,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvatar))]
-    private Bitmap? _avatar;
+    private object? _avatar;
 
     public bool HasAvatar => Avatar is not null;
 
@@ -187,6 +186,16 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private string? _receiptTooltip;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SearchBorderBrush))]
+    [NotifyPropertyChangedFor(nameof(SearchBorderThickness))]
+    private bool _isSearchMatch;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SearchBorderBrush))]
+    [NotifyPropertyChangedFor(nameof(SearchBorderThickness))]
+    private bool _isActiveSearchMatch;
+
+    [ObservableProperty]
     private string? _imageUrl;
 
     [ObservableProperty]
@@ -205,7 +214,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
-    private Bitmap? _imageThumbnail;
+    private object? _imageThumbnail;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowManualDownloadButton))]
@@ -240,6 +249,12 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     public IBrush BubbleForeground => Direction == MessageDirection.Outbound
         ? DirectionToForegroundConverter.OutboundBrush
         : DirectionToForegroundConverter.InboundBrush;
+
+    public IBrush SearchBorderBrush => IsActiveSearchMatch
+        ? new SolidColorBrush(Color.Parse("#F59E0B"))
+        : (IsSearchMatch ? new SolidColorBrush(Color.Parse("#38BDF8")) : Brushes.Transparent);
+
+    public Thickness SearchBorderThickness => IsSearchMatch ? new Thickness(2) : new Thickness(0);
 
     public void RefreshBubbleStyle()
     {
@@ -712,7 +727,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         SettingsRepository? settingsRepo = null,
         IEnumerable<string>? quickEmojis = null,
         string? senderDisplayName = null,
-        Bitmap? avatar = null,
+        object? avatar = null,
         string? initials = null,
         IBrush? avatarBackgroundBrush = null)
     {

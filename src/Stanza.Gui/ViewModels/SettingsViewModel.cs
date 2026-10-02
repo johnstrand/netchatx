@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Stanza.Gui.Converters;
 using Stanza.Gui.Helpers;
 using Stanza.Gui.Services;
+using Stanza.Storage.Export;
 using Stanza.Storage.Repositories;
 
 namespace Stanza.Gui.ViewModels;
@@ -20,6 +21,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly string _accountJid;
     private readonly Action<bool, int>? _onBubbleMergeChanged;
     private readonly Action<bool>? _onPopupsChanged;
+    private readonly Action<bool>? _onDoNotDisturbChanged;
     private readonly Action<bool>? _onFlashingChanged;
     private readonly Action<string, double>? _onTypographyChanged;
     private readonly Action<bool>? _onSendOnEnterChanged;
@@ -31,11 +33,47 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<int>? _onChatInputMaxLinesChanged;
     private readonly Action<string>? _onCloseActionChanged;
     private readonly Action<bool, IReadOnlyList<EmoticonMapping>>? _onEmoticonSettingsChanged;
+    private readonly Action<string>? _onLanguageChanged;
     private readonly Action<bool>? _onEvaluateExpressionsChanged;
     private readonly Func<byte[], string, Task>? _onAvatarChanged;
     private readonly Func<Task>? _onAvatarRemoved;
     private readonly Func<Task>? _onAvatarSyncRequested;
+    private readonly AccountSessionManager? _sessionManager;
+    private readonly AccountRepository? _accountRepo;
+    private readonly MessageRepository? _messageRepo;
+    private readonly Action? _onOpenAddAccountRequested;
     private bool _isInitializing;
+
+    public ObservableCollection<AccountProfileViewModel> ManagedAccounts { get; } = [];
+
+    [ObservableProperty]
+    private AccountProfileViewModel? _passwordChangeAccount;
+
+    [ObservableProperty]
+    private bool _isChangePasswordDialogOpen;
+
+    [ObservableProperty]
+    private bool _isChangingAccountPassword;
+
+    [ObservableProperty]
+    private string _newAccountPassword = string.Empty;
+
+    [ObservableProperty]
+    private string _confirmAccountPassword = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAccountPasswordStatusMessage))]
+    private string? _accountPasswordStatusMessage;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccountPasswordStatusBrush))]
+    private bool _isAccountPasswordStatusError;
+
+    public IBrush AccountPasswordStatusBrush => IsAccountPasswordStatusError
+        ? new SolidColorBrush(Color.Parse("#FDA4AF"))
+        : new SolidColorBrush(Color.Parse("#34D399"));
+
+    public bool HasAccountPasswordStatusMessage => !string.IsNullOrWhiteSpace(AccountPasswordStatusMessage);
 
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
     [
@@ -131,6 +169,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private double _fontSize = SettingsRepository.DefaultFontSize;
 
+    // --- Language ---
+    public IReadOnlyList<LanguageItem> AvailableLanguages => LocalizationManager.SupportedLanguages;
+
+    [ObservableProperty]
+    private LanguageItem _selectedLanguageItem = LocalizationManager.SupportedLanguages[0];
+
     // --- System & Window Behavior ---
     [ObservableProperty]
     private string _closeAction = SettingsRepository.DefaultCloseAction;
@@ -200,6 +244,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private bool _notificationPopupsEnabled = SettingsRepository.DefaultNotificationPopupsEnabled;
 
     [ObservableProperty]
+    private bool _doNotDisturbMode = SettingsRepository.DefaultDoNotDisturbMode;
+
+    [ObservableProperty]
     private bool _iconFlashingEnabled = SettingsRepository.DefaultIconFlashingEnabled;
 
     [ObservableProperty]
@@ -208,7 +255,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     // --- Profile & Avatar ---
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUserAvatar))]
-    private Avalonia.Media.Imaging.Bitmap? _userAvatar;
+    private object? _userAvatar;
 
     [ObservableProperty]
     private string? _userAvatarHash;
@@ -255,6 +302,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         string accountJid,
         Action<bool, int>? onBubbleMergeChanged = null,
         Action<bool>? onPopupsChanged = null,
+        Action<bool>? onDoNotDisturbChanged = null,
         Action<bool>? onFlashingChanged = null,
         Action<string, double>? onTypographyChanged = null,
         Action<bool>? onSendOnEnterChanged = null,
@@ -270,13 +318,23 @@ public sealed partial class SettingsViewModel : ViewModelBase
         IStartupService? startupService = null,
         Func<byte[], string, Task>? onAvatarChanged = null,
         Func<Task>? onAvatarRemoved = null,
-        Func<Task>? onAvatarSyncRequested = null)
+        Func<Task>? onAvatarSyncRequested = null,
+        Action<string>? onLanguageChanged = null,
+        AccountSessionManager? sessionManager = null,
+        AccountRepository? accountRepo = null,
+        Action? onOpenAddAccountRequested = null,
+        MessageRepository? messageRepo = null)
     {
         _settingsRepo = settingsRepo;
         _startupService = startupService ?? new StartupService();
         _accountJid = accountJid;
+        _sessionManager = sessionManager;
+        _accountRepo = accountRepo;
+        _messageRepo = messageRepo;
+        _onOpenAddAccountRequested = onOpenAddAccountRequested;
         _onBubbleMergeChanged = onBubbleMergeChanged;
         _onPopupsChanged = onPopupsChanged;
+        _onDoNotDisturbChanged = onDoNotDisturbChanged;
         _onFlashingChanged = onFlashingChanged;
         _onTypographyChanged = onTypographyChanged;
         _onSendOnEnterChanged = onSendOnEnterChanged;
@@ -292,6 +350,193 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onAvatarChanged = onAvatarChanged;
         _onAvatarRemoved = onAvatarRemoved;
         _onAvatarSyncRequested = onAvatarSyncRequested;
+        _onLanguageChanged = onLanguageChanged;
+    }
+
+    [ObservableProperty]
+    private string? _backupStatusMessage;
+
+    public Func<Task>? RequestExportAllCallback { get; set; }
+    public Func<Task>? RequestImportBackupCallback { get; set; }
+
+    [RelayCommand]
+    public async Task RequestExportAll()
+    {
+        if (RequestExportAllCallback is not null)
+        {
+            await RequestExportAllCallback.Invoke();
+        }
+    }
+
+    [RelayCommand]
+    public async Task RequestImportBackup()
+    {
+        if (RequestImportBackupCallback is not null)
+        {
+            await RequestImportBackupCallback.Invoke();
+        }
+    }
+
+    public async Task ExportAllMessagesAsync(Stream destinationStream, MessageExportFormat format, bool includeMedia = true)
+    {
+        if (_messageRepo is null)
+        {
+            BackupStatusMessage = "Message repository not available.";
+            return;
+        }
+
+        var service = new MessageExportService(_messageRepo);
+        var options = new MessageExportOptions
+        {
+            Format = format,
+            IncludeMedia = includeMedia,
+            IncludeMetadata = true
+        };
+        await service.ExportAllMessagesAsync(options, destinationStream);
+        BackupStatusMessage = LocalizationManager.Instance.GetString("Backup_Export_Success");
+    }
+
+    public async Task<MessageImportResult> ImportBackupAsync(Stream sourceStream)
+    {
+        if (_messageRepo is null)
+        {
+            var errResult = new MessageImportResult();
+            errResult.Errors.Add("Message repository not available.");
+            BackupStatusMessage = errResult.Errors[0];
+            return errResult;
+        }
+
+        var service = new MessageExportService(_messageRepo);
+        var result = await service.ImportBackupAsync(sourceStream);
+
+        if (result.IsSuccess)
+        {
+            BackupStatusMessage = LocalizationManager.Instance.GetString("Backup_Import_Success", result.ImportedCount, result.SkippedCount);
+        }
+        else
+        {
+            var firstErr = result.Errors.Count > 0 ? result.Errors[0] : "Unknown error";
+            BackupStatusMessage = LocalizationManager.Instance.GetString("Backup_Import_Failed", firstErr);
+        }
+
+        return result;
+    }
+
+    [RelayCommand]
+    public void OpenAddAccount()
+    {
+        _onOpenAddAccountRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    public async Task ToggleAccountActiveAsync(AccountProfileViewModel? accountVm)
+    {
+        if (accountVm is null || _sessionManager is null) return;
+        var newActive = !accountVm.IsActive;
+        accountVm.IsActive = newActive;
+        await _sessionManager.SetAccountActiveAsync(accountVm.Jid, newActive).ConfigureAwait(false);
+        accountVm.UpdateStatusFromSession();
+    }
+
+    [RelayCommand]
+    public async Task RemoveAccountAsync(AccountProfileViewModel? accountVm)
+    {
+        if (accountVm is null || _sessionManager is null) return;
+        await _sessionManager.RemoveAccountAsync(accountVm.Jid).ConfigureAwait(false);
+        ManagedAccounts.Remove(accountVm);
+    }
+
+    [RelayCommand]
+    public void OpenChangePasswordDialog(AccountProfileViewModel? accountVm)
+    {
+        if (accountVm?.CanChangePassword != true || _sessionManager is null)
+        {
+            return;
+        }
+
+        PasswordChangeAccount = accountVm;
+        NewAccountPassword = string.Empty;
+        ConfirmAccountPassword = string.Empty;
+        AccountPasswordStatusMessage = null;
+        IsAccountPasswordStatusError = false;
+        IsChangePasswordDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseChangePasswordDialog()
+    {
+        if (IsChangingAccountPassword)
+        {
+            return;
+        }
+
+        IsChangePasswordDialogOpen = false;
+        PasswordChangeAccount = null;
+        NewAccountPassword = string.Empty;
+        ConfirmAccountPassword = string.Empty;
+        AccountPasswordStatusMessage = null;
+        IsAccountPasswordStatusError = false;
+    }
+
+    [RelayCommand]
+    public async Task ChangeAccountPasswordAsync()
+    {
+        var accountVm = PasswordChangeAccount;
+        if (accountVm?.CanChangePassword != true || _sessionManager is null)
+        {
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_RequiresConnection");
+            IsAccountPasswordStatusError = true;
+            return;
+        }
+
+        if (string.IsNullOrEmpty(NewAccountPassword))
+        {
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Required");
+            IsAccountPasswordStatusError = true;
+            return;
+        }
+
+        if (!string.Equals(NewAccountPassword, ConfirmAccountPassword, StringComparison.Ordinal))
+        {
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Mismatch");
+            IsAccountPasswordStatusError = true;
+            return;
+        }
+
+        IsChangingAccountPassword = true;
+        IsAccountPasswordStatusError = false;
+        AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Submitting");
+        try
+        {
+            await _sessionManager.ChangePasswordAsync(accountVm.Jid, NewAccountPassword);
+            NewAccountPassword = string.Empty;
+            ConfirmAccountPassword = string.Empty;
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Success");
+        }
+        catch (Exception exception)
+        {
+            IsAccountPasswordStatusError = true;
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Failed", exception.Message);
+        }
+        finally
+        {
+            IsChangingAccountPassword = false;
+        }
+    }
+
+    public async Task RefreshAccountsAsync()
+    {
+        if (_accountRepo is null) return;
+        var accounts = await _accountRepo.GetAccountsAsync().ConfigureAwait(false);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            ManagedAccounts.Clear();
+            foreach (var acc in accounts)
+            {
+                var session = _sessionManager?.GetSession(acc.Jid);
+                ManagedAccounts.Add(new AccountProfileViewModel(acc, session));
+            }
+        });
     }
 
     [RelayCommand]
@@ -338,6 +583,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         try
         {
             NotificationPopupsEnabled = await _settingsRepo.GetNotificationPopupsEnabledAsync(_accountJid);
+            DoNotDisturbMode = await _settingsRepo.GetDoNotDisturbModeAsync(_accountJid);
             IconFlashingEnabled = await _settingsRepo.GetIconFlashingEnabledAsync(_accountJid);
 
             var osAutostart = _startupService.IsStartupEnabled();
@@ -396,6 +642,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ChatInputMaxLines = await _settingsRepo.GetChatInputMaxLinesAsync(_accountJid);
             CloseAction = await _settingsRepo.GetCloseActionAsync(_accountJid);
 
+            var savedLanguage = await _settingsRepo.GetLanguageAsync(_accountJid);
+            var matchingLang = AvailableLanguages.FirstOrDefault(l => l.Code.Equals(savedLanguage, StringComparison.OrdinalIgnoreCase)) ?? AvailableLanguages[0];
+            SelectedLanguageItem = matchingLang;
+            LocalizationManager.Instance.SetLanguage(matchingLang.Code, notify: false);
+
             var emojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
             QuickEmojis.Clear();
             foreach (var emoji in emojis.Take(6))
@@ -424,6 +675,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             _ = _settingsRepo.SetNotificationPopupsEnabledAsync(_accountJid, value);
             _onPopupsChanged?.Invoke(value);
+        }
+    }
+
+    partial void OnDoNotDisturbModeChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetDoNotDisturbModeAsync(_accountJid, value);
+            _onDoNotDisturbChanged?.Invoke(value);
         }
     }
 
@@ -630,6 +890,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
             _ = _settingsRepo.SetThemeModeAsync(_accountJid, value);
             ThemeManager.ApplyTheme(value, AccentColor);
             _onThemeChanged?.Invoke(value, AccentColor);
+        }
+    }
+
+    partial void OnSelectedLanguageItemChanged(LanguageItem value)
+    {
+        if (value is null) return;
+        LocalizationManager.Instance.SetLanguage(value.Code);
+        if (!_isInitializing)
+        {
+            _ = _settingsRepo.SetLanguageAsync(_accountJid, value.Code);
+            _onLanguageChanged?.Invoke(value.Code);
         }
     }
 
@@ -929,6 +1200,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public void Open()
     {
         IsOpen = true;
+        _ = RefreshAccountsAsync();
+        _ = RefreshBlockedContactsAsync();
         var osAutostart = _startupService.IsStartupEnabled();
         if (LaunchOnStartup != osAutostart)
         {
@@ -943,10 +1216,139 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SelectedEmojiSlot = -1;
     }
 
+    // --- Privacy & Blocking ---
+    public ObservableCollection<string> BlockedContacts { get; } = [];
+
+    [ObservableProperty]
+    private string? _selectedBlockedContact;
+
+    [ObservableProperty]
+    private string _newBlockedJid = string.Empty;
+
+    [ObservableProperty]
+    private string? _blockingStatusMessage;
+
+    [ObservableProperty]
+    private bool _isBlockingLoading;
+
+    [RelayCommand]
+    public async Task RefreshBlockedContactsAsync()
+    {
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            var list = await session.Blocking.GetBlockListAsync().ConfigureAwait(false);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                BlockedContacts.Clear();
+                foreach (var jid in list)
+                {
+                    BlockedContacts.Add(jid);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to load blocked contacts: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task BlockNewContactAsync()
+    {
+        var jid = NewBlockedJid?.Trim();
+        if (string.IsNullOrWhiteSpace(jid)) return;
+
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null)
+        {
+            BlockingStatusMessage = "Account session or blocking feature not available.";
+            return;
+        }
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            await session.Blocking.BlockAsync(jid).ConfigureAwait(false);
+            NewBlockedJid = string.Empty;
+            await RefreshBlockedContactsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to block: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnblockContactAsync(string? jidToUnblock)
+    {
+        var jid = jidToUnblock ?? SelectedBlockedContact;
+        if (string.IsNullOrWhiteSpace(jid)) return;
+
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null) return;
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            await session.Blocking.UnblockAsync(jid).ConfigureAwait(false);
+            await RefreshBlockedContactsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to unblock: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnblockAllContactsAsync()
+    {
+        var session = _sessionManager?.SelectedSession ?? _sessionManager?.GetSession(_accountJid) ?? _sessionManager?.Sessions.FirstOrDefault();
+        if (session?.Blocking is null) return;
+
+        try
+        {
+            IsBlockingLoading = true;
+            BlockingStatusMessage = null;
+            await session.Blocking.UnblockAllAsync().ConfigureAwait(false);
+            await RefreshBlockedContactsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BlockingStatusMessage = $"Failed to unblock all: {ex.Message}";
+        }
+        finally
+        {
+            IsBlockingLoading = false;
+        }
+    }
+
     [RelayCommand]
     public async Task ResetDefaultsAsync()
     {
         NotificationPopupsEnabled = SettingsRepository.DefaultNotificationPopupsEnabled;
+        DoNotDisturbMode = SettingsRepository.DefaultDoNotDisturbMode;
         IconFlashingEnabled = SettingsRepository.DefaultIconFlashingEnabled;
         LaunchOnStartup = SettingsRepository.DefaultLaunchOnStartup;
         EnableMessageMerging = SettingsRepository.DefaultMergeMessagesEnabled;
@@ -975,6 +1377,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         InboundBubbleTextColor = SettingsRepository.DefaultInboundBubbleTextColor;
         ChatInputMaxLines = SettingsRepository.DefaultChatInputMaxLines;
         CloseAction = SettingsRepository.DefaultCloseAction;
+        SelectedLanguageItem = AvailableLanguages.FirstOrDefault(l => l.Code == SettingsRepository.DefaultLanguage) ?? AvailableLanguages[0];
+        LocalizationManager.Instance.SetLanguage(SettingsRepository.DefaultLanguage);
 
         QuickEmojis.Clear();
         foreach (var emoji in SettingsRepository.DefaultQuickEmojis)
@@ -984,6 +1388,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SelectedEmojiSlot = -1;
 
         await _settingsRepo.SetNotificationPopupsEnabledAsync(_accountJid, NotificationPopupsEnabled);
+        await _settingsRepo.SetDoNotDisturbModeAsync(_accountJid, DoNotDisturbMode);
         await _settingsRepo.SetIconFlashingEnabledAsync(_accountJid, IconFlashingEnabled);
         await _settingsRepo.SetLaunchOnStartupAsync(_accountJid, LaunchOnStartup);
         _startupService.SetStartupEnabled(LaunchOnStartup);
@@ -1007,6 +1412,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await _settingsRepo.SetInboundBubbleTextColorAsync(_accountJid, InboundBubbleTextColor);
         await _settingsRepo.SetCloseActionAsync(_accountJid, CloseAction);
         await _settingsRepo.SetQuickEmojisAsync(_accountJid, QuickEmojis);
+        await _settingsRepo.SetLanguageAsync(_accountJid, SettingsRepository.DefaultLanguage);
 
         ThemeManager.ApplyTheme(ThemeMode, AccentColor);
         DirectionToBackgroundConverter.SetColors(OutboundBubbleColor, InboundBubbleColor);
@@ -1016,6 +1422,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onEmoticonSettingsChanged?.Invoke(AutoReplaceEmoticons, EmoticonMappings.ToList());
         _onEvaluateExpressionsChanged?.Invoke(EvaluateExpressions);
         _onPopupsChanged?.Invoke(NotificationPopupsEnabled);
+        _onDoNotDisturbChanged?.Invoke(DoNotDisturbMode);
         _onFlashingChanged?.Invoke(IconFlashingEnabled);
         _onTypographyChanged?.Invoke(EffectiveFontFamily, FontSize);
         _onSendOnEnterChanged?.Invoke(SendOnEnter);
@@ -1026,6 +1433,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _onQuickEmojisChanged?.Invoke(QuickEmojis.ToList());
         _onBubbleColorChanged?.Invoke(OutboundBubbleColor, InboundBubbleColor);
         _onCloseActionChanged?.Invoke(CloseAction);
+        _onLanguageChanged?.Invoke(SettingsRepository.DefaultLanguage);
     }
 }
 

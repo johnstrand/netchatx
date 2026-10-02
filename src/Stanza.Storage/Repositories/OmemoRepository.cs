@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
+using Stanza.Storage.Security;
 
 namespace Stanza.Storage.Repositories;
 
@@ -44,10 +45,10 @@ public sealed class OmemoRepository
 
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$device_id", deviceId);
-        cmd.Parameters.AddWithValue("$private", privateKey);
+        cmd.Parameters.AddWithValue("$private", SecretProtection.ProtectText(privateKey, _context.SecretProtector));
         cmd.Parameters.AddWithValue("$public", publicKey);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<(int DeviceId, string PrivateKey, string PublicKey)?> GetIdentityAsync(string accountJid, CancellationToken cancellationToken = default)
@@ -58,10 +59,13 @@ public sealed class OmemoRepository
         cmd.CommandText = "SELECT device_id, identity_key_private, identity_key_public FROM omemo_identities WHERE account_jid = $account_jid;";
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
 
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        if (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            return (reader.GetInt32(0), reader.GetString(1), reader.GetString(2));
+            return (
+                reader.GetInt32(0),
+                SecretProtection.UnprotectText(reader.GetString(1), _context.SecretProtector),
+                reader.GetString(2));
         }
 
         return null;
@@ -84,11 +88,11 @@ public sealed class OmemoRepository
         cmd.Parameters.AddWithValue("$account_jid", session.AccountJid);
         cmd.Parameters.AddWithValue("$remote_jid", session.RemoteJid);
         cmd.Parameters.AddWithValue("$device_id", session.DeviceId);
-        cmd.Parameters.AddWithValue("$session_data", session.SessionData);
+        cmd.Parameters.AddWithValue("$session_data", SecretProtection.ProtectBytes(session.SessionData, _context.SecretProtector));
         cmd.Parameters.AddWithValue("$last_active", session.LastActive.ToString("O"));
         cmd.Parameters.AddWithValue("$trust_state", (int)session.TrustState);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<OmemoSessionRecord?> GetSessionAsync(string accountJid, string remoteJid, int deviceId, CancellationToken cancellationToken = default)
@@ -106,15 +110,15 @@ public sealed class OmemoRepository
         cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
         cmd.Parameters.AddWithValue("$device_id", deviceId);
 
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        if (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return new OmemoSessionRecord
             {
                 AccountJid = accountJid,
                 RemoteJid = remoteJid,
                 DeviceId = deviceId,
-                SessionData = (byte[])reader[0],
+                SessionData = SecretProtection.UnprotectBytes((byte[])reader[0], _context.SecretProtector),
                 LastActive = DateTimeOffset.Parse(reader.GetString(1)),
                 TrustState = (OmemoTrustState)reader.GetInt32(2)
             };
@@ -138,15 +142,15 @@ public sealed class OmemoRepository
         cmd.Parameters.AddWithValue("$remote_jid", remoteJid);
 
         var list = new List<OmemoSessionRecord>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(new OmemoSessionRecord
             {
                 AccountJid = accountJid,
                 RemoteJid = remoteJid,
                 DeviceId = reader.GetInt32(0),
-                SessionData = (byte[])reader[1],
+                SessionData = SecretProtection.UnprotectBytes((byte[])reader[1], _context.SecretProtector),
                 LastActive = DateTimeOffset.Parse(reader.GetString(2)),
                 TrustState = (OmemoTrustState)reader.GetInt32(3)
             });
@@ -171,6 +175,6 @@ public sealed class OmemoRepository
         cmd.Parameters.AddWithValue("$device_id", (int)deviceId);
         cmd.Parameters.AddWithValue("$trust_state", (int)trustState);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

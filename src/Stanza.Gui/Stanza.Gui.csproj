@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <EmbeddedResource Include="Assets\Locales\*.json" />
   </ItemGroup>
 
   <ItemGroup>

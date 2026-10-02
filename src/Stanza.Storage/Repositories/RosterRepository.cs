@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using Stanza.Storage.Models;
 
 namespace Stanza.Storage.Repositories;
@@ -14,7 +14,7 @@ public sealed class RosterRepository
 
     public async Task UpsertContactAsync(RosterContact contact, CancellationToken cancellationToken = default)
     {
-        await UpsertContactsAsync(new[] { contact }, cancellationToken);
+        await UpsertContactsAsync(new[] { contact }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task UpsertContactsAsync(IEnumerable<RosterContact> contacts, CancellationToken cancellationToken = default)
@@ -50,10 +50,10 @@ public sealed class RosterRepository
             pSubscription.Value = contact.Subscription;
             pGroups.Value = (object?)contact.Groups ?? DBNull.Value;
 
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await transaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<RosterContact>> GetContactsAsync(string accountJid, CancellationToken cancellationToken = default)
@@ -71,8 +71,8 @@ public sealed class RosterRepository
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
 
         var list = new List<RosterContact>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             list.Add(new RosterContact
             {
@@ -96,6 +96,6 @@ public sealed class RosterRepository
         cmd.Parameters.AddWithValue("$account_jid", accountJid);
         cmd.Parameters.AddWithValue("$contact_jid", contactJid);
 
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

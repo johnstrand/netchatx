@@ -36,7 +36,8 @@
                 <Button Grid.Column="2" Content="✕" Command="{Binding CloseCommand}"
                         ToolTip.Tip="Close (Esc)"
                         Classes="icon-btn subtle"
-                        VerticalAlignment="Top" />
+                        VerticalAlignment="Top"
+                        AutomationProperties.Name="Close about dialog" />
             </Grid>
 
             <!-- Scrollable Content -->
@@ -63,7 +64,8 @@
                                         Padding="12,6"
                                         Height="32"
                                         VerticalAlignment="Center"
-                                        ToolTip.Tip="Open GitHub repository in browser">
+                                        ToolTip.Tip="Open GitHub repository in browser"
+                                        AutomationProperties.Name="Open source repository on GitHub">
                                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                         <TextBlock Text="🌐" FontSize="12" VerticalAlignment="Center" />
                                         <TextBlock Text="GitHub" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
@@ -131,7 +133,8 @@
                         Classes="secondary"
                         Padding="12,6"
                         Height="32"
-                        ToolTip.Tip="Copy application, OS, and library information to clipboard">
+                        ToolTip.Tip="Copy application, OS, and library information to clipboard"
+                        AutomationProperties.Name="Copy system info to clipboard">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <TextBlock Text="📋" FontSize="11" VerticalAlignment="Center" />
                         <TextBlock Text="Copy System Info" FontSize="11" VerticalAlignment="Center" />
@@ -149,7 +152,8 @@
                         Padding="20,6"
                         Height="32"
                         FontSize="11.5"
-                        FontWeight="SemiBold" />
+                        FontWeight="SemiBold"
+                        AutomationProperties.Name="Dismiss about dialog" />
             </Grid>
         </Grid>
     </Border>

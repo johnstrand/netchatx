@@ -1,4 +1,4 @@
-﻿using Stanza.Core.Client;
+using Stanza.Core.Client;
 using Stanza.Core.Xml;
 using Stanza.Protocol.Xeps.Common;
 
@@ -19,6 +19,6 @@ public sealed class Xep0352ClientStateIndication : XepFeatureBase
         IsActive = active;
 
         var elem = new XmppElement(active ? "active" : "inactive", NsCsi);
-        await Client.SendElementAsync(elem, ct);
+        await Client.SendElementAsync(elem, ct).ConfigureAwait(false);
     }
 }

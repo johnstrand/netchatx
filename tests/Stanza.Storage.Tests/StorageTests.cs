@@ -14,7 +14,7 @@ public class StorageTests : IDisposable
     {
         _output = output;
         _dbPath = $"test_{Guid.NewGuid():N}.db";
-        _context = new DatabaseContext(_dbPath);
+        _context = new DatabaseContext(_dbPath, TestSecretProtector.Instance);
     }
 
     [Fact]
@@ -110,6 +110,30 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsRepository_MucAutoJoinRooms_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        var account = "muc_user@example.org";
+
+        var initial = await repo.GetMucAutoJoinRoomsAsync(account);
+        Assert.Empty(initial);
+
+        await repo.AddMucAutoJoinRoomAsync(account, "room1@conference.example.org");
+        await repo.AddMucAutoJoinRoomAsync(account, "room2@muc.example.org");
+        await repo.AddMucAutoJoinRoomAsync(account, "ROOM1@conference.example.org");
+
+        var rooms = await repo.GetMucAutoJoinRoomsAsync(account);
+        Assert.Equal(2, rooms.Count);
+        Assert.Contains("room1@conference.example.org", rooms, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("room2@muc.example.org", rooms, StringComparer.OrdinalIgnoreCase);
+
+        await repo.RemoveMucAutoJoinRoomAsync(account, "room2@muc.example.org");
+        rooms = await repo.GetMucAutoJoinRoomsAsync(account);
+        Assert.Single(rooms);
+        Assert.Contains("room1@conference.example.org", rooms, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SettingsRepository_FullConfigurability_SaveAndRetrieve_Succeeds()
     {
         var repo = new SettingsRepository(_context);
@@ -162,6 +186,29 @@ public class StorageTests : IDisposable
         Assert.Equal(20, await repo.GetChatInputMaxLinesAsync(account));
         await repo.SetChatInputMaxLinesAsync(account, -5);
         Assert.Equal(1, await repo.GetChatInputMaxLinesAsync(account));
+    }
+
+    [Fact]
+    public async Task SettingsRepository_Language_SaveAndRetrieve_Succeeds()
+    {
+        var repo = new SettingsRepository(_context);
+        var account1 = "user1@example.org";
+        var account2 = "user2@example.org";
+
+        // Defaults
+        Assert.Equal("en", await repo.GetLanguageAsync(account1));
+        Assert.Equal("en", await repo.GetLanguageAsync(account2));
+
+        // Set account1 to Swedish
+        await repo.SetLanguageAsync(account1, "sv");
+        Assert.Equal("sv", await repo.GetLanguageAsync(account1));
+
+        // account2 remains English
+        Assert.Equal("en", await repo.GetLanguageAsync(account2));
+
+        // Update back to English
+        await repo.SetLanguageAsync(account1, "en");
+        Assert.Equal("en", await repo.GetLanguageAsync(account1));
     }
 
     [Fact]
@@ -805,6 +852,56 @@ public class StorageTests : IDisposable
     }
 
     [Fact]
+    public void DatabaseContext_ImplementsIDisposable()
+    {
+        Assert.True(typeof(IDisposable).IsAssignableFrom(typeof(DatabaseContext)));
+    }
+
+    [Fact]
+    public void DatabaseContext_Dispose_ReleasesFileLockAndClearsPool()
+    {
+        var tempDb = $"test_dispose_{Guid.NewGuid():N}.db";
+        var context = new DatabaseContext(tempDb);
+
+        using (var connection = context.CreateConnection())
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT 1;";
+            cmd.ExecuteScalar();
+        }
+
+        context.Dispose();
+
+        Assert.True(File.Exists(tempDb));
+        File.Delete(tempDb);
+        Assert.False(File.Exists(tempDb));
+    }
+
+    [Fact]
+    public void DatabaseContext_CreateConnection_AfterDispose_ThrowsObjectDisposedException()
+    {
+        var tempDb = $"test_disposed_throw_{Guid.NewGuid():N}.db";
+        var context = new DatabaseContext(tempDb);
+        context.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => context.CreateConnection());
+
+        try { File.Delete(tempDb); } catch { }
+    }
+
+    [Fact]
+    public void DatabaseContext_Dispose_CanBeCalledMultipleTimes()
+    {
+        var tempDb = $"test_multidispose_{Guid.NewGuid():N}.db";
+        var context = new DatabaseContext(tempDb);
+        context.Dispose();
+        var ex = Record.Exception(() => context.Dispose());
+        Assert.Null(ex);
+
+        try { File.Delete(tempDb); } catch { }
+    }
+
+    [Fact]
     public async Task AvatarRepository_SaveAndGetAvatar_ReturnsCorrectRecord()
     {
         var repo = new AvatarRepository(_context);
@@ -908,8 +1005,38 @@ public class StorageTests : IDisposable
         Assert.True(fromList.AllowUntrustedCertificates);
     }
 
+    [Fact]
+    public async Task AccountRepository_SaveAndGetAccount_PersistsLabelAndColorHex()
+    {
+        var repo = new AccountRepository(_context);
+        var account = new AccountProfile
+        {
+            Jid = "work@example.com",
+            Password = "workpassword",
+            Resource = "Laptop",
+            Host = "xmpp.work.com",
+            Port = 5222,
+            IsActive = true,
+            Label = "Work",
+            ColorHex = "#3B82F6"
+        };
+
+        await repo.SaveAccountAsync(account);
+
+        var retrieved = await repo.GetAccountAsync("work@example.com");
+        Assert.NotNull(retrieved);
+        Assert.Equal("Work", retrieved.Label);
+        Assert.Equal("#3B82F6", retrieved.ColorHex);
+
+        var accounts = await repo.GetAccountsAsync();
+        var fromList = Assert.Single(accounts, a => a.Jid == "work@example.com");
+        Assert.Equal("Work", fromList.Label);
+        Assert.Equal("#3B82F6", fromList.ColorHex);
+    }
+
     public void Dispose()
     {
+        _context.Dispose();
         if (File.Exists(_dbPath))
         {
             try { File.Delete(_dbPath); } catch { }

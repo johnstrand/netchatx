@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Stanza.Core.Sasl;
@@ -35,7 +35,8 @@ public sealed class ScramSaslMechanism : ISaslMechanism
         var nonceBytes = RandomNumberGenerator.GetBytes(18);
         _clientNonce = Convert.ToBase64String(nonceBytes);
 
-        var escapedUser = username.Replace("=", "=3D").Replace(",", "=2C");
+        var normalizedUser = username.Normalize(NormalizationForm.FormKC);
+        var escapedUser = normalizedUser.Replace("=", "=3D").Replace(",", "=2C");
         _clientFirstMessageBare = $"n={escapedUser},r={_clientNonce}";
 
         var clientFirstMessage = $"n,,{_clientFirstMessageBare}";
@@ -65,7 +66,8 @@ public sealed class ScramSaslMechanism : ISaslMechanism
         }
 
         var salt = Convert.FromBase64String(saltB64);
-        var passwordBytes = Encoding.UTF8.GetBytes(password);
+        var normalizedPassword = password.Normalize(NormalizationForm.FormKC);
+        var passwordBytes = Encoding.UTF8.GetBytes(normalizedPassword);
 
         // SaltedPassword = Hi(Normalize(password), salt, i)
         var saltedPassword = Rfc2898DeriveBytes.Pbkdf2(passwordBytes, salt, iterations, _hashAlgorithm, _hashLength);

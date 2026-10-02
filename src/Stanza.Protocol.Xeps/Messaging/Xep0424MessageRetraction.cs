@@ -1,4 +1,4 @@
-﻿using Stanza.Core;
+using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
 using Stanza.Core.Xml;
@@ -34,7 +34,7 @@ public sealed class Xep0424MessageRetraction : XepFeatureBase
         if (Client is null) throw new InvalidOperationException("Client not attached.");
 
         var msg = CreateRetractionStanza(to, targetMessageId, type);
-        await Client.SendStanzaAsync(msg, ct);
+        await Client.SendStanzaAsync(msg, ct).ConfigureAwait(false);
     }
 
     public override ValueTask<bool> OnIncomingElementAsync(XmppClient client, XmppElement element, CancellationToken cancellationToken = default)

@@ -1,10 +1,15 @@
 using Microsoft.Data.Sqlite;
+using Stanza.Storage.Migrations;
+using Stanza.Storage.Security;
 
 namespace Stanza.Storage;
 
-public sealed class DatabaseContext
+public sealed class DatabaseContext : IDisposable
 {
     private readonly string _connectionString;
+    private bool _disposed;
+
+    public ISecretProtector SecretProtector { get; }
 
     public static string GetDefaultDatabasePath()
     {
@@ -36,9 +41,10 @@ public sealed class DatabaseContext
         return targetDb;
     }
 
-    public DatabaseContext(string? databasePath = null)
+    public DatabaseContext(string? databasePath = null, ISecretProtector? secretProtector = null)
     {
         databasePath ??= GetDefaultDatabasePath();
+        SecretProtector = secretProtector ?? new OsSecretProtector();
 
         _connectionString = new SqliteConnectionStringBuilder
         {
@@ -52,76 +58,45 @@ public sealed class DatabaseContext
 
     public SqliteConnection CreateConnection()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA secure_delete = ON;";
+        command.ExecuteNonQuery();
         return connection;
     }
 
     private void InitializeDatabase()
     {
         using var connection = CreateConnection();
-        ExecuteSchemaScript(connection);
-        EnsureRawXmlColumnExists(connection);
-        EnsureAllowUntrustedCertificatesColumnExists(connection);
+        var migrator = new DatabaseMigrator(secretProtector: SecretProtector);
+        migrator.Migrate(connection);
+        SecretProtection.ValidateExistingSecrets(connection, SecretProtector);
     }
 
-    private static void ExecuteSchemaScript(SqliteConnection connection)
+    public int GetCurrentSchemaVersion()
     {
-        var assembly = typeof(DatabaseContext).Assembly;
-        const string resourceName = "Stanza.Storage.Resources.schema.sql";
-
-        using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
-        using var reader = new StreamReader(stream);
-        var schemaSql = reader.ReadToEnd();
-
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = schemaSql;
-        cmd.ExecuteNonQuery();
+        using var connection = CreateConnection();
+        var versions = DatabaseMigrator.GetAppliedVersions(connection);
+        return versions.Count > 0 ? versions.Max() : 0;
     }
 
-    private static void EnsureRawXmlColumnExists(SqliteConnection connection)
+    public IReadOnlyList<int> GetAppliedMigrationVersions()
     {
-        using var checkColCmd = connection.CreateCommand();
-        checkColCmd.CommandText = "PRAGMA table_info(messages);";
-        using var reader = checkColCmd.ExecuteReader();
-        var hasRawXml = false;
-        while (reader.Read())
-        {
-            if (string.Equals(reader.GetString(1), "raw_xml", StringComparison.OrdinalIgnoreCase))
-            {
-                hasRawXml = true;
-                break;
-            }
-        }
-        if (!hasRawXml)
-        {
-            using var alterCmd = connection.CreateCommand();
-            alterCmd.CommandText = "ALTER TABLE messages ADD COLUMN raw_xml TEXT;";
-            alterCmd.ExecuteNonQuery();
-        }
+        using var connection = CreateConnection();
+        return DatabaseMigrator.GetAppliedVersions(connection).OrderBy(v => v).ToList();
     }
 
-    private static void EnsureAllowUntrustedCertificatesColumnExists(SqliteConnection connection)
+    public void Dispose()
     {
-        using var checkColCmd = connection.CreateCommand();
-        checkColCmd.CommandText = "PRAGMA table_info(accounts);";
-        using var reader = checkColCmd.ExecuteReader();
-        var hasColumn = false;
-        while (reader.Read())
+        if (_disposed)
         {
-            if (string.Equals(reader.GetString(1), "allow_untrusted_certificates", StringComparison.OrdinalIgnoreCase))
-            {
-                hasColumn = true;
-                break;
-            }
+            return;
         }
-        if (!hasColumn)
-        {
-            using var alterCmd = connection.CreateCommand();
-            alterCmd.CommandText = "ALTER TABLE accounts ADD COLUMN allow_untrusted_certificates INTEGER NOT NULL DEFAULT 0;";
-            alterCmd.ExecuteNonQuery();
-        }
-    }
 
+        _disposed = true;
+        using var connection = new SqliteConnection(_connectionString);
+        SqliteConnection.ClearPool(connection);
+    }
 }
