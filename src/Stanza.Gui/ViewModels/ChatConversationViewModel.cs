@@ -1399,6 +1399,15 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                     await _messageRepo.SaveMessagesAsync(chatMsgs);
                 }
 
+                if (!startTimestamp.HasValue)
+                {
+                    var initialArchiveCursor = mamResult.FirstId ?? mamResult.Messages.FirstOrDefault()?.ArchiveId;
+                    if (!string.IsNullOrEmpty(initialArchiveCursor))
+                    {
+                        await SaveMamArchiveCursorAsync(initialArchiveCursor);
+                    }
+                }
+
                 if (mamResult.IsComplete)
                     break;
 
@@ -1450,7 +1459,6 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             if (oldestBubble is null) return;
 
             var oldestTimestamp = oldestBubble.Timestamp;
-            var oldestStanzaId = oldestBubble.StanzaId;
 
             // Notify UI to record current scroll position before modifying messages collection
             PostToUi(() => OlderHistoryLoading?.Invoke());
@@ -1463,13 +1471,21 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             {
                 try
                 {
-                    // Pass the oldest known archive ID to RSM <before>{id}</before> to fetch preceding messages
+                    var archiveCursor = await GetMamArchiveCursorAsync();
+
+                    // MAM result IDs, not inner message stanza IDs, are the RSM paging cursors.
                     var mamResult = await _mamManager.QueryArchiveAsync(
                         withJid: IsGroupChat ? null : RemoteJid,
                         archiveJid: IsGroupChat ? RemoteJid : null,
                         maxResults: 50,
-                        before: oldestStanzaId,
-                        end: string.IsNullOrEmpty(oldestStanzaId) ? oldestTimestamp : null);
+                        before: archiveCursor,
+                        end: archiveCursor is null ? oldestTimestamp : null);
+
+                    var nextArchiveCursor = mamResult.FirstId ?? mamResult.Messages.FirstOrDefault()?.ArchiveId;
+                    if (!string.IsNullOrEmpty(nextArchiveCursor))
+                    {
+                        await SaveMamArchiveCursorAsync(nextArchiveCursor);
+                    }
 
                     var chatMsgs = await ProcessMamMessagesAsync(mamResult.Messages);
 
@@ -1513,6 +1529,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             IsLoadingOlderHistory = false;
         }
     }
+
+    private Task<string?> GetMamArchiveCursorAsync()
+        => _settingsRepo?.GetMamArchiveCursorAsync(_accountJid, RemoteJid.ToBareString()) ?? Task.FromResult<string?>(null);
+
+    private Task SaveMamArchiveCursorAsync(string archiveId)
+        => _settingsRepo?.SetMamArchiveCursorAsync(_accountJid, RemoteJid.ToBareString(), archiveId) ?? Task.CompletedTask;
 
     public async Task LoadReactionsForCurrentMessagesAsync()
     {

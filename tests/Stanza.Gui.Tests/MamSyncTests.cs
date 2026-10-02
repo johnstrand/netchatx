@@ -98,6 +98,67 @@ public class MamSyncTests : IDisposable
         }
     }
 
+    private sealed class ArchiveCursorMamManager(Jid account, Jid remote) : Xep0313MessageArchiveManagement
+    {
+        public List<(string? Before, DateTimeOffset? End)> Queries { get; } = [];
+
+        public override Task<MamQueryResult> QueryArchiveAsync(
+            Jid? withJid = null,
+            Jid? archiveJid = null,
+            int maxResults = 50,
+            string? before = null,
+            string? after = null,
+            DateTimeOffset? start = null,
+            DateTimeOffset? end = null,
+            CancellationToken ct = default)
+        {
+            Queries.Add((before, end));
+
+            if (Queries.Count == 1)
+            {
+                return Task.FromResult(new MamQueryResult
+                {
+                    Messages =
+                    [
+                        CreateItem("archive-latest-page", "message-stanza-latest", "latest", DateTimeOffset.UtcNow.AddMinutes(-2))
+                    ],
+                    FirstId = "archive-latest-page",
+                    LastId = "archive-latest-page"
+                });
+            }
+
+            if (before == "archive-latest-page")
+            {
+                return Task.FromResult(new MamQueryResult
+                {
+                    Messages =
+                    [
+                        CreateItem("archive-older-page", "message-stanza-older", "older", DateTimeOffset.UtcNow.AddMinutes(-20))
+                    ],
+                    FirstId = "archive-older-page",
+                    LastId = "archive-older-page"
+                });
+            }
+
+            return Task.FromResult(new MamQueryResult
+            {
+                Messages = Array.Empty<MamMessageItem>(),
+                IsComplete = true
+            });
+        }
+
+        private MamMessageItem CreateItem(string archiveId, string stanzaId, string body, DateTimeOffset timestamp)
+        {
+            var message = new MessageStanza(to: account, from: remote, body: body, id: stanzaId);
+            return new MamMessageItem
+            {
+                ArchiveId = archiveId,
+                Timestamp = timestamp,
+                Message = message
+            };
+        }
+    }
+
     [Fact]
     public async Task ChatConversationViewModel_SyncArchive_PagesThroughAllMessagesAndRetriesOnFailure()
     {
@@ -245,6 +306,34 @@ public class MamSyncTests : IDisposable
         Assert.Single(conv.Messages);
         Assert.False(conv.IsSyncing);
         Assert.Equal(0, conv.SyncFetchedCount);
+    }
+
+    [Fact]
+    public async Task LoadOlderHistory_UsesPersistedMamArchiveCursorInsteadOfStanzaId()
+    {
+        var account = Jid.Parse("user@test.org");
+        var remote = Jid.Parse("friend@test.org");
+        var settingsRepo = new SettingsRepository(_dbContext);
+        var mam = new ArchiveCursorMamManager(account, remote);
+        var conversation = new ChatConversationViewModel(
+            account.ToString(),
+            remote.ToString(),
+            "Friend",
+            remote,
+            isGroupChat: false,
+            _messageRepo,
+            mamManager: mam,
+            settingsRepo: settingsRepo);
+
+        await conversation.LoadHistoryAsync();
+        await conversation.LoadOlderHistoryAsync();
+
+        Assert.Equal(2, mam.Queries.Count);
+        Assert.Null(mam.Queries[0].Before);
+        Assert.Equal("archive-latest-page", mam.Queries[1].Before);
+        Assert.Null(mam.Queries[1].End);
+        Assert.Contains(conversation.Messages, message => message.StanzaId == "message-stanza-older");
+        Assert.Equal("archive-older-page", await settingsRepo.GetMamArchiveCursorAsync(account.ToString(), remote.ToBareString()));
     }
 
     [Fact]
