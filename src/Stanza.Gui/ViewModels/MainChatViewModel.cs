@@ -353,7 +353,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         IsSearching = true;
         SearchResults.Clear();
 
-        var messages = await _messageRepo.SearchMessagesAsync(AccountJid, query, limit: 50);
+        var targetAccountJid = IsAllAccountsSelected ? null : (SelectedAccountSession?.AccountJid ?? AccountJid);
+        var messages = await _messageRepo.SearchMessagesAsync(targetAccountJid, query, limit: 50);
         foreach (var msg in messages)
         {
             string? displayName = null;
@@ -363,16 +364,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
             }
             else
             {
-                var contact = Contacts.FirstOrDefault(c =>
-                    c.ContactJid.Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase) ||
-                    c.ContactJid.Equals(msg.SenderJid, StringComparison.OrdinalIgnoreCase));
+                var contact = _allContacts.FirstOrDefault(c =>
+                    c.AccountJid.Equals(msg.AccountJid, StringComparison.OrdinalIgnoreCase) &&
+                    (c.ContactJid.Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase) ||
+                     c.ContactJid.Equals(msg.SenderJid, StringComparison.OrdinalIgnoreCase)));
                 if (contact is not null && !string.IsNullOrWhiteSpace(contact.DisplayName))
                 {
                     displayName = contact.DisplayName;
                 }
             }
 
-            var bubble = MessageBubbleViewModel.FromChatMessage(msg, AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis, displayName);
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, msg.AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis, displayName);
+            var session = _sessionManager?.GetSession(msg.AccountJid);
+            if (session is not null)
+            {
+                bubble.AccountLabel = session.DisplayName;
+                bubble.AccountColorHex = session.ColorHex;
+            }
+            else
+            {
+                bubble.AccountLabel = msg.AccountJid;
+            }
+            bubble.ShowAccountBadge = IsAllAccountsSelected;
+
             SearchResults.Add(bubble);
         }
 
@@ -398,13 +412,30 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         if (result is null) return;
 
+        var owningAccountJid = !string.IsNullOrWhiteSpace(result.AccountJid)
+            ? result.AccountJid
+            : (SelectedAccountSession?.AccountJid ?? AccountJid);
+
         var targetJidStr = !string.IsNullOrEmpty(result.RemoteJid) ? result.RemoteJid : result.SenderName;
         if (Jid.TryParse(targetJidStr, out var parsedTarget))
         {
             var bare = parsedTarget.BareJid;
-            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(bare.ToString(), StringComparison.OrdinalIgnoreCase));
+            var contact = _allContacts.FirstOrDefault(c =>
+                c.AccountJid.Equals(owningAccountJid, StringComparison.OrdinalIgnoreCase) &&
+                c.ContactJid.Equals(bare.ToString(), StringComparison.OrdinalIgnoreCase));
             var title = contact?.DisplayName ?? bare.ToString();
-            var conv = GetOrCreateConversation(bare.ToString(), title, bare, isGroupChat: false);
+
+            if (SelectedAccountSession is not null &&
+                !SelectedAccountSession.AccountJid.Equals(owningAccountJid, StringComparison.OrdinalIgnoreCase))
+            {
+                var targetSession = _sessionManager?.GetSession(owningAccountJid);
+                if (targetSession is not null)
+                {
+                    SelectedAccountSession = targetSession;
+                }
+            }
+
+            var conv = GetOrCreateConversation(owningAccountJid, bare.ToString(), title, bare, isGroupChat: false);
             ActiveConversation = conv;
             await conv.EnsureHistoryLoadedAsync();
         }
@@ -843,6 +874,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
         if (_sessionManager is not null)
         {
             _sessionManager.SelectedSession = value;
+        }
+        if (value is not null)
+        {
+            AccountJid = value.AccountJid;
         }
         ApplyAccountFilter();
     }

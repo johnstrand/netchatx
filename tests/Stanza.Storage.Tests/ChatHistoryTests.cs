@@ -52,6 +52,52 @@ public class ChatHistoryTests : IDisposable
     }
 
     [Fact]
+    public async Task MessageRepository_SearchMessages_SupportsAccountScopingAndAllAccounts()
+    {
+        var repo = new MessageRepository(_context);
+        var acc1 = "alice@example.com";
+        var acc2 = "bob@example.com";
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = acc1,
+            RemoteJid = "charlie@example.com",
+            SenderJid = "charlie@example.com",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Direction = MessageDirection.Inbound,
+            Body = "Important project update for Alice"
+        });
+
+        await repo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = acc2,
+            RemoteJid = "david@example.com",
+            SenderJid = "david@example.com",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-2),
+            Direction = MessageDirection.Inbound,
+            Body = "Important project update for Bob"
+        });
+
+        // Search specifically for Alice
+        var aliceResults = await repo.SearchMessagesAsync(acc1, "project update");
+        Assert.Single(aliceResults);
+        Assert.Equal(acc1, aliceResults[0].AccountJid);
+        Assert.Contains("for Alice", aliceResults[0].Body);
+
+        // Search specifically for Bob
+        var bobResults = await repo.SearchMessagesAsync(acc2, "project update");
+        Assert.Single(bobResults);
+        Assert.Equal(acc2, bobResults[0].AccountJid);
+        Assert.Contains("for Bob", bobResults[0].Body);
+
+        // Search across all accounts (null or empty accountJid)
+        var allResults = await repo.SearchMessagesAsync(null, "project update");
+        Assert.Equal(2, allResults.Count);
+        Assert.Contains(allResults, m => m.AccountJid == acc1 && m.Body.Contains("for Alice"));
+        Assert.Contains(allResults, m => m.AccountJid == acc2 && m.Body.Contains("for Bob"));
+    }
+
+    [Fact]
     public async Task MessageRepository_RawXml_SavesAndRetrievesXml()
     {
         var repo = new MessageRepository(_context);

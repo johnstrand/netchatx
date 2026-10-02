@@ -141,6 +141,32 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     }
 
     [ObservableProperty]
+    private string _accountJid = string.Empty;
+
+    [ObservableProperty]
+    private string _accountLabel = string.Empty;
+
+    [ObservableProperty]
+    private string _accountColorHex = "#00F0FF";
+
+    [ObservableProperty]
+    private bool _showAccountBadge;
+
+    public string AccountBadgeText => !string.IsNullOrWhiteSpace(AccountLabel) ? AccountLabel : AccountJid;
+
+    public IBrush AccountBrush
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(AccountColorHex) && Color.TryParse(AccountColorHex, out var color))
+            {
+                return new SolidColorBrush(color);
+            }
+            return new SolidColorBrush(Color.Parse("#00F0FF"));
+        }
+    }
+
+    [ObservableProperty]
     private string _remoteJid = string.Empty;
 
     [ObservableProperty]
@@ -839,6 +865,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         var vm = new MessageBubbleViewModel
         {
             Id = msg.Id,
+            AccountJid = !string.IsNullOrEmpty(msg.AccountJid) ? msg.AccountJid : accountJid,
             RawBody = msg.Body,
             Body = displayBody,
             IsActionMessage = isAction,
