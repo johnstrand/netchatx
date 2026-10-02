@@ -399,4 +399,112 @@ public class MultiAccountTests : IDisposable
             Assert.Equal("In a meeting", s.StatusMessage);
         }
     }
+
+    [AvaloniaFact]
+    public async Task MainChatViewModel_Search_ScopesToSelectedAccountAndAllAccounts()
+    {
+        var p1 = new AccountProfile
+        {
+            Jid = "alice@example.com",
+            Password = "pass1",
+            Label = "Work",
+            ColorHex = "#3B82F6",
+            IsActive = true
+        };
+        var p2 = new AccountProfile
+        {
+            Jid = "bob@example.com",
+            Password = "pass2",
+            Label = "Personal",
+            ColorHex = "#10B981",
+            IsActive = true
+        };
+        await _accountRepo.SaveAccountAsync(p1);
+        await _accountRepo.SaveAccountAsync(p2);
+
+        var msgRepo = new MessageRepository(_dbContext);
+        await msgRepo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = "alice@example.com",
+            RemoteJid = "colleague@example.com",
+            SenderJid = "colleague@example.com",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-10),
+            Direction = MessageDirection.Inbound,
+            Body = "Quarterly budget review for Alice"
+        });
+        await msgRepo.SaveMessageAsync(new ChatMessage
+        {
+            AccountJid = "bob@example.com",
+            RemoteJid = "friend@example.com",
+            SenderJid = "friend@example.com",
+            Timestamp = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Direction = MessageDirection.Inbound,
+            Body = "Holiday budget trip for Bob"
+        });
+
+        var manager = new AccountSessionManager(_dbContext, _accountRepo);
+        await manager.InitializeAsync(autoConnect: false);
+
+        var chatVm = new MainChatViewModel(manager, _dbContext, () => Task.CompletedTask);
+        await chatVm.InitializeAsync();
+
+        var sessionAlice = manager.GetSession("alice@example.com")!;
+        var sessionBob = manager.GetSession("bob@example.com")!;
+
+        // 1. In Alice's account view: search returns only Alice's messages
+        chatVm.SelectAccountSession(sessionAlice);
+        chatVm.SearchQuery = "budget";
+        await chatVm.ExecuteSearchAsync();
+
+        Assert.True(chatVm.IsSearching);
+        Assert.Single(chatVm.SearchResults);
+        Assert.Equal("alice@example.com", chatVm.SearchResults[0].AccountJid);
+        Assert.Contains("for Alice", chatVm.SearchResults[0].Body);
+        Assert.False(chatVm.SearchResults[0].ShowAccountBadge);
+
+        // 2. In Bob's account view: search returns only Bob's messages
+        chatVm.SelectAccountSession(sessionBob);
+        chatVm.SearchQuery = "budget";
+        await chatVm.ExecuteSearchAsync();
+
+        Assert.True(chatVm.IsSearching);
+        Assert.Single(chatVm.SearchResults);
+        Assert.Equal("bob@example.com", chatVm.SearchResults[0].AccountJid);
+        Assert.Contains("for Bob", chatVm.SearchResults[0].Body);
+        Assert.False(chatVm.SearchResults[0].ShowAccountBadge);
+
+        // 3. In All Accounts view: search returns both messages with account badges
+        chatVm.SelectAllAccounts();
+        chatVm.SearchQuery = "budget";
+        await chatVm.ExecuteSearchAsync();
+
+        Assert.True(chatVm.IsSearching);
+        Assert.Equal(2, chatVm.SearchResults.Count);
+        Assert.All(chatVm.SearchResults, r => Assert.True(r.ShowAccountBadge));
+        Assert.Contains(chatVm.SearchResults, r => r.AccountJid == "alice@example.com" && r.Body.Contains("for Alice"));
+        Assert.Contains(chatVm.SearchResults, r => r.AccountJid == "bob@example.com" && r.Body.Contains("for Bob"));
+
+        // 4. Select a search result belonging to Bob: opens conversation in Bob's account
+        var bobResult = chatVm.SearchResults.First(r => r.AccountJid == "bob@example.com");
+        await chatVm.SelectSearchResultAsync(bobResult);
+
+        Assert.False(chatVm.IsSearching);
+        Assert.NotNull(chatVm.ActiveConversation);
+        Assert.Equal("bob@example.com", chatVm.ActiveConversation.AccountJid);
+        Assert.Equal("friend@example.com", chatVm.ActiveConversation.RemoteJid.ToString());
+
+        // 5. Select Alice's account view, then select search result for Bob -> switches account to Bob
+        chatVm.SelectAccountSession(sessionAlice);
+        chatVm.SearchQuery = "budget";
+        await chatVm.ExecuteSearchAsync();
+
+        // Simulate choosing a result that belongs to Bob
+        await chatVm.SelectSearchResultAsync(bobResult);
+
+        Assert.False(chatVm.IsSearching);
+        Assert.Same(sessionBob, chatVm.SelectedAccountSession);
+        Assert.NotNull(chatVm.ActiveConversation);
+        Assert.Equal("bob@example.com", chatVm.ActiveConversation.AccountJid);
+        Assert.Equal("friend@example.com", chatVm.ActiveConversation.RemoteJid.ToString());
+    }
 }
