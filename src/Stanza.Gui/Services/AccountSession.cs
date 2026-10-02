@@ -192,6 +192,7 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         if (Registration is null) throw new InvalidOperationException("Registration feature not initialized.");
         await Registration.ChangePasswordAsync(newPassword, ct).ConfigureAwait(false);
         Profile.Password = newPassword;
+        Client.Options.Password = newPassword;
     }
 
     public async Task UnregisterAccountAsync(CancellationToken ct = default)

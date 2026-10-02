@@ -173,6 +173,21 @@ public sealed partial class AccountSessionManager : ObservableObject, IAsyncDisp
         }
     }
 
+    public async Task ChangePasswordAsync(string jid, string newPassword, CancellationToken cancellationToken = default)
+    {
+        var session = GetSession(jid) ?? throw new InvalidOperationException($"No session exists for account {jid}.");
+        await session.ChangePasswordAsync(newPassword, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _accountRepo.SaveAccountAsync(session.Profile, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException("The server changed the password, but Stanza could not save the updated credential locally.", exception);
+        }
+    }
+
     public async Task BroadcastPresenceAsync(string show, string? status, int priority = 0)
     {
         var tasks = Sessions.Select(s => s.SendPresenceAsync(show, status, priority));

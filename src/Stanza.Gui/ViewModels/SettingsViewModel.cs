@@ -46,6 +46,35 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     public ObservableCollection<AccountProfileViewModel> ManagedAccounts { get; } = [];
 
+    [ObservableProperty]
+    private AccountProfileViewModel? _passwordChangeAccount;
+
+    [ObservableProperty]
+    private bool _isChangePasswordDialogOpen;
+
+    [ObservableProperty]
+    private bool _isChangingAccountPassword;
+
+    [ObservableProperty]
+    private string _newAccountPassword = string.Empty;
+
+    [ObservableProperty]
+    private string _confirmAccountPassword = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAccountPasswordStatusMessage))]
+    private string? _accountPasswordStatusMessage;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccountPasswordStatusBrush))]
+    private bool _isAccountPasswordStatusError;
+
+    public IBrush AccountPasswordStatusBrush => IsAccountPasswordStatusError
+        ? new SolidColorBrush(Color.Parse("#FDA4AF"))
+        : new SolidColorBrush(Color.Parse("#34D399"));
+
+    public bool HasAccountPasswordStatusMessage => !string.IsNullOrWhiteSpace(AccountPasswordStatusMessage);
+
     public static readonly IReadOnlyList<string> CuratedFontFamilies =
     [
         "Inter",
@@ -415,6 +444,84 @@ public sealed partial class SettingsViewModel : ViewModelBase
         if (accountVm is null || _sessionManager is null) return;
         await _sessionManager.RemoveAccountAsync(accountVm.Jid).ConfigureAwait(false);
         ManagedAccounts.Remove(accountVm);
+    }
+
+    [RelayCommand]
+    public void OpenChangePasswordDialog(AccountProfileViewModel? accountVm)
+    {
+        if (accountVm?.CanChangePassword != true || _sessionManager is null)
+        {
+            return;
+        }
+
+        PasswordChangeAccount = accountVm;
+        NewAccountPassword = string.Empty;
+        ConfirmAccountPassword = string.Empty;
+        AccountPasswordStatusMessage = null;
+        IsAccountPasswordStatusError = false;
+        IsChangePasswordDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseChangePasswordDialog()
+    {
+        if (IsChangingAccountPassword)
+        {
+            return;
+        }
+
+        IsChangePasswordDialogOpen = false;
+        PasswordChangeAccount = null;
+        NewAccountPassword = string.Empty;
+        ConfirmAccountPassword = string.Empty;
+        AccountPasswordStatusMessage = null;
+        IsAccountPasswordStatusError = false;
+    }
+
+    [RelayCommand]
+    public async Task ChangeAccountPasswordAsync()
+    {
+        var accountVm = PasswordChangeAccount;
+        if (accountVm?.CanChangePassword != true || _sessionManager is null)
+        {
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_RequiresConnection");
+            IsAccountPasswordStatusError = true;
+            return;
+        }
+
+        if (string.IsNullOrEmpty(NewAccountPassword))
+        {
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Required");
+            IsAccountPasswordStatusError = true;
+            return;
+        }
+
+        if (!string.Equals(NewAccountPassword, ConfirmAccountPassword, StringComparison.Ordinal))
+        {
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Mismatch");
+            IsAccountPasswordStatusError = true;
+            return;
+        }
+
+        IsChangingAccountPassword = true;
+        IsAccountPasswordStatusError = false;
+        AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Submitting");
+        try
+        {
+            await _sessionManager.ChangePasswordAsync(accountVm.Jid, NewAccountPassword);
+            NewAccountPassword = string.Empty;
+            ConfirmAccountPassword = string.Empty;
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Success");
+        }
+        catch (Exception exception)
+        {
+            IsAccountPasswordStatusError = true;
+            AccountPasswordStatusMessage = LocalizationManager.Instance.GetString("Settings_Accounts_PasswordChange_Failed", exception.Message);
+        }
+        finally
+        {
+            IsChangingAccountPassword = false;
+        }
     }
 
     public async Task RefreshAccountsAsync()
