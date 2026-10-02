@@ -207,6 +207,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     private bool _isGif;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTextMessageVisible))]
     private bool _isOnlyImage;
 
     [ObservableProperty]
@@ -236,6 +237,93 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
     public static bool Use24HourClock { get; set; } = true;
     public static bool ShowInlinePreviews { get; set; } = true;
     public static bool AutoDownloadMedia { get; set; } = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFileTransfer))]
+    [NotifyPropertyChangedFor(nameof(IsTextMessageVisible))]
+    private bool _isFileTransfer;
+
+    public bool HasFileTransfer => IsFileTransfer;
+
+    [ObservableProperty]
+    private string? _fileTransferSessionId;
+
+    [ObservableProperty]
+    private string? _fileTransferName;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FileTransferSizeFormatted))]
+    private long _fileTransferSize;
+
+    [ObservableProperty]
+    private string? _fileTransferStatus;
+
+    [ObservableProperty]
+    private double _fileTransferProgress;
+
+    [ObservableProperty]
+    private bool _isFileTransferPending;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelFileTransfer))]
+    private bool _isFileTransferActive;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelFileTransfer))]
+    private bool _isFileTransferCompleted;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelFileTransfer))]
+    private bool _isFileTransferFailed;
+
+    [ObservableProperty]
+    private string? _fileTransferPath;
+
+    public bool CanCancelFileTransfer => (IsFileTransferActive || (IsOutbound && !IsFileTransferCompleted && !IsFileTransferFailed && IsFileTransfer));
+
+    public bool IsTextMessageVisible => !IsOnlyImage && !HasFileTransfer;
+
+    public string FileTransferSizeFormatted
+    {
+        get
+        {
+            if (FileTransferSize <= 0) return string.Empty;
+            if (FileTransferSize < 1024) return $"{FileTransferSize} B";
+            if (FileTransferSize < 1024 * 1024) return $"{FileTransferSize / 1024.0:F1} KB";
+            return $"{FileTransferSize / (1024.0 * 1024.0):F1} MB";
+        }
+    }
+
+    public Func<MessageBubbleViewModel, Task>? AcceptTransferHandler { get; set; }
+    public Func<MessageBubbleViewModel, Task>? RejectTransferHandler { get; set; }
+    public Func<MessageBubbleViewModel, Task>? CancelTransferHandler { get; set; }
+
+    [RelayCommand]
+    public async Task AcceptFileTransferAsync()
+    {
+        if (AcceptTransferHandler is not null)
+        {
+            await AcceptTransferHandler(this);
+        }
+    }
+
+    [RelayCommand]
+    public async Task RejectFileTransferAsync()
+    {
+        if (RejectTransferHandler is not null)
+        {
+            await RejectTransferHandler(this);
+        }
+    }
+
+    [RelayCommand]
+    public async Task CancelFileTransferAsync()
+    {
+        if (CancelTransferHandler is not null)
+        {
+            await CancelTransferHandler(this);
+        }
+    }
 
     public bool IsPreviewVisible => HasImage && ShowInlinePreviews;
     public bool ShowManualDownloadButton => HasImage && ImageThumbnail is null && !IsLoadingImage;
@@ -952,6 +1040,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsPreviewVisible));
         OnPropertyChanged(nameof(DisplayText));
         OnPropertyChanged(nameof(IsOnlyImage));
+        OnPropertyChanged(nameof(IsTextMessageVisible));
         if (HasImage && ImageThumbnail is null && !IsLoadingImage && ShowInlinePreviews && AutoDownloadMedia)
         {
             _ = LoadThumbnailAsync();
@@ -1011,6 +1100,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 OnPropertyChanged(nameof(IsPreviewVisible));
                 OnPropertyChanged(nameof(DisplayText));
                 OnPropertyChanged(nameof(IsOnlyImage));
+                OnPropertyChanged(nameof(IsTextMessageVisible));
             }
             else
             {
@@ -1028,6 +1118,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
                 OnPropertyChanged(nameof(IsPreviewVisible));
                 OnPropertyChanged(nameof(DisplayText));
                 OnPropertyChanged(nameof(IsOnlyImage));
+                OnPropertyChanged(nameof(IsTextMessageVisible));
             }
             return true;
         }
@@ -1092,6 +1183,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(IsPreviewVisible));
             OnPropertyChanged(nameof(DisplayText));
             OnPropertyChanged(nameof(IsOnlyImage));
+            OnPropertyChanged(nameof(IsTextMessageVisible));
         }
     }
 
@@ -1130,6 +1222,7 @@ public sealed partial class MessageBubbleViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsPreviewVisible));
         OnPropertyChanged(nameof(DisplayText));
         OnPropertyChanged(nameof(IsOnlyImage));
+        OnPropertyChanged(nameof(IsTextMessageVisible));
     }
 
     public void Dispose()
