@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Stanza.Storage.Migrations;
+using Stanza.Storage.Security;
 
 namespace Stanza.Storage;
 
@@ -7,6 +8,8 @@ public sealed class DatabaseContext : IDisposable
 {
     private readonly string _connectionString;
     private bool _disposed;
+
+    public ISecretProtector SecretProtector { get; }
 
     public static string GetDefaultDatabasePath()
     {
@@ -38,9 +41,10 @@ public sealed class DatabaseContext : IDisposable
         return targetDb;
     }
 
-    public DatabaseContext(string? databasePath = null)
+    public DatabaseContext(string? databasePath = null, ISecretProtector? secretProtector = null)
     {
         databasePath ??= GetDefaultDatabasePath();
+        SecretProtector = secretProtector ?? new OsSecretProtector();
 
         _connectionString = new SqliteConnectionStringBuilder
         {
@@ -57,14 +61,18 @@ public sealed class DatabaseContext : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA secure_delete = ON;";
+        command.ExecuteNonQuery();
         return connection;
     }
 
     private void InitializeDatabase()
     {
         using var connection = CreateConnection();
-        var migrator = new DatabaseMigrator();
+        var migrator = new DatabaseMigrator(secretProtector: SecretProtector);
         migrator.Migrate(connection);
+        SecretProtection.ValidateExistingSecrets(connection, SecretProtector);
     }
 
     public int GetCurrentSchemaVersion()
