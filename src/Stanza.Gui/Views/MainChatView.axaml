@@ -336,7 +336,12 @@
                                     Background="Transparent" BorderThickness="0" Padding="8,6">
                                 <StackPanel Spacing="3">
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding SenderDisplayName}" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding SenderDisplayName}" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" TextTrimming="CharacterEllipsis" />
+                                            <Border Background="{Binding AccountBrush}" CornerRadius="4" Padding="4,1" IsVisible="{Binding ShowAccountBadge}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding AccountBadgeText}" FontSize="8" FontWeight="Bold" Foreground="#0B0F19" />
+                                            </Border>
+                                        </StackPanel>
                                         <TextBlock Grid.Column="1" Text="{Binding FormattedDateTime}" Foreground="#64748B" FontSize="10" />
                                     </Grid>
                                     <TextBlock Text="{Binding Body}" Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="2" />
