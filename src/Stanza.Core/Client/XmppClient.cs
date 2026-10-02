@@ -25,6 +25,7 @@ public sealed class XmppClient : IAsyncDisposable
     public XmppClientOptions Options => _options;
     public Jid BoundJid { get; private set; }
     public XmppElement? StreamFeatures { get; private set; }
+    public IStreamResumptionHandler? ResumptionHandler { get; set; }
     public XmppClientState State
     {
         get => _state;
@@ -77,6 +78,12 @@ public sealed class XmppClient : IAsyncDisposable
     {
         if (State != XmppClientState.Disconnected)
             throw new InvalidOperationException($"Cannot connect while in state {State}");
+
+        if (_readLoopTask is not null)
+        {
+            try { await _readLoopTask.ConfigureAwait(false); } catch { }
+            _readLoopTask = null;
+        }
 
         State = XmppClientState.Connecting;
         _sessionCts?.Dispose();
@@ -158,6 +165,25 @@ public sealed class XmppClient : IAsyncDisposable
 
         if (!_transport.IsSecure)
             throw new InvalidOperationException("TLS is required before XMPP credentials can be sent.");
+
+        // Step 2.5: Stream Resumption (XEP-0198)
+        if (ResumptionHandler is not null && ResumptionHandler.CanResume)
+        {
+            var resumed = await ResumptionHandler.TryResumeAsync(
+                this,
+                features,
+                elem => SendElementRawAsync(elem, cancellationToken),
+                () => ReadNextElementAsync(cancellationToken).AsTask(),
+                cancellationToken).ConfigureAwait(false);
+
+            if (resumed)
+            {
+                State = XmppClientState.Ready;
+                return;
+            }
+
+            await ResumptionHandler.OnResumptionFailedAsync(this, cancellationToken).ConfigureAwait(false);
+        }
 
         // Step 3: SASL Authentication
         State = XmppClientState.Authenticating;
@@ -260,6 +286,17 @@ public sealed class XmppClient : IAsyncDisposable
             sessionIq.RawElement.Child(new XmppElement("session", "urn:ietf:params:xml:ns:xmpp-session"));
             await SendElementRawAsync(sessionIq.RawElement, cancellationToken).ConfigureAwait(false);
             _ = await ReadNextElementAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        // Step 7: Stream Management Negotiation (XEP-0198)
+        if (ResumptionHandler is not null)
+        {
+            await ResumptionHandler.OnStreamNegotiatedAsync(
+                this,
+                StreamFeatures ?? features,
+                elem => SendElementRawAsync(elem, cancellationToken),
+                () => ReadNextElementAsync(cancellationToken).AsTask(),
+                cancellationToken).ConfigureAwait(false);
         }
 
         State = XmppClientState.Ready;
@@ -416,13 +453,13 @@ public sealed class XmppClient : IAsyncDisposable
         }
         finally
         {
-            State = XmppClientState.Disconnected;
             try { await _transport.CloseAsync().ConfigureAwait(false); } catch { }
             foreach (var (_, tcs) in _pendingIqs)
             {
                 tcs.TrySetException(new IOException("Connection closed."));
             }
             _pendingIqs.Clear();
+            State = XmppClientState.Disconnected;
             Disconnected?.Invoke(disconnectReason);
         }
     }
@@ -433,6 +470,7 @@ public sealed class XmppClient : IAsyncDisposable
             return;
 
         State = XmppClientState.Disconnecting;
+        ResumptionHandler?.OnCleanDisconnect();
 
         try
         {

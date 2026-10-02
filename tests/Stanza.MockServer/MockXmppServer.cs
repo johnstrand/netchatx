@@ -7,19 +7,27 @@ namespace Stanza.MockServer;
 
 public sealed class MockXmppServer : IAsyncDisposable
 {
-    private readonly LoopbackTransport _transport;
-    private readonly XmppStreamParser _parser = new();
+    private LoopbackTransport _transport;
+    private XmppStreamParser _parser = new();
     private CancellationTokenSource? _cts;
     private Task? _serverTask;
 
     public string Domain { get; set; } = "mock.example.com";
     public string ExpectedPassword { get; set; } = "password123";
+    public bool AdvertiseStreamManagement { get; set; } = true;
+    public bool AllowResumption { get; set; } = true;
+    public string? CurrentResumeId { get; set; } = "mock-resume-token-1";
+    public uint ServerInboundHandled { get; set; }
+    public uint ServerOutboundHandled { get; set; }
 
     private readonly HashSet<string> _mockBlockedJids = new(StringComparer.OrdinalIgnoreCase);
 
     public event Action<MessageStanza>? OnMessageReceived;
     public event Action<IqStanza>? OnIqReceived;
     public event Action<PresenceStanza>? OnPresenceReceived;
+    public event Action<string?, uint>? OnResumeRequested;
+    public event Action<uint>? OnServerAckReceived;
+    public event Action<XmppElement>? OnSmElementReceived;
 
     public MockXmppServer(LoopbackTransport transport)
     {
@@ -32,19 +40,49 @@ public sealed class MockXmppServer : IAsyncDisposable
         _serverTask = Task.Run(() => RunServerLoopAsync(_cts.Token));
     }
 
+    public void ResetTransport(LoopbackTransport newTransport)
+    {
+        _cts?.Cancel();
+        _parser = new XmppStreamParser();
+        _transport = newTransport;
+        _cts = new CancellationTokenSource();
+        _serverTask = Task.Run(() => RunServerLoopAsync(_cts.Token));
+    }
+
     private async Task RunServerLoopAsync(CancellationToken ct)
     {
         try
         {
             // Stage 1: Pre-Auth Stream Header
             var elem1 = await ReadElementAsync(ct); // Stream header
-            await SendRawAsync($"<?xml version='1.0'?><stream:stream from='{Domain}' id='s-1' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms><register xmlns='http://jabber.org/features/iq-register'/></stream:features>", ct);
+            var preAuthSm = AdvertiseStreamManagement ? "<sm xmlns='urn:xmpp:sm:3'/>" : "";
+            await SendRawAsync($"<?xml version='1.0'?><stream:stream from='{Domain}' id='s-1' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms><register xmlns='http://jabber.org/features/iq-register'/>{preAuthSm}</stream:features>", ct);
 
-            // Stage 2: Pre-auth loop (handles IQ for in-band registration or auth element for SASL)
+            // Stage 2: Pre-auth loop (handles IQ for in-band registration, auth element for SASL, or resume element for SM)
             XmppElement? authElem = null;
             while (true)
             {
                 var nextElem = await ReadElementAsync(ct);
+
+                if (nextElem.Namespace == "urn:xmpp:sm:3" && nextElem.Name == "resume")
+                {
+                    var prevId = nextElem.GetAttr("previd");
+                    _ = uint.TryParse(nextElem.GetAttr("h"), out var clientH);
+                    OnResumeRequested?.Invoke(prevId, clientH);
+
+                    if (AllowResumption && (prevId == CurrentResumeId || CurrentResumeId == null))
+                    {
+                        await SendRawAsync($"<resumed xmlns='urn:xmpp:sm:3' previd='{prevId}' h='{ServerInboundHandled}'/>", ct);
+                        await RunConnectedLoopAsync(ct);
+                        return;
+                    }
+                    else
+                    {
+                        await SendRawAsync("<failed xmlns='urn:xmpp:sm:3'><item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></failed>", ct);
+                        continue;
+                    }
+                }
+
                 if (nextElem.Name == "auth")
                 {
                     authElem = nextElem;
@@ -118,7 +156,8 @@ public sealed class MockXmppServer : IAsyncDisposable
             // Stage 3: Post-Auth Stream Header
             _parser.Reset();
             _ = await ReadElementAsync(ct); // client stream header
-            await SendRawAsync($"<?xml version='1.0'?><stream:stream from='{Domain}' id='s-2' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/><sm xmlns='urn:xmpp:sm:3'/></stream:features>", ct);
+            var postAuthSm = AdvertiseStreamManagement ? "<sm xmlns='urn:xmpp:sm:3'/>" : "";
+            await SendRawAsync($"<?xml version='1.0'?><stream:stream from='{Domain}' id='s-2' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>{postAuthSm}</stream:features>", ct);
 
             // Stage 4: Resource Bind
             var bindIqElem = await ReadElementAsync(ct);
@@ -127,30 +166,69 @@ public sealed class MockXmppServer : IAsyncDisposable
             await SendRawAsync($"<iq type='result' id='{bindId}'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>alice@{Domain}/{resource}</jid></bind></iq>", ct);
 
             // Stage 5: Main connected loop
-            await foreach (var elem in _parser.ReadAllAsync(_transport.ServerInput, ct))
-            {
-                if (elem.Name == "iq")
-                {
-                    var iq = new IqStanza(elem);
-                    OnIqReceived?.Invoke(iq);
-                    await HandleIqAsync(iq, ct);
-                }
-                else if (elem.Name == "message")
-                {
-                    var msg = new MessageStanza(elem);
-                    OnMessageReceived?.Invoke(msg);
-                }
-                else if (elem.Name == "presence")
-                {
-                    var pres = new PresenceStanza(elem);
-                    OnPresenceReceived?.Invoke(pres);
-                }
-            }
+            await RunConnectedLoopAsync(ct);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"MockServer exception: {ex}");
+        }
+    }
+
+    private async Task RunConnectedLoopAsync(CancellationToken ct)
+    {
+        await foreach (var elem in _parser.ReadAllAsync(_transport.ServerInput, ct))
+        {
+            if (elem.Namespace == "urn:xmpp:sm:3")
+            {
+                OnSmElementReceived?.Invoke(elem);
+                if (elem.Name == "enable")
+                {
+                    if (AdvertiseStreamManagement)
+                    {
+                        CurrentResumeId ??= "mock-resume-token-1";
+                        await SendRawAsync($"<enabled xmlns='urn:xmpp:sm:3' id='{CurrentResumeId}' resume='true'/>", ct);
+                    }
+                    else
+                    {
+                        await SendRawAsync("<failed xmlns='urn:xmpp:sm:3'/>", ct);
+                    }
+                }
+                else if (elem.Name == "r")
+                {
+                    await SendRawAsync($"<a xmlns='urn:xmpp:sm:3' h='{ServerInboundHandled}'/>", ct);
+                }
+                else if (elem.Name == "a")
+                {
+                    if (uint.TryParse(elem.GetAttr("h"), out var h))
+                    {
+                        OnServerAckReceived?.Invoke(h);
+                    }
+                }
+                continue;
+            }
+
+            if (elem.Name is "iq" or "message" or "presence")
+            {
+                unchecked { ServerInboundHandled++; }
+            }
+
+            if (elem.Name == "iq")
+            {
+                var iq = new IqStanza(elem);
+                OnIqReceived?.Invoke(iq);
+                await HandleIqAsync(iq, ct);
+            }
+            else if (elem.Name == "message")
+            {
+                var msg = new MessageStanza(elem);
+                OnMessageReceived?.Invoke(msg);
+            }
+            else if (elem.Name == "presence")
+            {
+                var pres = new PresenceStanza(elem);
+                OnPresenceReceived?.Invoke(pres);
+            }
         }
     }
 

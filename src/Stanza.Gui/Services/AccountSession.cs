@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
+using Stanza.Core.Xml;
 using Stanza.Gui.Helpers;
 using Stanza.Protocol.Xeps.Avatars;
 using Stanza.Protocol.Xeps.Common;
@@ -17,6 +18,7 @@ using Stanza.Protocol.Xeps.Muc;
 using Stanza.Protocol.Xeps.Omemo;
 using Stanza.Protocol.Xeps.Privacy;
 using Stanza.Protocol.Xeps.Registration;
+using Stanza.Protocol.Xeps.Resilience;
 using Stanza.Protocol.Xeps.Sharing;
 using Stanza.Storage.Models;
 
@@ -100,6 +102,9 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
     public Xep0234JingleFileTransfer? JingleFileTransfer { get; private set; }
     public AvatarManager? AvatarManager { get; private set; }
     public Xep0077InBandRegistration? Registration { get; private set; }
+    public Xep0198StreamManagement? StreamManagement { get; private set; }
+
+    public event Action<IReadOnlyList<XmppElement>>? UnrecoverableMessagesFailed;
 
     public ConcurrentDictionary<string, ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> ContactResourcePresence { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -165,6 +170,8 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         JingleFileTransfer = new Xep0234JingleFileTransfer();
         AvatarManager = new AvatarManager();
         Registration = new Xep0077InBandRegistration();
+        StreamManagement = new Xep0198StreamManagement();
+        StreamManagement.UnrecoverableMessagesFailed += OnUnrecoverableMessagesFailed;
 
         await Ping.AttachAsync(Client).ConfigureAwait(false);
         await Mam.AttachAsync(Client).ConfigureAwait(false);
@@ -185,6 +192,13 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         await JingleFileTransfer.AttachAsync(Client).ConfigureAwait(false);
         await AvatarManager.AttachAsync(Client).ConfigureAwait(false);
         await Registration.AttachAsync(Client).ConfigureAwait(false);
+        await StreamManagement.AttachAsync(Client).ConfigureAwait(false);
+    }
+
+    private void OnUnrecoverableMessagesFailed(IReadOnlyList<XmppElement> stanzas)
+    {
+        UnrecoverableMessagesFailed?.Invoke(stanzas);
+        LastErrorMessage = $"{stanzas.Count} unacknowledged message(s) could not be recovered after session resumption failed.";
     }
 
     public async Task ChangePasswordAsync(string newPassword, CancellationToken ct = default)
@@ -207,6 +221,12 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         {
             ConnectionState = AccountConnectionState.Connecting;
             LastErrorMessage = null;
+            if (StreamManagement is null)
+            {
+                StreamManagement = new Xep0198StreamManagement();
+                StreamManagement.UnrecoverableMessagesFailed += OnUnrecoverableMessagesFailed;
+                await StreamManagement.AttachAsync(Client).ConfigureAwait(false);
+            }
             await Client.ConnectAsync(cancellationToken).ConfigureAwait(false);
             ConnectionState = AccountConnectionState.Connected;
             return true;
@@ -267,6 +287,10 @@ public sealed partial class AccountSession : ObservableObject, IAsyncDisposable
         _disposed = true;
 
         Client.StateChanged -= OnClientStateChanged;
+        if (StreamManagement is not null)
+        {
+            StreamManagement.UnrecoverableMessagesFailed -= OnUnrecoverableMessagesFailed;
+        }
 
         try
         {
