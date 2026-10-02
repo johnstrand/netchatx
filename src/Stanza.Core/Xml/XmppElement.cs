@@ -70,6 +70,23 @@ public sealed class XmppElement
         return this;
     }
 
+    public XmppElement Clone()
+    {
+        var clone = new XmppElement(Name, Namespace, Prefix)
+        {
+            Value = Value
+        };
+        foreach (var (k, v) in _attributes)
+        {
+            clone.Attr(k, v);
+        }
+        foreach (var child in _children)
+        {
+            clone.Child(child.Clone());
+        }
+        return clone;
+    }
+
     public XmppElement? Element(string name, string? ns = null)
     {
         foreach (var child in _children)

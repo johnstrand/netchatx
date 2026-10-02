@@ -18,6 +18,7 @@ using Stanza.Protocol.Xeps.Messaging;
 using Stanza.Protocol.Xeps.Muc;
 using Stanza.Protocol.Xeps.Omemo;
 using Stanza.Protocol.Xeps.Privacy;
+using Stanza.Protocol.Xeps.Resilience;
 using Stanza.Protocol.Xeps.Sharing;
 using Stanza.Storage;
 using Stanza.Storage.Models;
@@ -59,6 +60,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
     private Xep0393MessageStyling? _styling;
     private Xep0191Blocking? _blocking;
     private Xep0234JingleFileTransfer? _jingleFileTransfer;
+    private Xep0198StreamManagement? _streamManagement;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, (string Show, string? Status, int Priority)>> _contactResourcePresence = new(StringComparer.OrdinalIgnoreCase);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset?> _conversationNotificationMuteUntil = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1023,6 +1025,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     private void WireSession(AccountSession session)
     {
+        session.UnrecoverableMessagesFailed += stanzas =>
+        {
+            PostToUi(() =>
+            {
+                StatusMessage = $"{session.DisplayName}: {stanzas.Count} unacknowledged message(s) could not be recovered after session resumption failed.";
+            });
+        };
+
         session.Client.StateChanged += state =>
         {
             if (state == XmppClientState.Disconnected && !_isManualDisconnect)
@@ -1197,6 +1207,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _blocking = firstSession.Blocking;
             _jingleFileTransfer = firstSession.JingleFileTransfer;
             _avatarManager = firstSession.AvatarManager;
+            _streamManagement = firstSession.StreamManagement;
         }
         else
         {
@@ -1217,6 +1228,14 @@ public sealed partial class MainChatViewModel : ViewModelBase
             _blocking = new Xep0191Blocking();
             _jingleFileTransfer = new Xep0234JingleFileTransfer();
             _ping = new Xep0199Ping();
+            _streamManagement = new Xep0198StreamManagement();
+            _streamManagement.UnrecoverableMessagesFailed += stanzas =>
+            {
+                PostToUi(() =>
+                {
+                    StatusMessage = $"{stanzas.Count} unacknowledged message(s) could not be recovered after session resumption failed.";
+                });
+            };
 
             await _mam.AttachAsync(_client);
             await _omemo.AttachAsync(_client);
@@ -1235,6 +1254,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await _blocking.AttachAsync(_client);
             await _jingleFileTransfer.AttachAsync(_client);
             await _ping.AttachAsync(_client);
+            await _streamManagement.AttachAsync(_client);
 
             _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
             await _avatarManager.AttachAsync(_client);
