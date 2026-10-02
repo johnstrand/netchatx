@@ -6,7 +6,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Include>[Stanza.*]*</Include>
-          <Exclude>[Stanza.MockServer]*,[*.Tests]*</Exclude>
+          <Exclude>[Stanza.MockServer]*,[*.Tests]*,[*.IntegrationTests]*</Exclude>
           <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
           <ExcludeByFile>**/obj/**,**/*.g.cs,**/*.g.i.cs</ExcludeByFile>
           <SingleHit>false</SingleHit>
