@@ -17,6 +17,9 @@ public sealed class MockXmppServer : IAsyncDisposable
 
     private readonly HashSet<string> _mockBlockedJids = new(StringComparer.OrdinalIgnoreCase);
 
+    public MockXmppServer? PeerServer { get; set; }
+    public string? BoundJid { get; set; }
+
     public event Action<MessageStanza>? OnMessageReceived;
     public event Action<IqStanza>? OnIqReceived;
     public event Action<PresenceStanza>? OnPresenceReceived;
@@ -95,9 +98,25 @@ public sealed class MockXmppServer : IAsyncDisposable
                 }
             }
             var mech = authElem.GetAttr("mechanism") ?? "PLAIN";
+            var authenticatedUser = "alice";
 
             if (mech == "PLAIN")
             {
+                if (!string.IsNullOrEmpty(authElem.Value))
+                {
+                    try
+                    {
+                        var raw = Convert.FromBase64String(authElem.Value);
+                        var parts = Encoding.UTF8.GetString(raw).Split('\0', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 0)
+                        {
+                            var user = parts[0];
+                            if (user.Contains('@')) user = user.Split('@')[0];
+                            if (!string.IsNullOrWhiteSpace(user)) authenticatedUser = user;
+                        }
+                    }
+                    catch { }
+                }
                 await SendRawAsync("<success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>", ct);
             }
             else if (mech == "SCRAM-SHA-256")
@@ -124,7 +143,8 @@ public sealed class MockXmppServer : IAsyncDisposable
             var bindIqElem = await ReadElementAsync(ct);
             var bindId = bindIqElem.GetAttr("id") ?? "b1";
             var resource = bindIqElem.Element("bind")?.Element("resource")?.Value ?? "Stanza";
-            await SendRawAsync($"<iq type='result' id='{bindId}'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>alice@{Domain}/{resource}</jid></bind></iq>", ct);
+            BoundJid = $"{authenticatedUser}@{Domain}/{resource}";
+            await SendRawAsync($"<iq type='result' id='{bindId}'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>{BoundJid}</jid></bind></iq>", ct);
 
             // Stage 5: Main connected loop
             await foreach (var elem in _parser.ReadAllAsync(_transport.ServerInput, ct))
@@ -133,17 +153,46 @@ public sealed class MockXmppServer : IAsyncDisposable
                 {
                     var iq = new IqStanza(elem);
                     OnIqReceived?.Invoke(iq);
+
+                    if (PeerServer is not null && iq.To is not null && !string.Equals(iq.To.BareJid, Domain, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (string.IsNullOrEmpty(elem.GetAttr("from")))
+                        {
+                            elem.Attr("from", BoundJid ?? $"alice@{Domain}/Stanza");
+                        }
+                        await PeerServer.InjectElementAsync(elem);
+                        continue;
+                    }
+
                     await HandleIqAsync(iq, ct);
                 }
                 else if (elem.Name == "message")
                 {
                     var msg = new MessageStanza(elem);
                     OnMessageReceived?.Invoke(msg);
+
+                    if (PeerServer is not null)
+                    {
+                        if (string.IsNullOrEmpty(elem.GetAttr("from")))
+                        {
+                            elem.Attr("from", BoundJid ?? $"alice@{Domain}/Stanza");
+                        }
+                        await PeerServer.InjectElementAsync(elem);
+                    }
                 }
                 else if (elem.Name == "presence")
                 {
                     var pres = new PresenceStanza(elem);
                     OnPresenceReceived?.Invoke(pres);
+
+                    if (PeerServer is not null)
+                    {
+                        if (string.IsNullOrEmpty(elem.GetAttr("from")))
+                        {
+                            elem.Attr("from", BoundJid ?? $"alice@{Domain}/Stanza");
+                        }
+                        await PeerServer.InjectElementAsync(elem);
+                    }
                 }
             }
         }

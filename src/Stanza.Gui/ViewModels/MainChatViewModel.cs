@@ -1202,6 +1202,40 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 });
             };
         }
+
+        if (session.JingleFileTransfer is not null)
+        {
+            session.JingleFileTransfer.TransferOfferReceived += transferSession =>
+            {
+                PostToUi(() =>
+                {
+                    var remote = transferSession.Peer.BareJid;
+                    var contact = _allContacts.FirstOrDefault(c =>
+                        c.AccountJid.Equals(session.AccountJid, StringComparison.OrdinalIgnoreCase) &&
+                        c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
+                    var displayName = contact?.DisplayName ?? remote.ToString();
+                    var conv = GetOrCreateConversation(session.AccountJid, remote.ToString(), displayName, remote, isGroupChat: false);
+                    conv.HandleIncomingFileOffer(transferSession);
+
+                    if (contact is not null)
+                    {
+                        contact.LastMessagePreview = conv.LastMessageSnippet;
+                    }
+
+                    if (ActiveConversation != conv)
+                    {
+                        session.UnreadCount++;
+                        _sessionManager?.UpdateTotalUnreadCount();
+                        if (contact is not null)
+                        {
+                            contact.UnreadCount++;
+                        }
+                    }
+
+                    TriggerNotification(remote.ToString(), displayName, $"Incoming file offer: {transferSession.FileName} ({transferSession.FileSize} bytes)", isEncrypted: false, accountJid: session.AccountJid);
+                });
+            };
+        }
     }
 
     public async Task InitializeAsync()
@@ -1269,6 +1303,34 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await _styling.AttachAsync(_client);
             await _blocking.AttachAsync(_client);
             await _jingleFileTransfer.AttachAsync(_client);
+            _jingleFileTransfer.TransferOfferReceived += transferSession =>
+            {
+                PostToUi(() =>
+                {
+                    var remote = transferSession.Peer.BareJid;
+                    var contact = _allContacts.FirstOrDefault(c =>
+                        c.AccountJid.Equals(AccountJid, StringComparison.OrdinalIgnoreCase) &&
+                        c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
+                    var displayName = contact?.DisplayName ?? remote.ToString();
+                    var conv = GetOrCreateConversation(AccountJid, remote.ToString(), displayName, remote, isGroupChat: false);
+                    conv.HandleIncomingFileOffer(transferSession);
+
+                    if (contact is not null)
+                    {
+                        contact.LastMessagePreview = conv.LastMessageSnippet;
+                    }
+
+                    if (ActiveConversation != conv)
+                    {
+                        if (contact is not null)
+                        {
+                            contact.UnreadCount++;
+                        }
+                    }
+
+                    TriggerNotification(remote.ToString(), displayName, $"Incoming file offer: {transferSession.FileName} ({transferSession.FileSize} bytes)", isEncrypted: false, accountJid: AccountJid);
+                });
+            };
             await _ping.AttachAsync(_client);
 
             _avatarManager = new Stanza.Protocol.Xeps.Avatars.AvatarManager();
