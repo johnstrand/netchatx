@@ -247,7 +247,7 @@ public sealed class MessageRepository
     }
 
     public async Task<List<ChatMessage>> SearchMessagesAsync(
-        string accountJid,
+        string? accountJid,
         string searchQuery,
         int limit = 50,
         CancellationToken cancellationToken = default)
@@ -255,18 +255,33 @@ public sealed class MessageRepository
         using var connection = _context.CreateConnection();
         using var cmd = connection.CreateCommand();
 
-        cmd.CommandText = """
-            SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
-                   body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
-            FROM messages
-            WHERE account_jid = $account_jid AND body LIKE $query
-            ORDER BY timestamp DESC
-            LIMIT $limit;
-        """;
-
-        cmd.Parameters.AddWithValue("$account_jid", accountJid);
-        cmd.Parameters.AddWithValue("$query", $"%{searchQuery}%");
-        cmd.Parameters.AddWithValue("$limit", limit);
+        if (string.IsNullOrEmpty(accountJid))
+        {
+            cmd.CommandText = """
+                SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
+                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
+                FROM messages
+                WHERE body LIKE $query
+                ORDER BY timestamp DESC
+                LIMIT $limit;
+            """;
+            cmd.Parameters.AddWithValue("$query", $"%{searchQuery}%");
+            cmd.Parameters.AddWithValue("$limit", limit);
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT id, account_jid, remote_jid, sender_jid, timestamp, direction,
+                       body, stanza_id, origin_id, replace_id, is_encrypted, encryption_type, is_read, raw_xml
+                FROM messages
+                WHERE account_jid = $account_jid AND body LIKE $query
+                ORDER BY timestamp DESC
+                LIMIT $limit;
+            """;
+            cmd.Parameters.AddWithValue("$account_jid", accountJid);
+            cmd.Parameters.AddWithValue("$query", $"%{searchQuery}%");
+            cmd.Parameters.AddWithValue("$limit", limit);
+        }
 
         var list = new List<ChatMessage>();
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);

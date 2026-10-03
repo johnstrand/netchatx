@@ -336,7 +336,12 @@
                                     Background="Transparent" BorderThickness="0" Padding="8,6">
                                 <StackPanel Spacing="3">
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding SenderDisplayName}" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding SenderDisplayName}" FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" TextTrimming="CharacterEllipsis" />
+                                            <Border Background="{Binding AccountBrush}" CornerRadius="4" Padding="4,1" IsVisible="{Binding ShowAccountBadge}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding AccountBadgeText}" FontSize="8" FontWeight="Bold" Foreground="#0B0F19" />
+                                            </Border>
+                                        </StackPanel>
                                         <TextBlock Grid.Column="1" Text="{Binding FormattedDateTime}" Foreground="#64748B" FontSize="10" />
                                     </Grid>
                                     <TextBlock Text="{Binding Body}" Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="2" />
@@ -969,7 +974,73 @@
                                                                              FontSize="{Binding ((vm:MainChatViewModel)DataContext).ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              FontFamily="{Binding ((vm:MainChatViewModel)DataContext).ChatFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                              TextWrapping="Wrap"
-                                                                             IsVisible="{Binding !IsOnlyImage}" />
+                                                                             IsVisible="{Binding IsTextMessageVisible}" />
+
+                                                <!-- Jingle File Transfer Card if present -->
+                                                <Border IsVisible="{Binding HasFileTransfer}"
+                                                        Background="#15000000"
+                                                        BorderBrush="#25888888"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="12,10"
+                                                        Margin="0,2,0,4"
+                                                        MinWidth="260"
+                                                        MaxWidth="380">
+                                                    <StackPanel Spacing="8">
+                                                        <!-- Header: Icon, Name, and Size -->
+                                                        <Grid ColumnDefinitions="Auto,*">
+                                                            <TextBlock Grid.Column="0" Text="📁" FontSize="22" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding FileTransferName}"
+                                                                           FontWeight="SemiBold"
+                                                                           FontSize="13"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{Binding BubbleForeground}" />
+                                                                <TextBlock Text="{Binding FileTransferSizeFormatted}"
+                                                                           FontSize="11"
+                                                                           Opacity="0.75"
+                                                                           Foreground="{Binding BubbleForeground}" />
+                                                            </StackPanel>
+                                                        </Grid>
+
+                                                        <!-- Status message -->
+                                                        <TextBlock Text="{Binding FileTransferStatus}"
+                                                                   FontSize="11"
+                                                                   Opacity="0.85"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{Binding BubbleForeground}" />
+
+                                                        <!-- Progress Bar (shown when active) -->
+                                                        <ProgressBar Value="{Binding FileTransferProgress}"
+                                                                     Minimum="0" Maximum="100"
+                                                                     Height="6"
+                                                                     CornerRadius="3"
+                                                                     IsVisible="{Binding IsFileTransferActive}" />
+
+                                                        <!-- Action Buttons for Inbound Pending Offer -->
+                                                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsFileTransferPending}">
+                                                            <Button Content="Accept"
+                                                                    Command="{Binding AcceptFileTransferCommand}"
+                                                                    Classes="accent"
+                                                                    FontSize="12"
+                                                                    Padding="14,4" />
+                                                            <Button Content="Decline"
+                                                                    Command="{Binding RejectFileTransferCommand}"
+                                                                    Classes="secondary"
+                                                                    FontSize="12"
+                                                                    Padding="14,4" />
+                                                        </StackPanel>
+
+                                                        <!-- Cancel button when transfer can be cancelled -->
+                                                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding CanCancelFileTransfer}">
+                                                            <Button Content="Cancel"
+                                                                    Command="{Binding CancelFileTransferCommand}"
+                                                                    Classes="secondary"
+                                                                    FontSize="11"
+                                                                    Padding="10,3" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
 
                                                 <!-- Image Thumbnail Preview if present -->
                                                 <Button Classes="image-btn"

@@ -749,6 +749,14 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         _omemoManager = omemoManager;
         _httpUploadManager = httpUploadManager;
         _jingleFileTransfer = jingleFileTransfer;
+        if (_jingleFileTransfer is not null)
+        {
+            _jingleFileTransfer.TransferOfferReceived += OnJingleTransferOfferReceived;
+            _jingleFileTransfer.TransferProgress += OnJingleTransferProgress;
+            _jingleFileTransfer.TransferCompleted += OnJingleTransferCompleted;
+            _jingleFileTransfer.TransferFailed += OnJingleTransferFailed;
+            _jingleFileTransfer.TransferTerminated += OnJingleTransferTerminated;
+        }
         _reactionsManager = reactionsManager;
         _chatMarkers = chatMarkers;
         _chatStates = chatStates;
@@ -1724,28 +1732,68 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             }
         }
 
-        // 2. Fallback: Save to local media cache directory and send file URI
+        // 2. Fallback: Try XEP-0234 Jingle Peer-to-Peer File Transfer if direct chat and available
         if (string.IsNullOrEmpty(imageUrl))
         {
             if (!IsGroupChat && _jingleFileTransfer is not null)
             {
                 try
                 {
-                    var offer = new JingleFileTransferOffer(
-                        SessionId: Guid.NewGuid().ToString("N"),
-                        Name: fileName,
-                        Size: imageBytes.LongLength,
-                        MediaType: contentType,
-                        To: RemoteJid,
-                        CreatedAtUtc: DateTimeOffset.UtcNow);
-                    await _jingleFileTransfer.SendOfferAsync(offer).ConfigureAwait(false);
+                    var session = await _jingleFileTransfer.SendFileOfferAsync(
+                        RemoteJid,
+                        fileName,
+                        imageBytes,
+                        contentType).ConfigureAwait(false);
+
                     FileTransferStatusMessage = $"Peer-to-peer transfer offer sent for {fileName}.";
-                    AddSystemMessage(FileTransferStatusMessage);
+
+                    PostToUi(() =>
+                    {
+                        var msg = new ChatMessage
+                        {
+                            Id = session.SessionId,
+                            AccountJid = _accountJid,
+                            RemoteJid = RemoteJid.ToString(),
+                            SenderJid = _client?.BoundJid?.ToString() ?? _accountJid,
+                            Body = $"📁 File offer: {fileName} ({imageBytes.Length} bytes)",
+                            Direction = MessageDirection.Outbound,
+                            Timestamp = DateTimeOffset.UtcNow,
+                            IsRead = true
+                        };
+
+                        var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, "Me");
+                        bubble.IsFileTransfer = true;
+                        bubble.FileTransferSessionId = session.SessionId;
+                        bubble.FileTransferName = fileName;
+                        bubble.FileTransferSize = imageBytes.LongLength;
+                        bubble.FileTransferStatus = "Offer sent, waiting for peer...";
+                        bubble.IsFileTransferPending = false;
+                        bubble.IsFileTransferActive = false;
+
+                        bubble.CancelTransferHandler = async b =>
+                        {
+                            b.IsFileTransferActive = false;
+                            b.FileTransferStatus = "Transfer cancelled";
+                            FileTransferStatusMessage = $"Transfer cancelled for {fileName}.";
+                            try
+                            {
+                                await _jingleFileTransfer.CancelTransferAsync(session.SessionId);
+                            }
+                            catch { }
+                        };
+
+                        Messages.Add(bubble);
+                        UpdateDateHeaders();
+                        RequestScrollToBottom();
+                    });
+
                     return null;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Soft fallback to local media file
+                    // Failed or unsupported Jingle negotiation falls back safely without losing attachment
+                    FileTransferStatusMessage = $"Jingle negotiation failed: {ex.Message}. Falling back to local cache.";
+                    AddSystemMessage(FileTransferStatusMessage);
                 }
             }
 
@@ -2629,6 +2677,201 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     private void OnBubbleImageLoaded()
     {
         RequestScrollToBottom();
+    }
+
+    public void HandleIncomingFileOffer(JingleFileTransferSession session)
+    {
+        if (!session.Peer.EqualsBare(RemoteJid))
+            return;
+
+        PostToUi(() =>
+        {
+            if (Messages.Any(m => m.FileTransferSessionId == session.SessionId))
+                return;
+
+            var msg = new ChatMessage
+            {
+                Id = session.SessionId,
+                AccountJid = _accountJid,
+                RemoteJid = RemoteJid.ToString(),
+                SenderJid = session.Peer.ToString(),
+                Body = $"📁 File offer: {session.FileName} ({session.FileSize} bytes)",
+                Direction = MessageDirection.Inbound,
+                Timestamp = DateTimeOffset.UtcNow,
+                IsRead = true
+            };
+
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, _accountJid, _settingsRepo, _quickEmojis, Title);
+            bubble.IsFileTransfer = true;
+            bubble.FileTransferSessionId = session.SessionId;
+            bubble.FileTransferName = session.FileName;
+            bubble.FileTransferSize = session.FileSize;
+            bubble.FileTransferStatus = $"Incoming offer: {session.FileName} ({bubble.FileTransferSizeFormatted})";
+            bubble.IsFileTransferPending = true;
+
+            bubble.AcceptTransferHandler = async b =>
+            {
+                b.IsFileTransferPending = false;
+                b.IsFileTransferActive = true;
+                b.FileTransferStatus = $"Accepting {session.FileName}...";
+                FileTransferStatusMessage = $"Accepting transfer for {session.FileName}...";
+
+                try
+                {
+                    await _jingleFileTransfer!.AcceptOfferAsync(session.SessionId);
+                }
+                catch (Exception ex)
+                {
+                    b.IsFileTransferActive = false;
+                    b.IsFileTransferFailed = true;
+                    b.FileTransferStatus = $"Accept failed: {ex.Message}";
+                    FileTransferStatusMessage = b.FileTransferStatus;
+                }
+            };
+
+            bubble.RejectTransferHandler = async b =>
+            {
+                b.IsFileTransferPending = false;
+                b.FileTransferStatus = "Transfer declined";
+                FileTransferStatusMessage = $"Transfer declined for {session.FileName}.";
+
+                try
+                {
+                    await _jingleFileTransfer!.RejectOfferAsync(session.SessionId, "decline");
+                }
+                catch { }
+            };
+
+            bubble.CancelTransferHandler = async b =>
+            {
+                b.IsFileTransferActive = false;
+                b.FileTransferStatus = "Transfer cancelled";
+                FileTransferStatusMessage = $"Transfer cancelled for {session.FileName}.";
+
+                try
+                {
+                    await _jingleFileTransfer!.CancelTransferAsync(session.SessionId);
+                }
+                catch { }
+            };
+
+            Messages.Add(bubble);
+            UpdateDateHeaders();
+            RequestScrollToBottom();
+        });
+    }
+
+    private void OnJingleTransferOfferReceived(JingleFileTransferSession session) => HandleIncomingFileOffer(session);
+
+    private void OnJingleTransferProgress(JingleFileTransferProgressEventArgs args)
+    {
+        if (!args.Peer.EqualsBare(RemoteJid))
+            return;
+
+        PostToUi(() =>
+        {
+            var bubble = Messages.FirstOrDefault(m => m.FileTransferSessionId == args.SessionId);
+            if (bubble is not null)
+            {
+                bubble.IsFileTransferPending = false;
+                bubble.IsFileTransferActive = true;
+                bubble.FileTransferProgress = args.Percent * 100.0;
+                var action = bubble.IsOutbound ? "Sending" : "Receiving";
+                bubble.FileTransferStatus = $"{action} {bubble.FileTransferName}: {args.Percent * 100.0:F0}%";
+                FileTransferStatusMessage = bubble.FileTransferStatus;
+            }
+        });
+    }
+
+    private void OnJingleTransferCompleted(JingleFileTransferSession session, byte[] data)
+    {
+        if (!session.Peer.EqualsBare(RemoteJid))
+            return;
+
+        PostToUi(async () =>
+        {
+            var bubble = Messages.FirstOrDefault(m => m.FileTransferSessionId == session.SessionId);
+            if (bubble is not null)
+            {
+                bubble.IsFileTransferActive = false;
+                bubble.IsFileTransferCompleted = true;
+                bubble.FileTransferProgress = 100.0;
+                var action = bubble.IsOutbound ? "Sent" : "Received";
+                bubble.FileTransferStatus = $"{action} {session.FileName} successfully.";
+                FileTransferStatusMessage = bubble.FileTransferStatus;
+
+                if (!bubble.IsOutbound && data.Length > 0)
+                {
+                    try
+                    {
+                        var mediaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Stanza", "media");
+                        Directory.CreateDirectory(mediaDir);
+                        var safeName = Path.GetFileName(session.FileName);
+                        var localPath = Path.Combine(mediaDir, $"{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}_{session.SessionId[..8]}_{safeName}");
+                        await File.WriteAllBytesAsync(localPath, data);
+                        bubble.FileTransferPath = localPath;
+
+                        var uri = new Uri(localPath).AbsoluteUri;
+                        if (session.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ||
+                            safeName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                            safeName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                            safeName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                            safeName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+                        {
+                            AsyncImageLoader.PrecacheImage(uri, data);
+                            bubble.Body = uri;
+                        }
+                    }
+                    catch { }
+                }
+            }
+        });
+    }
+
+    private void OnJingleTransferFailed(JingleFileTransferSession session, string error)
+    {
+        if (!session.Peer.EqualsBare(RemoteJid))
+            return;
+
+        PostToUi(() =>
+        {
+            var bubble = Messages.FirstOrDefault(m => m.FileTransferSessionId == session.SessionId);
+            if (bubble is not null)
+            {
+                bubble.IsFileTransferActive = false;
+                bubble.IsFileTransferFailed = true;
+                bubble.FileTransferStatus = $"Transfer failed: {error}";
+                FileTransferStatusMessage = bubble.FileTransferStatus;
+            }
+        });
+    }
+
+    private void OnJingleTransferTerminated(JingleFileTransferSession session, string reason)
+    {
+        if (!session.Peer.EqualsBare(RemoteJid))
+            return;
+
+        PostToUi(() =>
+        {
+            var bubble = Messages.FirstOrDefault(m => m.FileTransferSessionId == session.SessionId);
+            if (bubble is not null)
+            {
+                bubble.IsFileTransferActive = false;
+                if (reason == "decline")
+                {
+                    bubble.FileTransferStatus = bubble.IsOutbound ? "Peer declined transfer." : "Transfer declined.";
+                }
+                else if (reason == "cancel")
+                {
+                    bubble.FileTransferStatus = "Transfer cancelled.";
+                }
+                else
+                {
+                    bubble.FileTransferStatus = $"Transfer ended: {reason}";
+                }
+                FileTransferStatusMessage = bubble.FileTransferStatus;
+            }
+        });
     }
 
     private static void PostToUi(Action action)

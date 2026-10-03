@@ -355,7 +355,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         IsSearching = true;
         SearchResults.Clear();
 
-        var messages = await _messageRepo.SearchMessagesAsync(AccountJid, query, limit: 50);
+        var targetAccountJid = IsAllAccountsSelected ? null : (SelectedAccountSession?.AccountJid ?? AccountJid);
+        var messages = await _messageRepo.SearchMessagesAsync(targetAccountJid, query, limit: 50);
         foreach (var msg in messages)
         {
             string? displayName = null;
@@ -365,16 +366,29 @@ public sealed partial class MainChatViewModel : ViewModelBase
             }
             else
             {
-                var contact = Contacts.FirstOrDefault(c =>
-                    c.ContactJid.Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase) ||
-                    c.ContactJid.Equals(msg.SenderJid, StringComparison.OrdinalIgnoreCase));
+                var contact = _allContacts.FirstOrDefault(c =>
+                    c.AccountJid.Equals(msg.AccountJid, StringComparison.OrdinalIgnoreCase) &&
+                    (c.ContactJid.Equals(msg.RemoteJid, StringComparison.OrdinalIgnoreCase) ||
+                     c.ContactJid.Equals(msg.SenderJid, StringComparison.OrdinalIgnoreCase)));
                 if (contact is not null && !string.IsNullOrWhiteSpace(contact.DisplayName))
                 {
                     displayName = contact.DisplayName;
                 }
             }
 
-            var bubble = MessageBubbleViewModel.FromChatMessage(msg, AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis, displayName);
+            var bubble = MessageBubbleViewModel.FromChatMessage(msg, msg.AccountJid, _settingsRepo, EmojiData.DefaultQuickEmojis, displayName);
+            var session = _sessionManager?.GetSession(msg.AccountJid);
+            if (session is not null)
+            {
+                bubble.AccountLabel = session.DisplayName;
+                bubble.AccountColorHex = session.ColorHex;
+            }
+            else
+            {
+                bubble.AccountLabel = msg.AccountJid;
+            }
+            bubble.ShowAccountBadge = IsAllAccountsSelected;
+
             SearchResults.Add(bubble);
         }
 
@@ -400,13 +414,30 @@ public sealed partial class MainChatViewModel : ViewModelBase
     {
         if (result is null) return;
 
+        var owningAccountJid = !string.IsNullOrWhiteSpace(result.AccountJid)
+            ? result.AccountJid
+            : (SelectedAccountSession?.AccountJid ?? AccountJid);
+
         var targetJidStr = !string.IsNullOrEmpty(result.RemoteJid) ? result.RemoteJid : result.SenderName;
         if (Jid.TryParse(targetJidStr, out var parsedTarget))
         {
             var bare = parsedTarget.BareJid;
-            var contact = Contacts.FirstOrDefault(c => c.ContactJid.Equals(bare.ToString(), StringComparison.OrdinalIgnoreCase));
+            var contact = _allContacts.FirstOrDefault(c =>
+                c.AccountJid.Equals(owningAccountJid, StringComparison.OrdinalIgnoreCase) &&
+                c.ContactJid.Equals(bare.ToString(), StringComparison.OrdinalIgnoreCase));
             var title = contact?.DisplayName ?? bare.ToString();
-            var conv = GetOrCreateConversation(bare.ToString(), title, bare, isGroupChat: false);
+
+            if (SelectedAccountSession is not null &&
+                !SelectedAccountSession.AccountJid.Equals(owningAccountJid, StringComparison.OrdinalIgnoreCase))
+            {
+                var targetSession = _sessionManager?.GetSession(owningAccountJid);
+                if (targetSession is not null)
+                {
+                    SelectedAccountSession = targetSession;
+                }
+            }
+
+            var conv = GetOrCreateConversation(owningAccountJid, bare.ToString(), title, bare, isGroupChat: false);
             ActiveConversation = conv;
             await conv.EnsureHistoryLoadedAsync();
         }
@@ -846,6 +877,10 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             _sessionManager.SelectedSession = value;
         }
+        if (value is not null)
+        {
+            AccountJid = value.AccountJid;
+        }
         ApplyAccountFilter();
     }
 
@@ -1177,6 +1212,40 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 });
             };
         }
+
+        if (session.JingleFileTransfer is not null)
+        {
+            session.JingleFileTransfer.TransferOfferReceived += transferSession =>
+            {
+                PostToUi(() =>
+                {
+                    var remote = transferSession.Peer.BareJid;
+                    var contact = _allContacts.FirstOrDefault(c =>
+                        c.AccountJid.Equals(session.AccountJid, StringComparison.OrdinalIgnoreCase) &&
+                        c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
+                    var displayName = contact?.DisplayName ?? remote.ToString();
+                    var conv = GetOrCreateConversation(session.AccountJid, remote.ToString(), displayName, remote, isGroupChat: false);
+                    conv.HandleIncomingFileOffer(transferSession);
+
+                    if (contact is not null)
+                    {
+                        contact.LastMessagePreview = conv.LastMessageSnippet;
+                    }
+
+                    if (ActiveConversation != conv)
+                    {
+                        session.UnreadCount++;
+                        _sessionManager?.UpdateTotalUnreadCount();
+                        if (contact is not null)
+                        {
+                            contact.UnreadCount++;
+                        }
+                    }
+
+                    TriggerNotification(remote.ToString(), displayName, $"Incoming file offer: {transferSession.FileName} ({transferSession.FileSize} bytes)", isEncrypted: false, accountJid: session.AccountJid);
+                });
+            };
+        }
     }
 
     public async Task InitializeAsync()
@@ -1253,6 +1322,34 @@ public sealed partial class MainChatViewModel : ViewModelBase
             await _styling.AttachAsync(_client);
             await _blocking.AttachAsync(_client);
             await _jingleFileTransfer.AttachAsync(_client);
+            _jingleFileTransfer.TransferOfferReceived += transferSession =>
+            {
+                PostToUi(() =>
+                {
+                    var remote = transferSession.Peer.BareJid;
+                    var contact = _allContacts.FirstOrDefault(c =>
+                        c.AccountJid.Equals(AccountJid, StringComparison.OrdinalIgnoreCase) &&
+                        c.ContactJid.Equals(remote.ToString(), StringComparison.OrdinalIgnoreCase));
+                    var displayName = contact?.DisplayName ?? remote.ToString();
+                    var conv = GetOrCreateConversation(AccountJid, remote.ToString(), displayName, remote, isGroupChat: false);
+                    conv.HandleIncomingFileOffer(transferSession);
+
+                    if (contact is not null)
+                    {
+                        contact.LastMessagePreview = conv.LastMessageSnippet;
+                    }
+
+                    if (ActiveConversation != conv)
+                    {
+                        if (contact is not null)
+                        {
+                            contact.UnreadCount++;
+                        }
+                    }
+
+                    TriggerNotification(remote.ToString(), displayName, $"Incoming file offer: {transferSession.FileName} ({transferSession.FileSize} bytes)", isEncrypted: false, accountJid: AccountJid);
+                });
+            };
             await _ping.AttachAsync(_client);
             await _streamManagement.AttachAsync(_client);
 
