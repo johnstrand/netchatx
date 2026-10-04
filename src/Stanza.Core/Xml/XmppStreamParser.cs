@@ -224,14 +224,14 @@ public sealed class XmppStreamParser
         var len = _buffer.Length;
 
         // Check for CDATA
-        if (!_inCData && len >= 9 && _buffer.ToString(len - 9, 9) == "<![CDATA[")
+        if (!_inCData && len >= 9 && EndsWith(_buffer, "<![CDATA["))
         {
             _inCData = true;
             return null;
         }
         if (_inCData)
         {
-            if (len >= 3 && _buffer.ToString(len - 3, 3) == "]]>")
+            if (len >= 3 && EndsWith(_buffer, "]]>"))
             {
                 _inCData = false;
                 _inTag = false;
@@ -240,14 +240,14 @@ public sealed class XmppStreamParser
         }
 
         // Check for Comment
-        if (!_inComment && len >= 4 && _buffer.ToString(len - 4, 4) == "<!--")
+        if (!_inComment && len >= 4 && EndsWith(_buffer, "<!--"))
         {
             _inComment = true;
             return null;
         }
         if (_inComment)
         {
-            if (len >= 3 && _buffer.ToString(len - 3, 3) == "-->")
+            if (len >= 3 && EndsWith(_buffer, "-->"))
             {
                 _inComment = false;
                 _inTag = false;
@@ -275,16 +275,19 @@ public sealed class XmppStreamParser
         }
 
         // Detect closing of stream: </stream:stream>
-        var bufStr = _buffer.ToString().Trim();
-        if (bufStr.Equals("</stream:stream>", StringComparison.OrdinalIgnoreCase) ||
-            bufStr.Equals("</stream>", StringComparison.OrdinalIgnoreCase))
+        if (c == '>' && _depth <= 1 && len <= 30)
         {
-            _buffer.Clear();
-            _inTag = false;
-            _inQuotes = false;
-            var closeStream = new XmppElement("stream:stream")
-                .Attr("closed", "true");
-            return closeStream;
+            var bufStr = _buffer.ToString().Trim();
+            if (bufStr.Equals("</stream:stream>", StringComparison.OrdinalIgnoreCase) ||
+                bufStr.Equals("</stream>", StringComparison.OrdinalIgnoreCase))
+            {
+                _buffer.Clear();
+                _inTag = false;
+                _inQuotes = false;
+                var closeStream = new XmppElement("stream:stream")
+                    .Attr("closed", "true");
+                return closeStream;
+            }
         }
 
         // Tag tracking
@@ -300,16 +303,24 @@ public sealed class XmppStreamParser
         else if (c == '>')
         {
             _inTag = false;
-            var s = _buffer.ToString();
-            var openAngle = s.LastIndexOf('<');
+            var openAngle = -1;
+            for (var i = _buffer.Length - 1; i >= 0; i--)
+            {
+                if (_buffer[i] == '<')
+                {
+                    openAngle = i;
+                    break;
+                }
+            }
+
             if (openAngle >= 0)
             {
-                var tag = s.Substring(openAngle);
-                if (tag.StartsWith("</", StringComparison.Ordinal))
+                var tagLen = _buffer.Length - openAngle;
+                if (tagLen >= 2 && _buffer[openAngle + 1] == '/')
                 {
                     _depth--;
                 }
-                else if (tag.EndsWith("/>", StringComparison.Ordinal))
+                else if (tagLen >= 2 && _buffer[_buffer.Length - 2] == '/')
                 {
                     if (_depth == 0)
                     {
@@ -321,7 +332,7 @@ public sealed class XmppStreamParser
                         }
                     }
                 }
-                else if (!tag.StartsWith("<?", StringComparison.Ordinal) && !tag.StartsWith("<!", StringComparison.Ordinal))
+                else if (tagLen >= 2 && _buffer[openAngle + 1] != '?' && _buffer[openAngle + 1] != '!')
                 {
                     _depth++;
                 }
@@ -340,6 +351,17 @@ public sealed class XmppStreamParser
         }
 
         return null;
+    }
+
+    private static bool EndsWith(StringBuilder sb, string suffix)
+    {
+        if (sb.Length < suffix.Length) return false;
+        var start = sb.Length - suffix.Length;
+        for (var i = 0; i < suffix.Length; i++)
+        {
+            if (sb[start + i] != suffix[i]) return false;
+        }
+        return true;
     }
 
     private static int CountQuotes(string text)
