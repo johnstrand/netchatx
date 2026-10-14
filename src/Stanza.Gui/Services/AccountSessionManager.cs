@@ -96,6 +96,15 @@ public sealed partial class AccountSessionManager : ObservableObject, IAsyncDisp
         await Task.WhenAll(connectTasks).ConfigureAwait(false);
     }
 
+    public async Task ConnectSessionsAsync(IReadOnlyList<AccountSession> sessions, CancellationToken cancellationToken = default)
+    {
+        var connectTasks = sessions
+            .Where(session => session.Profile.IsActive && session.ConnectionState != AccountConnectionState.Connected)
+            .Select(session => session.ConnectAsync(cancellationToken));
+
+        await Task.WhenAll(connectTasks).ConfigureAwait(false);
+    }
+
     public async Task<AccountSession> AddAccountAsync(AccountProfile profile, XmppClient? client = null, bool autoConnect = true, CancellationToken cancellationToken = default)
     {
         await _accountRepo.SaveAccountAsync(profile, cancellationToken).ConfigureAwait(false);

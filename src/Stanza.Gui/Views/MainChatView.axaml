@@ -748,7 +748,7 @@
             <!-- Center: Messages Scroll Area -->
             <Grid Grid.Row="1" IsVisible="{Binding ActiveConversation, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ScrollViewer x:Name="MessagesScrollViewer"
-                              FontFamily="{Binding ChatFontFamily}"
+                              FontFamily="{Binding ChatFontFamily, Converter={x:Static conv:StringToFontFamilyConverter.Instance}}"
                               FontSize="{Binding ChatFontSize}"
                               AutomationProperties.Name="Messages"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
@@ -972,7 +972,7 @@
                                                                              MessageDirection="{Binding Direction}"
                                                                              Foreground="{Binding BubbleForeground}"
                                                                              FontSize="{Binding ((vm:MainChatViewModel)DataContext).ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                             FontFamily="{Binding ((vm:MainChatViewModel)DataContext).ChatFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                             FontFamily="{Binding ((vm:MainChatViewModel)DataContext).ChatFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static conv:StringToFontFamilyConverter.Instance}}"
                                                                              TextWrapping="Wrap"
                                                                              IsVisible="{Binding IsTextMessageVisible}" />
 
@@ -1348,9 +1348,9 @@
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <TextBlock Grid.Column="0" Text="↩" FontSize="14" Foreground="#00F0FF" VerticalAlignment="Center" Margin="4,0,8,0" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{Binding ActiveConversation.ReplyingToMessage.SenderDisplayName, StringFormat='Replying to {0}'}"
+                                <TextBlock Text="{Binding ActiveConversation.ReplyingToSenderDisplayName, StringFormat='Replying to {0}'}"
                                            FontWeight="SemiBold" FontSize="12" Foreground="#00F0FF" />
-                                <TextBlock Text="{Binding ActiveConversation.ReplyingToMessage.Body}"
+                                <TextBlock Text="{Binding ActiveConversation.ReplyingToBody}"
                                            Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <Button Grid.Column="2"
@@ -1409,7 +1409,7 @@
                                      Grid.Column="1"
                                      Text="{Binding ActiveConversation.InputText, Mode=TwoWay}"
                                      Watermark="{Binding MessageInputWatermark}"
-                                     FontFamily="{Binding ChatFontFamily}"
+                                     FontFamily="{Binding ChatFontFamily, Converter={x:Static conv:StringToFontFamilyConverter.Instance}}"
                                      FontSize="{Binding ChatFontSize}"
                                      AutomationProperties.Name="Message input"
                                      TabIndex="21"

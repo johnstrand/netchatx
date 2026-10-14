@@ -1,6 +1,9 @@
 {
   "App_Title": "Stanza - XMPP Client",
   "App_Starting": "Starting Stanza...",
+  "App_LoadingStorage": "Preparing local storage...",
+  "App_LoadingAccounts": "Loading saved accounts...",
+  "App_LoadingChat": "Loading chats...",
   "App_Disconnected": "Disconnected",
   "App_Connecting": "Auto-connecting to {0}...",
   "App_ConnectedAs": "Connected as {0}",

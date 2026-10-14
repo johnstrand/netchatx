@@ -542,9 +542,15 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasReplyingMessage))]
+    [NotifyPropertyChangedFor(nameof(ReplyingToSenderDisplayName))]
+    [NotifyPropertyChangedFor(nameof(ReplyingToBody))]
     private MessageBubbleViewModel? _replyingToMessage;
 
     public bool HasReplyingMessage => ReplyingToMessage != null;
+
+    public string ReplyingToSenderDisplayName => ReplyingToMessage?.SenderDisplayName ?? string.Empty;
+
+    public string ReplyingToBody => ReplyingToMessage?.Body ?? string.Empty;
 
     [RelayCommand]
     public void CancelReplyingMessage()
@@ -944,7 +950,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
     {
         try
         {
-            var dbMarkers = await _messageRepo.GetReadMarkersAsync(_accountJid, RemoteJid.ToString());
+            var dbMarkers = await Task.Run(() => _messageRepo.GetReadMarkersAsync(_accountJid, RemoteJid.ToString()));
             foreach (var m in dbMarkers)
             {
                 _participantReadMarkers[m.ParticipantJid] = (m.LastReadMessageId, m.LastReadTimestamp);
@@ -1124,7 +1130,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     public async Task MarkUnreadMessagesAsReadAsync()
     {
-        var markedIds = await _messageRepo.MarkUnreadMessagesAsReadAsync(_accountJid, RemoteJid.ToString());
+        var markedIds = await Task.Run(() => _messageRepo.MarkUnreadMessagesAsReadAsync(_accountJid, RemoteJid.ToString()));
         if (markedIds.Count == 0) return;
 
         void Apply()
@@ -1176,12 +1182,12 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
                 try
                 {
                     _isLoadingSettings = true;
-                    _quickEmojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
-                    EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
-                    MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
-                    AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
-                    EvaluateExpressions = await _settingsRepo.GetEvaluateExpressionsAsync(_accountJid);
-                    _emoticonMappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
+                    _quickEmojis = await Task.Run(() => _settingsRepo.GetQuickEmojisAsync(_accountJid));
+                    EnableMessageMerging = await Task.Run(() => _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid));
+                    MessageMergeThresholdSeconds = await Task.Run(() => _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid));
+                    AutoReplaceEmoticons = await Task.Run(() => _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid));
+                    EvaluateExpressions = await Task.Run(() => _settingsRepo.GetEvaluateExpressionsAsync(_accountJid));
+                    _emoticonMappings = await Task.Run(() => _settingsRepo.GetEmoticonMappingsAsync(_accountJid));
                 }
                 catch
                 {
@@ -1194,7 +1200,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
             }
 
             // 1. Immediately load whatever is cached in SQLite for responsive UI
-            var dbMessages = await _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50);
+            var dbMessages = await Task.Run(() => _messageRepo.GetMessagesAsync(_accountJid, RemoteJid.ToString(), limit: 50));
             PostToUi(() =>
             {
                 Messages.Clear();
@@ -1549,7 +1555,7 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
         if (Messages.Count == 0) return;
 
         var messageIds = Messages.SelectMany(m => m.MergedMessageIds.Count > 0 ? m.MergedMessageIds : [m.Id]).Distinct().ToList();
-        var rawReactions = await _messageRepo.GetReactionsForMessagesAsync(_accountJid, messageIds);
+        var rawReactions = await Task.Run(() => _messageRepo.GetReactionsForMessagesAsync(_accountJid, messageIds));
 
         var reactionsByMsgId = rawReactions.GroupBy(r => r.MessageId).ToDictionary(g => g.Key, g => g.ToList());
 

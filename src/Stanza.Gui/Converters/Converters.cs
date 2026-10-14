@@ -163,3 +163,33 @@ public sealed class BoolToRailBackgroundConverter : IValueConverter
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+public sealed class StringToFontFamilyConverter : IValueConverter
+{
+    public static readonly StringToFontFamilyConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is FontFamily fontFamily)
+        {
+            return fontFamily;
+        }
+
+        if (value is string fontName && !string.IsNullOrWhiteSpace(fontName))
+        {
+            try
+            {
+                return FontFamily.Parse(fontName);
+            }
+            catch
+            {
+                return FontFamily.Default;
+            }
+        }
+
+        return FontFamily.Default;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is FontFamily fontFamily ? fontFamily.Name : value?.ToString() ?? string.Empty;
+}

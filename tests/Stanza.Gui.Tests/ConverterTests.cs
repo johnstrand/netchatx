@@ -136,4 +136,31 @@ public class ConverterTests
         Assert.Equal("csharp", item.Identifier);
         Assert.Contains("C# / .NET", item.ToString());
     }
+
+    [Fact]
+    public void StringToFontFamilyConverter_Convert_ValidFontName_ReturnsFontFamily()
+    {
+        var result = StringToFontFamilyConverter.Instance.Convert("Inter", typeof(FontFamily), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal("Inter", Assert.IsType<FontFamily>(result).Name);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void StringToFontFamilyConverter_Convert_NullOrEmpty_ReturnsDefault(string? fontName)
+    {
+        var result = StringToFontFamilyConverter.Instance.Convert(fontName, typeof(FontFamily), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal(FontFamily.Default, result);
+    }
+
+    [Fact]
+    public void StringToFontFamilyConverter_ConvertBack_ReturnsFontName()
+    {
+        var result = StringToFontFamilyConverter.Instance.ConvertBack(new FontFamily("Roboto"), typeof(string), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal("Roboto", result);
+    }
 }

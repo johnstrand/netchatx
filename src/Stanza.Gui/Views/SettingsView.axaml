@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Stanza.Gui.ViewModels"
+             xmlns:conv="using:Stanza.Gui.Converters"
              xmlns:repo="using:Stanza.Storage.Repositories"
              x:Class="Stanza.Gui.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
@@ -220,7 +221,7 @@
                                         <StackPanel Spacing="3">
                                             <TextBlock Text="{DynamicResource Settings_Typography_PreviewHeader}" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" LetterSpacing="0.8" />
                                             <TextBlock Text="{DynamicResource Settings_Typography_PreviewText}"
-                                                       FontFamily="{Binding EffectiveFontFamily}"
+                                                       FontFamily="{Binding EffectiveFontFamily, Converter={x:Static conv:StringToFontFamilyConverter.Instance}}"
                                                        FontSize="{Binding FontSize}"
                                                        Foreground="#F1F5F9"
                                                        TextWrapping="Wrap" />
@@ -1215,7 +1216,7 @@
                 <StackPanel Spacing="3">
                     <TextBlock Text="{DynamicResource Settings_Accounts_PasswordChange_Title}"
                                Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" />
-                    <TextBlock Text="{Binding PasswordChangeAccount.Jid}"
+                    <TextBlock Text="{Binding PasswordChangeAccountJid}"
                                Foreground="#64748B" FontSize="11" />
                 </StackPanel>
 
