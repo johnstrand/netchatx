@@ -524,6 +524,37 @@ public class ViewModelTests : IDisposable
         Assert.Equal("bob@example.com", Assert.IsType<MainChatViewModel>(mainWinVm.CurrentView).ActiveConversation?.RemoteJid.ToString());
     }
 
+    [AvaloniaFact]
+    public async Task MainWindowViewModel_InitializesDatabaseOffUiThread()
+    {
+        var storageStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseStorageInitialization = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var factoryRanOnUiThread = true;
+
+        var mainWinVm = new MainWindowViewModel(databaseContextFactory: () =>
+        {
+            factoryRanOnUiThread = Avalonia.Threading.Dispatcher.UIThread.CheckAccess();
+            storageStarted.TrySetResult(true);
+            releaseStorageInitialization.Task.GetAwaiter().GetResult();
+            return _dbContext;
+        });
+
+        Assert.False(storageStarted.Task.IsCompleted);
+        var initializeTask = mainWinVm.InitializeAsync();
+        try
+        {
+            await storageStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(factoryRanOnUiThread);
+        }
+        finally
+        {
+            releaseStorageInitialization.TrySetResult(true);
+        }
+
+        await initializeTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsType<LoginViewModel>(mainWinVm.CurrentView);
+    }
+
     [Fact]
     public async Task MainChatViewModel_SetPresence_UpdatesUserPresence()
     {

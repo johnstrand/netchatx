@@ -14,9 +14,12 @@ namespace Stanza.Gui.ViewModels;
 
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
-    private readonly DatabaseContext _dbContext;
-    private readonly AccountRepository _accountRepo;
+    private DatabaseContext? _dbContext;
+    private AccountRepository? _accountRepo;
     private readonly Func<AccountProfile, XmppClient>? _clientFactory;
+    private readonly Func<DatabaseContext> _databaseContextFactory;
+    private readonly object _storageInitializationLock = new();
+    private Task? _storageInitializationTask;
 
     [ObservableProperty]
     private ViewModelBase? _currentView;
@@ -27,18 +30,25 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public string AppVersion => Helpers.AppVersionHelper.Version;
     public string AppVersionDisplay => Helpers.AppVersionHelper.DisplayString;
 
-    public MainWindowViewModel(DatabaseContext? dbContext = null, Func<AccountProfile, XmppClient>? clientFactory = null)
+    public MainWindowViewModel(
+        DatabaseContext? dbContext = null,
+        Func<AccountProfile, XmppClient>? clientFactory = null,
+        Func<DatabaseContext>? databaseContextFactory = null)
     {
-        _dbContext = dbContext ?? new DatabaseContext();
-        _accountRepo = new AccountRepository(_dbContext);
+        _dbContext = dbContext;
+        _accountRepo = dbContext is null ? null : new AccountRepository(dbContext);
         _clientFactory = clientFactory;
+        _databaseContextFactory = databaseContextFactory ?? (() => new DatabaseContext());
     }
 
     public async Task InitializeAsync()
     {
         try
         {
-            var accounts = await _accountRepo.GetAccountsAsync();
+            await EnsureStorageInitializedAsync();
+            var dbContext = _dbContext!;
+            var accountRepo = _accountRepo!;
+            var accounts = await Task.Run(() => accountRepo.GetAccountsAsync());
             var activeAccounts = accounts.Where(a => a.IsActive).ToList();
 
             if (activeAccounts.Count == 0)
@@ -48,13 +58,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             }
 
             StatusText = Services.LocalizationManager.Instance.GetString("App_Connecting", activeAccounts[0].Jid);
-            var sessionManager = new AccountSessionManager(_dbContext, _accountRepo)
+            var sessionManager = new AccountSessionManager(dbContext, accountRepo)
             {
                 ClientFactory = _clientFactory
             };
-            await sessionManager.InitializeAsync(autoConnect: false);
+            await Task.Run(() => sessionManager.InitializeAsync(autoConnect: false));
 
-            var chatVm = new MainChatViewModel(sessionManager, _dbContext, onDisconnectRequested: async () =>
+            var chatVm = new MainChatViewModel(sessionManager, dbContext, onDisconnectRequested: async () =>
             {
                 Dispatcher.UIThread.Post(SwitchToLogin);
             });
@@ -62,6 +72,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             // Display the local chat UI before any network connection is attempted so an
             // unavailable server or stalled network cannot leave startup on a blank window.
             CurrentView = chatVm;
+            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background);
             await chatVm.InitializeAsync();
 
             var sessions = sessionManager.Sessions.ToArray();
@@ -87,16 +98,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             if (!Jid.TryParse(profile.Jid, out _))
                 return false;
 
+            await EnsureStorageInitializedAsync();
+            var dbContext = _dbContext!;
+            var accountRepo = _accountRepo!;
             profile.IsActive = true;
-            await _accountRepo.SaveAccountAsync(profile);
+            await Task.Run(() => accountRepo.SaveAccountAsync(profile));
 
-            var sessionManager = new AccountSessionManager(_dbContext, _accountRepo)
+            var sessionManager = new AccountSessionManager(dbContext, accountRepo)
             {
                 ClientFactory = _clientFactory
             };
-            await sessionManager.InitializeAsync();
+            await Task.Run(() => sessionManager.InitializeAsync());
 
-            var chatVm = new MainChatViewModel(sessionManager, _dbContext, onDisconnectRequested: async () =>
+            var chatVm = new MainChatViewModel(sessionManager, dbContext, onDisconnectRequested: async () =>
             {
                 Dispatcher.UIThread.Post(SwitchToLogin);
             });
@@ -154,5 +168,25 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 StatusText = statusText;
             }
         });
+    }
+
+    private Task EnsureStorageInitializedAsync()
+    {
+        if (_accountRepo is not null)
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_storageInitializationLock)
+        {
+            return _storageInitializationTask ??= InitializeStorageAsync();
+        }
+    }
+
+    private async Task InitializeStorageAsync()
+    {
+        var dbContext = await Task.Run(_databaseContextFactory).ConfigureAwait(false);
+        _dbContext = dbContext;
+        _accountRepo = new AccountRepository(dbContext);
     }
 }
