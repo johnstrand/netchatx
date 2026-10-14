@@ -57,7 +57,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            StatusText = Services.LocalizationManager.Instance.GetString("App_Connecting", activeAccounts[0].Jid);
             var sessionManager = new AccountSessionManager(dbContext, accountRepo)
             {
                 ClientFactory = _clientFactory
@@ -76,6 +75,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             await chatVm.InitializeAsync();
 
             var sessions = sessionManager.Sessions.ToArray();
+            StatusText = Services.LocalizationManager.Instance.GetString("App_Connecting", activeAccounts[0].Jid);
             _ = Task.Run(() => ConnectActiveSessionsAndUpdateStatusAsync(sessionManager, sessions));
         }
         catch (Exception ex)

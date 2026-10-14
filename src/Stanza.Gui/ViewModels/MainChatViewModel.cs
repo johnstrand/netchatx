@@ -968,7 +968,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
     public async Task LoadRosterForSessionAsync(AccountSession session)
     {
-        var cachedContacts = await _rosterRepo.GetContactsAsync(session.AccountJid);
+        var cachedContacts = await Task.Run(() => _rosterRepo.GetContactsAsync(session.AccountJid));
         foreach (var c in cachedContacts)
         {
             var item = ContactItemViewModel.FromRosterContact(c);
@@ -996,7 +996,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         try
         {
-            var summaries = await _messageRepo.GetContactSummariesAsync(session.AccountJid);
+            var summaries = await Task.Run(() => _messageRepo.GetContactSummariesAsync(session.AccountJid));
             foreach (var kvp in summaries)
             {
                 var existing = _allContacts.FirstOrDefault(x =>
@@ -1367,7 +1367,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         // Load user avatar and cached avatars from SQLite
         try
         {
-            var myAvatar = await _avatarRepo.GetAvatarAsync(AccountJid);
+            var myAvatar = await Task.Run(() => _avatarRepo.GetAvatarAsync(AccountJid));
             if (myAvatar is not null)
             {
                 var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(myAvatar.Data);
@@ -1386,7 +1386,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         try
         {
-            var allAvatars = await _avatarRepo.GetAllAvatarsAsync();
+            var allAvatars = await Task.Run(() => _avatarRepo.GetAllAvatarsAsync());
             foreach (var (jid, rec) in allAvatars)
             {
                 var bmp = Helpers.AvatarHelper.CreateBitmapFromBytes(rec.Data);
@@ -1401,8 +1401,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         var initialPresence = SettingsRepository.DefaultPresenceMode;
         try
         {
-            initialPresence = await _settingsRepo.GetLastPresenceModeAsync(AccountJid);
-            var savedStatus = await _settingsRepo.GetLastStatusMessageAsync(AccountJid);
+            initialPresence = await Task.Run(() => _settingsRepo.GetLastPresenceModeAsync(AccountJid));
+            var savedStatus = await Task.Run(() => _settingsRepo.GetLastStatusMessageAsync(AccountJid));
             if (!string.IsNullOrWhiteSpace(savedStatus))
             {
                 StatusMessage = savedStatus;
@@ -1482,7 +1482,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
         try
         {
             _isInitializingActiveChat = true;
-            var lastActiveChat = await _settingsRepo.GetLastActiveChatAsync(AccountJid);
+            var lastActiveChat = await Task.Run(() => _settingsRepo.GetLastActiveChatAsync(AccountJid));
             if (!string.IsNullOrWhiteSpace(lastActiveChat))
             {
                 var targetContact = Contacts.FirstOrDefault(c =>
@@ -2102,7 +2102,7 @@ public sealed partial class MainChatViewModel : ViewModelBase
 
         // Load OMEMO devices for contact
         OmemoDetails.ContactJid = contact.ContactJid;
-        var devices = await _omemoRepo.GetSessionsAsync(contact.AccountJid, contact.ContactJid);
+        var devices = await Task.Run(() => _omemoRepo.GetSessionsAsync(contact.AccountJid, contact.ContactJid));
         var devVms = devices.Select(d => new OmemoDeviceItemViewModel(
             _omemoRepo,
             contact.AccountJid,
@@ -2657,8 +2657,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
         {
             if (!string.IsNullOrWhiteSpace(AccountJid))
             {
-                await _settingsRepo.SetLastPresenceModeAsync(AccountJid, show);
-                await _settingsRepo.SetLastStatusMessageAsync(AccountJid, StatusMessage);
+                await Task.Run(() => _settingsRepo.SetLastPresenceModeAsync(AccountJid, show));
+                await Task.Run(() => _settingsRepo.SetLastStatusMessageAsync(AccountJid, StatusMessage));
             }
         }
         catch

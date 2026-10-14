@@ -585,15 +585,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _isInitializing = true;
         try
         {
-            NotificationPopupsEnabled = await _settingsRepo.GetNotificationPopupsEnabledAsync(_accountJid);
-            DoNotDisturbMode = await _settingsRepo.GetDoNotDisturbModeAsync(_accountJid);
-            IconFlashingEnabled = await _settingsRepo.GetIconFlashingEnabledAsync(_accountJid);
+            NotificationPopupsEnabled = await RunStorageOperationAsync(() => _settingsRepo.GetNotificationPopupsEnabledAsync(_accountJid));
+            DoNotDisturbMode = await RunStorageOperationAsync(() => _settingsRepo.GetDoNotDisturbModeAsync(_accountJid));
+            IconFlashingEnabled = await RunStorageOperationAsync(() => _settingsRepo.GetIconFlashingEnabledAsync(_accountJid));
 
-            var osAutostart = _startupService.IsStartupEnabled();
-            var dbAutostart = await _settingsRepo.GetLaunchOnStartupAsync(_accountJid);
+            var osAutostart = await Task.Run(_startupService.IsStartupEnabled);
+            var dbAutostart = await RunStorageOperationAsync(() => _settingsRepo.GetLaunchOnStartupAsync(_accountJid));
             if (dbAutostart && !osAutostart)
             {
-                _startupService.SetStartupEnabled(true);
+                await Task.Run(() => _startupService.SetStartupEnabled(true));
                 LaunchOnStartup = true;
             }
             else
@@ -601,23 +601,23 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 LaunchOnStartup = osAutostart;
                 if (osAutostart != dbAutostart)
                 {
-                    await _settingsRepo.SetLaunchOnStartupAsync(_accountJid, osAutostart);
+                    await RunStorageOperationAsync(() => _settingsRepo.SetLaunchOnStartupAsync(_accountJid, osAutostart));
                 }
             }
 
-            EnableMessageMerging = await _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid);
-            MessageMergeThresholdSeconds = await _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid);
-            AutoReplaceEmoticons = await _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid);
-            EvaluateExpressions = await _settingsRepo.GetEvaluateExpressionsAsync(_accountJid);
+            EnableMessageMerging = await RunStorageOperationAsync(() => _settingsRepo.GetMergeMessagesEnabledAsync(_accountJid));
+            MessageMergeThresholdSeconds = await RunStorageOperationAsync(() => _settingsRepo.GetMergeMessagesThresholdSecondsAsync(_accountJid));
+            AutoReplaceEmoticons = await RunStorageOperationAsync(() => _settingsRepo.GetAutoReplaceEmoticonsAsync(_accountJid));
+            EvaluateExpressions = await RunStorageOperationAsync(() => _settingsRepo.GetEvaluateExpressionsAsync(_accountJid));
 
-            var mappings = await _settingsRepo.GetEmoticonMappingsAsync(_accountJid);
+            var mappings = await RunStorageOperationAsync(() => _settingsRepo.GetEmoticonMappingsAsync(_accountJid));
             EmoticonMappings.Clear();
             foreach (var m in mappings)
             {
                 EmoticonMappings.Add(m);
             }
 
-            var savedFont = await _settingsRepo.GetFontFamilyAsync(_accountJid);
+            var savedFont = await RunStorageOperationAsync(() => _settingsRepo.GetFontFamilyAsync(_accountJid));
             if (CuratedFontFamilies.Contains(savedFont))
             {
                 FontFamily = savedFont;
@@ -631,26 +631,26 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 IsCustomFont = true;
             }
 
-            FontSize = await _settingsRepo.GetFontSizeAsync(_accountJid);
-            SendOnEnter = await _settingsRepo.GetSendOnEnterAsync(_accountJid);
-            Use24HourClock = await _settingsRepo.GetUse24HourClockAsync(_accountJid);
-            ShowInlinePreviews = await _settingsRepo.GetShowInlinePreviewsAsync(_accountJid);
-            AutoDownloadMedia = await _settingsRepo.GetAutoDownloadMediaAsync(_accountJid);
-            ThemeMode = await _settingsRepo.GetThemeModeAsync(_accountJid);
-            AccentColor = await _settingsRepo.GetAccentColorAsync(_accountJid);
-            OutboundBubbleColor = await _settingsRepo.GetOutboundBubbleColorAsync(_accountJid);
-            InboundBubbleColor = await _settingsRepo.GetInboundBubbleColorAsync(_accountJid);
-            OutboundBubbleTextColor = await _settingsRepo.GetOutboundBubbleTextColorAsync(_accountJid);
-            InboundBubbleTextColor = await _settingsRepo.GetInboundBubbleTextColorAsync(_accountJid);
-            ChatInputMaxLines = await _settingsRepo.GetChatInputMaxLinesAsync(_accountJid);
-            CloseAction = await _settingsRepo.GetCloseActionAsync(_accountJid);
+            FontSize = await RunStorageOperationAsync(() => _settingsRepo.GetFontSizeAsync(_accountJid));
+            SendOnEnter = await RunStorageOperationAsync(() => _settingsRepo.GetSendOnEnterAsync(_accountJid));
+            Use24HourClock = await RunStorageOperationAsync(() => _settingsRepo.GetUse24HourClockAsync(_accountJid));
+            ShowInlinePreviews = await RunStorageOperationAsync(() => _settingsRepo.GetShowInlinePreviewsAsync(_accountJid));
+            AutoDownloadMedia = await RunStorageOperationAsync(() => _settingsRepo.GetAutoDownloadMediaAsync(_accountJid));
+            ThemeMode = await RunStorageOperationAsync(() => _settingsRepo.GetThemeModeAsync(_accountJid));
+            AccentColor = await RunStorageOperationAsync(() => _settingsRepo.GetAccentColorAsync(_accountJid));
+            OutboundBubbleColor = await RunStorageOperationAsync(() => _settingsRepo.GetOutboundBubbleColorAsync(_accountJid));
+            InboundBubbleColor = await RunStorageOperationAsync(() => _settingsRepo.GetInboundBubbleColorAsync(_accountJid));
+            OutboundBubbleTextColor = await RunStorageOperationAsync(() => _settingsRepo.GetOutboundBubbleTextColorAsync(_accountJid));
+            InboundBubbleTextColor = await RunStorageOperationAsync(() => _settingsRepo.GetInboundBubbleTextColorAsync(_accountJid));
+            ChatInputMaxLines = await RunStorageOperationAsync(() => _settingsRepo.GetChatInputMaxLinesAsync(_accountJid));
+            CloseAction = await RunStorageOperationAsync(() => _settingsRepo.GetCloseActionAsync(_accountJid));
 
-            var savedLanguage = await _settingsRepo.GetLanguageAsync(_accountJid);
+            var savedLanguage = await RunStorageOperationAsync(() => _settingsRepo.GetLanguageAsync(_accountJid));
             var matchingLang = AvailableLanguages.FirstOrDefault(l => l.Code.Equals(savedLanguage, StringComparison.OrdinalIgnoreCase)) ?? AvailableLanguages[0];
             SelectedLanguageItem = matchingLang;
             LocalizationManager.Instance.SetLanguage(matchingLang.Code, notify: false);
 
-            var emojis = await _settingsRepo.GetQuickEmojisAsync(_accountJid);
+            var emojis = await RunStorageOperationAsync(() => _settingsRepo.GetQuickEmojisAsync(_accountJid));
             QuickEmojis.Clear();
             foreach (var emoji in emojis.Take(6))
             {
@@ -671,6 +671,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         DirectionToBackgroundConverter.SetColors(OutboundBubbleColor, InboundBubbleColor);
         DirectionToForegroundConverter.SetColors(OutboundBubbleTextColor, InboundBubbleTextColor);
     }
+
+    private static Task<T> RunStorageOperationAsync<T>(Func<Task<T>> operation)
+        => Task.Run(operation);
+
+    private static Task RunStorageOperationAsync(Func<Task> operation)
+        => Task.Run(operation);
 
     partial void OnNotificationPopupsEnabledChanged(bool value)
     {
