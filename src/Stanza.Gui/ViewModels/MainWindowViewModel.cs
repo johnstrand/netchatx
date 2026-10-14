@@ -45,9 +45,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
+            StatusText = Services.LocalizationManager.Instance.GetString("App_LoadingStorage");
             await EnsureStorageInitializedAsync();
             var dbContext = _dbContext!;
             var accountRepo = _accountRepo!;
+
+            StatusText = Services.LocalizationManager.Instance.GetString("App_LoadingAccounts");
             var accounts = await Task.Run(() => accountRepo.GetAccountsAsync());
             var activeAccounts = accounts.Where(a => a.IsActive).ToList();
 
@@ -57,6 +60,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
+            StatusText = Services.LocalizationManager.Instance.GetString("App_LoadingChat");
             var sessionManager = new AccountSessionManager(dbContext, accountRepo)
             {
                 ClientFactory = _clientFactory

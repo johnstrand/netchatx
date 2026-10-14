@@ -1,6 +1,9 @@
 {
   "App_Title": "Stanza - XMPP-klient",
   "App_Starting": "Startar Stanza...",
+  "App_LoadingStorage": "Förbereder lokal lagring...",
+  "App_LoadingAccounts": "Läser in sparade konton...",
+  "App_LoadingChat": "Läser in chattar...",
   "App_Disconnected": "Frånkopplad",
   "App_Connecting": "Ansluter automatiskt till {0}...",
   "App_ConnectedAs": "Ansluten som {0}",
