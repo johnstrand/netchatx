@@ -16,6 +16,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private readonly DatabaseContext _dbContext;
     private readonly AccountRepository _accountRepo;
+    private readonly Func<AccountProfile, XmppClient>? _clientFactory;
 
     [ObservableProperty]
     private ViewModelBase? _currentView;
@@ -26,22 +27,32 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public string AppVersion => Helpers.AppVersionHelper.Version;
     public string AppVersionDisplay => Helpers.AppVersionHelper.DisplayString;
 
-    public MainWindowViewModel(DatabaseContext? dbContext = null)
+    public MainWindowViewModel(DatabaseContext? dbContext = null, Func<AccountProfile, XmppClient>? clientFactory = null)
     {
         _dbContext = dbContext ?? new DatabaseContext();
         _accountRepo = new AccountRepository(_dbContext);
+        _clientFactory = clientFactory;
     }
 
     public async Task InitializeAsync()
     {
-        var accounts = await _accountRepo.GetAccountsAsync();
-        var activeAccounts = accounts.Where(a => a.IsActive).ToList();
-
-        if (activeAccounts.Count > 0)
+        try
         {
+            var accounts = await _accountRepo.GetAccountsAsync();
+            var activeAccounts = accounts.Where(a => a.IsActive).ToList();
+
+            if (activeAccounts.Count == 0)
+            {
+                SwitchToLogin();
+                return;
+            }
+
             StatusText = Services.LocalizationManager.Instance.GetString("App_Connecting", activeAccounts[0].Jid);
-            var sessionManager = new AccountSessionManager(_dbContext, _accountRepo);
-            await sessionManager.InitializeAsync();
+            var sessionManager = new AccountSessionManager(_dbContext, _accountRepo)
+            {
+                ClientFactory = _clientFactory
+            };
+            await sessionManager.InitializeAsync(autoConnect: false);
 
             var chatVm = new MainChatViewModel(sessionManager, _dbContext, onDisconnectRequested: async () =>
             {
@@ -50,15 +61,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
             await chatVm.InitializeAsync();
 
-            Dispatcher.UIThread.Post(() =>
-            {
-                CurrentView = chatVm;
-                StatusText = Services.LocalizationManager.Instance.GetString("App_ConnectedAs", activeAccounts[0].Jid);
-            });
-            return;
+            // Display the local chat UI before any network connection is attempted so an
+            // unavailable server or stalled network cannot leave startup on a blank window.
+            CurrentView = chatVm;
+            var sessions = sessionManager.Sessions.ToArray();
+            _ = Task.Run(() => ConnectActiveSessionsAndUpdateStatusAsync(sessionManager, sessions));
         }
-
-        SwitchToLogin();
+        catch (Exception ex)
+        {
+            SwitchToLogin();
+            StatusText = Services.LocalizationManager.Instance.GetString("App_ConnectionFailed", ex.Message);
+        }
     }
 
     public void SwitchToLogin()
@@ -77,7 +90,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             profile.IsActive = true;
             await _accountRepo.SaveAccountAsync(profile);
 
-            var sessionManager = new AccountSessionManager(_dbContext, _accountRepo);
+            var sessionManager = new AccountSessionManager(_dbContext, _accountRepo)
+            {
+                ClientFactory = _clientFactory
+            };
             await sessionManager.InitializeAsync();
 
             var chatVm = new MainChatViewModel(sessionManager, _dbContext, onDisconnectRequested: async () =>
@@ -100,5 +116,43 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             StatusText = Services.LocalizationManager.Instance.GetString("App_ConnectionFailed", ex.Message);
             return false;
         }
+    }
+
+    private async Task ConnectActiveSessionsAndUpdateStatusAsync(
+        AccountSessionManager sessionManager,
+        IReadOnlyList<AccountSession> sessions)
+    {
+        string statusText;
+        try
+        {
+            await sessionManager.ConnectSessionsAsync(sessions).ConfigureAwait(false);
+
+            var connectedSession = sessions.FirstOrDefault(session =>
+                session.ConnectionState == AccountConnectionState.Connected);
+            if (connectedSession is not null)
+            {
+                statusText = Services.LocalizationManager.Instance.GetString("App_ConnectedAs", connectedSession.AccountJid);
+            }
+            else
+            {
+                var failedSession = sessions.FirstOrDefault(session =>
+                    session.ConnectionState == AccountConnectionState.Error && !string.IsNullOrWhiteSpace(session.LastErrorMessage));
+                statusText = failedSession is null
+                    ? Services.LocalizationManager.Instance.GetString("App_Disconnected")
+                    : Services.LocalizationManager.Instance.GetString("App_ConnectionFailed", failedSession.LastErrorMessage!);
+            }
+        }
+        catch (Exception ex)
+        {
+            statusText = Services.LocalizationManager.Instance.GetString("App_ConnectionFailed", ex.Message);
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (CurrentView is MainChatViewModel)
+            {
+                StatusText = statusText;
+            }
+        });
     }
 }

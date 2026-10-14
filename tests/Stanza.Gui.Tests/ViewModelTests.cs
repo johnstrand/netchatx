@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.IO.Pipelines;
 using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
 using Stanza.Core;
 using Stanza.Core.Client;
 using Stanza.Core.Stanzas;
@@ -470,6 +472,44 @@ public class ViewModelTests : IDisposable
         Assert.NotNull(mainWinVm.CurrentView);
         Assert.IsType<LoginViewModel>(mainWinVm.CurrentView);
         Assert.Equal("Disconnected", mainWinVm.StatusText);
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindowViewModel_InitializeAsync_ShowsChatBeforeConnectionCompletes()
+    {
+        await _accountRepo.SaveAccountAsync(new AccountProfile
+        {
+            Jid = "alice@example.com",
+            Password = "secret",
+            IsActive = true
+        });
+
+        var transport = new BlockedConnectTransport();
+        var mainWinVm = new MainWindowViewModel(_dbContext, profile => new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse(profile.Jid),
+            Password = profile.Password
+        }, transport));
+
+        var initializeTask = mainWinVm.InitializeAsync();
+        bool initializedBeforeConnectionCompleted;
+        try
+        {
+            await transport.ConnectStarted.WaitAsync(TimeSpan.FromSeconds(5));
+            initializedBeforeConnectionCompleted = await Task.WhenAny(
+                initializeTask,
+                Task.Delay(TimeSpan.FromSeconds(5))) == initializeTask;
+        }
+        finally
+        {
+            transport.ReleaseConnection();
+        }
+
+        await initializeTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await transport.ConnectFinished.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(initializedBeforeConnectionCompleted, "Startup should finish while the XMPP connection is still pending.");
+        Assert.IsType<MainChatViewModel>(mainWinVm.CurrentView);
     }
 
     [Fact]
@@ -3168,6 +3208,43 @@ public class ViewModelTests : IDisposable
         Assert.Equal("available", conv.PresenceShow);
 
         await client.DisconnectAsync();
+    }
+
+    private sealed class BlockedConnectTransport : IXmppTransport
+    {
+        private readonly LoopbackTransport _inner = new();
+        private readonly TaskCompletionSource<bool> _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _connectStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _connectFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public PipeReader Input => _inner.Input;
+        public PipeWriter Output => _inner.Output;
+        public bool IsSecure => _inner.IsSecure;
+        public Task ConnectStarted => _connectStarted.Task;
+        public Task ConnectFinished => _connectFinished.Task;
+
+        public async ValueTask ConnectAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default)
+        {
+            _connectStarted.TrySetResult(true);
+            try
+            {
+                await _release.Task.WaitAsync(cancellationToken);
+                throw new IOException("Test connection released.");
+            }
+            finally
+            {
+                _connectFinished.TrySetResult(true);
+            }
+        }
+
+        public ValueTask UpgradeToTlsAsync(string targetHost, System.Threading.CancellationToken cancellationToken = default)
+            => _inner.UpgradeToTlsAsync(targetHost, cancellationToken);
+
+        public ValueTask CloseAsync() => _inner.CloseAsync();
+
+        public ValueTask DisposeAsync() => _inner.DisposeAsync();
+
+        public void ReleaseConnection() => _release.TrySetResult(true);
     }
 
     public void Dispose()
