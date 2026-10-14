@@ -47,7 +47,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public ObservableCollection<AccountProfileViewModel> ManagedAccounts { get; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PasswordChangeAccountJid))]
     private AccountProfileViewModel? _passwordChangeAccount;
+
+    public string PasswordChangeAccountJid => PasswordChangeAccount?.Jid ?? string.Empty;
 
     [ObservableProperty]
     private bool _isChangePasswordDialogOpen;

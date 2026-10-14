@@ -542,9 +542,15 @@ public sealed partial class ChatConversationViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasReplyingMessage))]
+    [NotifyPropertyChangedFor(nameof(ReplyingToSenderDisplayName))]
+    [NotifyPropertyChangedFor(nameof(ReplyingToBody))]
     private MessageBubbleViewModel? _replyingToMessage;
 
     public bool HasReplyingMessage => ReplyingToMessage != null;
+
+    public string ReplyingToSenderDisplayName => ReplyingToMessage?.SenderDisplayName ?? string.Empty;
+
+    public string ReplyingToBody => ReplyingToMessage?.Body ?? string.Empty;
 
     [RelayCommand]
     public void CancelReplyingMessage()

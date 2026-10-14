@@ -59,11 +59,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 Dispatcher.UIThread.Post(SwitchToLogin);
             });
 
-            await chatVm.InitializeAsync();
-
             // Display the local chat UI before any network connection is attempted so an
             // unavailable server or stalled network cannot leave startup on a blank window.
             CurrentView = chatVm;
+            await chatVm.InitializeAsync();
+
             var sessions = sessionManager.Sessions.ToArray();
             _ = Task.Run(() => ConnectActiveSessionsAndUpdateStatusAsync(sessionManager, sessions));
         }

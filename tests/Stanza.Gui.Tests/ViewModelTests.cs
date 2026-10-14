@@ -477,12 +477,23 @@ public class ViewModelTests : IDisposable
     [AvaloniaFact]
     public async Task MainWindowViewModel_InitializeAsync_ShowsChatBeforeConnectionCompletes()
     {
+        const string accountJid = "alice@example.com";
         await _accountRepo.SaveAccountAsync(new AccountProfile
         {
-            Jid = "alice@example.com",
+            Jid = accountJid,
             Password = "secret",
             IsActive = true
         });
+        await new RosterRepository(_dbContext).UpsertContactsAsync([
+            new RosterContact
+            {
+                AccountJid = accountJid,
+                ContactJid = "bob@example.com",
+                Name = "Bob",
+                Subscription = "both"
+            }
+        ]);
+        await new SettingsRepository(_dbContext).SetLastActiveChatAsync(accountJid, "bob@example.com");
 
         var transport = new BlockedConnectTransport();
         var mainWinVm = new MainWindowViewModel(_dbContext, profile => new XmppClient(new XmppClientOptions
@@ -510,6 +521,7 @@ public class ViewModelTests : IDisposable
 
         Assert.True(initializedBeforeConnectionCompleted, "Startup should finish while the XMPP connection is still pending.");
         Assert.IsType<MainChatViewModel>(mainWinVm.CurrentView);
+        Assert.Equal("bob@example.com", Assert.IsType<MainChatViewModel>(mainWinVm.CurrentView).ActiveConversation?.RemoteJid.ToString());
     }
 
     [Fact]

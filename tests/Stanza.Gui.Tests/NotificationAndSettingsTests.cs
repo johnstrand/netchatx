@@ -995,5 +995,46 @@ public class NotificationAndSettingsTests : IDisposable
         Assert.Equal("Exit", mainVm.CloseAction);
         Assert.Equal("Exit", await _settingsRepo.GetCloseActionAsync("user@test.org"));
     }
+
+    [Fact]
+    public void OptionalBindingProperties_ReturnEmptyStringsWhenUnset()
+    {
+        var settingsVm = new SettingsViewModel(_settingsRepo, "user@test.org");
+        var conversation = new ChatConversationViewModel(
+            "user@test.org",
+            "bob@test.org",
+            "Bob",
+            Jid.Parse("bob@test.org"),
+            isGroupChat: false,
+            messageRepo: new Stanza.Storage.Repositories.MessageRepository(_dbContext));
+
+        Assert.Equal(string.Empty, settingsVm.PasswordChangeAccountJid);
+        Assert.Equal(string.Empty, conversation.ReplyingToSenderDisplayName);
+        Assert.Equal(string.Empty, conversation.ReplyingToBody);
+
+        var profile = new Stanza.Storage.Models.AccountProfile
+        {
+            Jid = "alice@test.org",
+            Password = "pw",
+            IsActive = true
+        };
+        settingsVm.PasswordChangeAccount = new AccountProfileViewModel(profile);
+        Assert.Equal("alice@test.org", settingsVm.PasswordChangeAccountJid);
+
+        conversation.AddOrUpdateMessage(new Stanza.Storage.Models.ChatMessage
+        {
+            Id = "reply-message",
+            Body = "A sample reply",
+            SenderJid = "bob@test.org",
+            Direction = Stanza.Storage.Models.MessageDirection.Inbound,
+            AccountJid = "user@test.org",
+            RemoteJid = "bob@test.org",
+            Timestamp = DateTimeOffset.UtcNow
+        });
+        conversation.ReplyingToMessage = conversation.Messages[0];
+
+        Assert.Equal("Bob", conversation.ReplyingToSenderDisplayName);
+        Assert.Equal("A sample reply", conversation.ReplyingToBody);
+    }
 }
 

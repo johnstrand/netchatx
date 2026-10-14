@@ -1099,6 +1099,8 @@ public sealed partial class MainChatViewModel : ViewModelBase
                 }
 
                 _ = Task.Run(async () => await AutoJoinBookmarkedRoomsAsync(session).ConfigureAwait(false));
+
+                _ = Task.Run(async () => await CatchUpAccountArchiveAsync(session).ConfigureAwait(false));
             }
         };
 
@@ -2454,7 +2456,9 @@ public sealed partial class MainChatViewModel : ViewModelBase
             chatMarkersToUse,
             chatStatesToUse,
             _settingsRepo,
-            ensureConnected: () => session is not null ? session.ConnectAsync() : EnsureConnectedAsync(),
+            ensureConnected: () => _isInitializingActiveChat
+                ? Task.FromResult(false)
+                : session is not null ? session.ConnectAsync() : EnsureConnectedAsync(),
             jingleFileTransfer: jingleFileTransferToUse)
         {
             AccountLabel = session?.Profile.Label,
