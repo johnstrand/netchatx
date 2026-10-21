@@ -64,20 +64,98 @@ public class Xep0198ResumptionTests
     {
         var sm = new Xep0198StreamManagement();
 
-        // Simulate state near uint wrap: last ack was uint.MaxValue
+        // Simulate state near uint wrap: last ack was uint.MaxValue, client sent stanzas up to 1
         sm.LastAckedByServer = uint.MaxValue;
+        sm.OutboundHandled = 1;
 
         uint? receivedAck = null;
+        uint? invalidAck = null;
         sm.AckReceived += h => receivedAck = h;
+        sm.InvalidAckReceived += h => invalidAck = h;
 
         // Server acks 1 (wrapped past uint.MaxValue)
         sm.HandleAck(1);
         Assert.Equal(1u, sm.LastAckedByServer);
         Assert.Equal(1u, receivedAck);
+        Assert.Null(invalidAck);
 
-        // Out-of-order/older ack (e.g. 0) should be ignored
+        // Out-of-order/older ack (e.g. 0) should be ignored and trigger InvalidAckReceived
         sm.HandleAck(0);
         Assert.Equal(1u, sm.LastAckedByServer);
+        Assert.Equal(0u, invalidAck);
+    }
+
+    [Fact]
+    public async Task HandleAck_WhenAckExceedsOutboundHandled_IsRejectedAndPreservesQueue()
+    {
+        var sm = new Xep0198StreamManagement();
+        var client = new XmppClient(new XmppClientOptions
+        {
+            Jid = Jid.Parse("user@example.com"),
+            Password = "pw"
+        }, new LoopbackTransport());
+
+        await sm.AttachAsync(client);
+
+        var enabledElem = new XmppElement("enabled", Xep0198StreamManagement.NsSm)
+            .Attr("id", "token-sm");
+        await sm.OnIncomingElementAsync(client, enabledElem);
+
+        // Send 2 stanzas: OutboundHandled becomes 2
+        var msg1 = new XmppElement("message").Attr("id", "m1");
+        var msg2 = new XmppElement("message").Attr("id", "m2");
+        await sm.OnOutgoingElementAsync(client, msg1);
+        await sm.OnOutgoingElementAsync(client, msg2);
+
+        Assert.Equal(2, sm.UnacknowledgedCount);
+        Assert.Equal(2u, sm.OutboundHandled);
+        Assert.Equal(0u, sm.LastAckedByServer);
+
+        uint? invalidAck = null;
+        uint? validAck = null;
+        sm.InvalidAckReceived += h => invalidAck = h;
+        sm.AckReceived += h => validAck = h;
+
+        // Server sends out-of-range ack: h = 5 (client only sent up to 2)
+        var outOfRangeAck = new XmppElement("a", Xep0198StreamManagement.NsSm).Attr("h", "5");
+        await sm.OnIncomingElementAsync(client, outOfRangeAck);
+
+        // Verify invalid ack was rejected without mutating queue or LastAckedByServer
+        Assert.Equal(5u, invalidAck);
+        Assert.Null(validAck);
+        Assert.Equal(0u, sm.LastAckedByServer);
+        Assert.Equal(2, sm.UnacknowledgedCount);
+        Assert.Equal("m1", sm.UnacknowledgedStanzas[0].GetAttr("id"));
+        Assert.Equal("m2", sm.UnacknowledgedStanzas[1].GetAttr("id"));
+
+        // Now receive a valid ack for h = 1
+        var validAckElem = new XmppElement("a", Xep0198StreamManagement.NsSm).Attr("h", "1");
+        await sm.OnIncomingElementAsync(client, validAckElem);
+
+        Assert.Equal(1u, validAck);
+        Assert.Equal(1u, sm.LastAckedByServer);
+        Assert.Equal(1, sm.UnacknowledgedCount);
+        Assert.Equal("m2", sm.UnacknowledgedStanzas[0].GetAttr("id"));
+    }
+
+    [Fact]
+    public void HandleAck_RedundantAck_DoesNotCorruptQueueOrRaiseInvalid()
+    {
+        var sm = new Xep0198StreamManagement();
+        sm.OutboundHandled = 3;
+        sm.LastAckedByServer = 2;
+
+        uint? invalidAck = null;
+        uint? validAck = null;
+        sm.InvalidAckReceived += h => invalidAck = h;
+        sm.AckReceived += h => validAck = h;
+
+        // Redundant ack for h = 2
+        sm.HandleAck(2);
+
+        Assert.Null(invalidAck);
+        Assert.Equal(2u, validAck);
+        Assert.Equal(2u, sm.LastAckedByServer);
     }
 
     [Fact]
