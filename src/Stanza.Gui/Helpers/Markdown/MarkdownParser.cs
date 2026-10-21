@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -117,17 +117,11 @@ public static class MarkdownParser
             }
 
             // 3. Headers (# Header)
-            if (line.StartsWith('#'))
+            if (IsHeader(line, out int headerLevel, out string headerContent))
             {
-                var level = 0;
-                while (level < line.Length && line[level] == '#') level++;
-                if (level <= 6 && level < line.Length && line[level] == ' ')
-                {
-                    var headerContent = line.Substring(level + 1).Trim();
-                    blocks.Add(new MarkdownHeader(level, ParseInlines(headerContent)));
-                    lineIndex++;
-                    continue;
-                }
+                blocks.Add(new MarkdownHeader(headerLevel, ParseInlines(headerContent)));
+                lineIndex++;
+                continue;
             }
 
             // 4. Lists (- item, * item, 1. item)
@@ -155,10 +149,11 @@ public static class MarkdownParser
             while (lineIndex < lines.Length)
             {
                 var cur = lines[lineIndex];
-                if (cur.TrimStart().StartsWith("```", StringComparison.Ordinal) ||
-                    cur.StartsWith('>') ||
-                    (cur.StartsWith('#') && cur.Length > 1 && cur.IndexOf(' ') > 0 && cur.IndexOf(' ') <= 6) ||
-                    IsListItem(cur, out _, out _, out _))
+                if (paraLines.Count > 0 &&
+                    (cur.TrimStart().StartsWith("```", StringComparison.Ordinal) ||
+                     cur.StartsWith('>') ||
+                     IsHeader(cur, out _, out _) ||
+                     IsListItem(cur, out _, out _, out _)))
                 {
                     break;
                 }
@@ -183,6 +178,30 @@ public static class MarkdownParser
         }
 
         return new MarkdownDocument(blocks);
+    }
+
+    private static bool IsHeader(string line, out int level, out string content)
+    {
+        level = 0;
+        content = string.Empty;
+
+        if (string.IsNullOrEmpty(line) || line[0] != '#')
+        {
+            return false;
+        }
+
+        while (level < line.Length && line[level] == '#')
+        {
+            level++;
+        }
+
+        if (level <= 6 && level < line.Length && line[level] == ' ')
+        {
+            content = line.Substring(level + 1).Trim();
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsListItem(string line, out bool isOrdered, out int number, out string content)

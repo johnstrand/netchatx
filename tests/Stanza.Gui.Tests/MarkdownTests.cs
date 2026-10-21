@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -139,6 +139,38 @@ public class MarkdownTests
 
         var p = Assert.IsType<MarkdownParagraph>(doc.Blocks[2]);
         Assert.Equal("Regular paragraph", Assert.IsType<MarkdownText>(p.Inlines[0]).Text);
+    }
+
+    [Theory]
+    [InlineData("#1 hater")]
+    [InlineData("#tag with spaces")]
+    [InlineData("##2 not a header")]
+    [InlineData("####### seven hashes")]
+    public void MarkdownParser_NonHeaderHashPrefix_ParsesAsParagraphWithoutHanging(string text)
+    {
+        var doc = MarkdownParser.Parse(text);
+
+        Assert.Single(doc.Blocks);
+        var p = Assert.IsType<MarkdownParagraph>(doc.Blocks[0]);
+        Assert.Single(p.Inlines);
+        Assert.Equal(text, Assert.IsType<MarkdownText>(p.Inlines[0]).Text);
+    }
+
+    [Fact]
+    public void MarkdownParser_ParagraphWithNonHeaderHashLineAndActualHeader_SplitsCorrectly()
+    {
+        var doc = MarkdownParser.Parse("First line\n#1 hater\n# Real Header");
+
+        Assert.Equal(2, doc.Blocks.Count);
+        var p = Assert.IsType<MarkdownParagraph>(doc.Blocks[0]);
+        Assert.Equal(3, p.Inlines.Count);
+        Assert.Equal("First line", Assert.IsType<MarkdownText>(p.Inlines[0]).Text);
+        Assert.IsType<MarkdownLineBreak>(p.Inlines[1]);
+        Assert.Equal("#1 hater", Assert.IsType<MarkdownText>(p.Inlines[2]).Text);
+
+        var h = Assert.IsType<MarkdownHeader>(doc.Blocks[1]);
+        Assert.Equal(1, h.Level);
+        Assert.Equal("Real Header", Assert.IsType<MarkdownText>(h.Inlines[0]).Text);
     }
 
     [Fact]
