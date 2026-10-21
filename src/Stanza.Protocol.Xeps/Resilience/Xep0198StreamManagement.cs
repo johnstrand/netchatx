@@ -18,7 +18,7 @@ public sealed class Xep0198StreamManagement : XepFeatureBase, IStreamResumptionH
     public bool IsEnabled { get; private set; }
     public string? ResumeId { get; private set; }
     public uint InboundHandled { get; private set; }
-    public uint OutboundHandled { get; private set; }
+    public uint OutboundHandled { get; internal set; }
     public uint LastAckedByServer { get; internal set; }
 
     public bool CanResume
@@ -57,6 +57,7 @@ public sealed class Xep0198StreamManagement : XepFeatureBase, IStreamResumptionH
     public bool AutoEnableWhenAdvertised { get; set; } = true;
 
     public event Action<uint>? AckReceived;
+    public event Action<uint>? InvalidAckReceived;
     public event Action<IReadOnlyList<XmppElement>>? UnrecoverableMessagesFailed;
     public event Action<IReadOnlyList<XmppElement>>? ResumedAndRetransmitted;
 
@@ -171,12 +172,19 @@ public sealed class Xep0198StreamManagement : XepFeatureBase, IStreamResumptionH
 
     public void HandleAck(uint ackH)
     {
+        bool isInvalid = false;
         lock (_lock)
         {
-            int delta = unchecked((int)(ackH - LastAckedByServer));
-            if (delta > 0)
+            uint unackedSpan = unchecked(OutboundHandled - LastAckedByServer);
+            uint ackDelta = unchecked(ackH - LastAckedByServer);
+
+            if (ackDelta > unackedSpan)
             {
-                int toRemove = Math.Min(delta, _unacknowledgedStanzas.Count);
+                isInvalid = true;
+            }
+            else if (ackDelta > 0)
+            {
+                int toRemove = Math.Min((int)ackDelta, _unacknowledgedStanzas.Count);
                 if (toRemove > 0)
                 {
                     _unacknowledgedStanzas.RemoveRange(0, toRemove);
@@ -184,6 +192,13 @@ public sealed class Xep0198StreamManagement : XepFeatureBase, IStreamResumptionH
                 LastAckedByServer = ackH;
             }
         }
+
+        if (isInvalid)
+        {
+            InvalidAckReceived?.Invoke(ackH);
+            return;
+        }
+
         AckReceived?.Invoke(ackH);
     }
 
