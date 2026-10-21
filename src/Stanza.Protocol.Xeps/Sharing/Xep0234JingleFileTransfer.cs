@@ -303,6 +303,11 @@ public sealed class Xep0234JingleFileTransfer : XepFeatureBase
                 {
                     if (_sessions.TryGetValue(sid, out var session))
                     {
+                        if (!IsAuthorizedPeer(from, session.Peer))
+                        {
+                            break;
+                        }
+
                         session.State = FileTransferState.Accepted;
                         session.AcceptedTcs.TrySetResult(true);
 
@@ -328,6 +333,10 @@ public sealed class Xep0234JingleFileTransfer : XepFeatureBase
 
                     if (_sessions.TryGetValue(sid, out var session))
                     {
+                        if (!IsAuthorizedPeer(from, session.Peer))
+                        {
+                            break;
+                        }
                         if (reason == "success")
                         {
                             session.State = FileTransferState.Completed;
@@ -361,24 +370,47 @@ public sealed class Xep0234JingleFileTransfer : XepFeatureBase
         }
     }
 
+    private static bool IsAuthorizedPeer(Jid? from, Jid sessionPeer)
+    {
+        if (from is null)
+        {
+            return false;
+        }
+
+        return sessionPeer.Resource is not null
+            ? from == sessionPeer
+            : from.EqualsBare(sessionPeer);
+    }
+
     private async Task HandleIbbIqAsync(XmppClient client, IqStanza iq, CancellationToken ct)
     {
         var open = iq.RawElement.Element("open", NsIbb);
         if (open is not null)
         {
             var sid = open.GetAttr("sid") ?? string.Empty;
-            if (_sessions.TryGetValue(sid, out var session))
-            {
-                session.ReceiveBuffer ??= new MemoryStream();
-                session.State = FileTransferState.Transferring;
-                TransferStarted?.Invoke(session);
-
-                await client.SendStanzaAsync(iq.CreateResult(), ct).ConfigureAwait(false);
-            }
-            else
+            if (!_sessions.TryGetValue(sid, out var session) || session.Direction != FileTransferDirection.Incoming)
             {
                 await client.SendStanzaAsync(iq.CreateError("item-not-found"), ct).ConfigureAwait(false);
+                return;
             }
+
+            if (!IsAuthorizedPeer(iq.From, session.Peer))
+            {
+                await client.SendStanzaAsync(iq.CreateError("forbidden"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            if (session.State != FileTransferState.Accepted)
+            {
+                await client.SendStanzaAsync(iq.CreateError("unexpected-request"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            session.ReceiveBuffer ??= new MemoryStream();
+            session.State = FileTransferState.Transferring;
+            TransferStarted?.Invoke(session);
+
+            await client.SendStanzaAsync(iq.CreateResult(), ct).ConfigureAwait(false);
             return;
         }
 
@@ -386,30 +418,41 @@ public sealed class Xep0234JingleFileTransfer : XepFeatureBase
         if (data is not null)
         {
             var sid = data.GetAttr("sid") ?? string.Empty;
-            if (_sessions.TryGetValue(sid, out var session))
-            {
-                try
-                {
-                    var base64 = data.Value ?? string.Empty;
-                    var bytes = Convert.FromBase64String(base64);
-                    session.ReceiveBuffer?.Write(bytes, 0, bytes.Length);
-                    session.BytesTransferred += bytes.Length;
-
-                    await client.SendStanzaAsync(iq.CreateResult(), ct).ConfigureAwait(false);
-
-                    TransferProgress?.Invoke(new JingleFileTransferProgressEventArgs(
-                        session.SessionId, session.Peer, session.BytesTransferred, session.FileSize, session.Progress));
-                }
-                catch (Exception ex)
-                {
-                    session.State = FileTransferState.Failed;
-                    session.ErrorMessage = ex.Message;
-                    await client.SendStanzaAsync(iq.CreateError("bad-request"), ct).ConfigureAwait(false);
-                }
-            }
-            else
+            if (!_sessions.TryGetValue(sid, out var session) || session.Direction != FileTransferDirection.Incoming)
             {
                 await client.SendStanzaAsync(iq.CreateError("item-not-found"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            if (!IsAuthorizedPeer(iq.From, session.Peer))
+            {
+                await client.SendStanzaAsync(iq.CreateError("forbidden"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            if (session.State != FileTransferState.Transferring)
+            {
+                await client.SendStanzaAsync(iq.CreateError("unexpected-request"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                var base64 = data.Value ?? string.Empty;
+                var bytes = Convert.FromBase64String(base64);
+                session.ReceiveBuffer?.Write(bytes, 0, bytes.Length);
+                session.BytesTransferred += bytes.Length;
+
+                await client.SendStanzaAsync(iq.CreateResult(), ct).ConfigureAwait(false);
+
+                TransferProgress?.Invoke(new JingleFileTransferProgressEventArgs(
+                    session.SessionId, session.Peer, session.BytesTransferred, session.FileSize, session.Progress));
+            }
+            catch (Exception ex)
+            {
+                session.State = FileTransferState.Failed;
+                session.ErrorMessage = ex.Message;
+                await client.SendStanzaAsync(iq.CreateError("bad-request"), ct).ConfigureAwait(false);
             }
             return;
         }
@@ -418,14 +461,25 @@ public sealed class Xep0234JingleFileTransfer : XepFeatureBase
         if (close is not null)
         {
             var sid = close.GetAttr("sid") ?? string.Empty;
-            if (_sessions.TryGetValue(sid, out var session))
-            {
-                await client.SendStanzaAsync(iq.CreateResult(), ct).ConfigureAwait(false);
-            }
-            else
+            if (!_sessions.TryGetValue(sid, out var session) || session.Direction != FileTransferDirection.Incoming)
             {
                 await client.SendStanzaAsync(iq.CreateError("item-not-found"), ct).ConfigureAwait(false);
+                return;
             }
+
+            if (!IsAuthorizedPeer(iq.From, session.Peer))
+            {
+                await client.SendStanzaAsync(iq.CreateError("forbidden"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            if (session.State != FileTransferState.Transferring && session.State != FileTransferState.Accepted)
+            {
+                await client.SendStanzaAsync(iq.CreateError("unexpected-request"), ct).ConfigureAwait(false);
+                return;
+            }
+
+            await client.SendStanzaAsync(iq.CreateResult(), ct).ConfigureAwait(false);
         }
     }
 
